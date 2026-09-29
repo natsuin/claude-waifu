@@ -1,6 +1,6 @@
 # Tatami Room: design goal
 
-> **Status: work in progress.** The team channel and the board (steps 1 and 2 of the build order below) work today. Group looks, other companies and the rest aren't built yet.
+> **Status: work in progress.** The team channel, the board and group looks (steps 1 to 3 of the build order below) work today. Other companies and the rest aren't built yet.
 
 Tatami Room's window looks give each Claude Code window a girl and a color. **The desk** is the bigger picture: **a desktop for a whole host of AI agents**, from any company, that you can drag together to work on the same project.
 
@@ -33,17 +33,17 @@ Something anyone can pick up without learning it. No menus to memorize, no sessi
 ## How it works
 
 - **Agents live in real Terminal windows.** Each one is a normal Claude Waifu window (later also Gemini and Codex), with its own girl and color.
-- **The board shows them as mats.** Every running agent announces itself through the team channel, so the board can show it as a mat. Dragging a mat into a room changes which team the agent belongs to, and nothing else.
+- **The board shows them as mats.** Every running agent announces itself through the team channel, so the board can show it as a mat. A new window starts on its own; one started in a project folder joins that project's room. Dropping one mat onto another makes them a team, and dragging a mat into a room changes which team the agent belongs to, and nothing else.
 - **Teams talk through MCP.** Claude Code, Gemini CLI and Codex all support MCP, the plug-in standard for giving agents new tools. Each project gets a shared channel, an MCP server every agent in the team connects to, with tools to post updates, read the others' messages and ask each other for help. Dragging an agent onto a team connects it to that team's channel.
 
 ## Build order
 
 Each step is usable on its own.
 
-1. **The team channel.** *(done: [tatami/tatami_mcp.py](tatami/tatami_mcp.py))* An MCP server, standard library only, with three tools: `room_post`, `room_read` and `room_members`. Agents working in the same project folder share a room automatically. It stores plain files in `~/.local/state/tatami`, runs no commands and uses no network.
-2. **The board.** *(done: [tatami/board.py](tatami/board.py) and [board.html](tatami/board.html))* A local page showing each running agent as a mat, grouped by room. Drag a mat into another room to team agents up, or make an empty room with **+ Room**. Run [`tatami/tatami`](tatami/tatami) to start the board and open it in your browser; `tatami stop` closes it. Your agents don't need it running.
-3. **Group looks.** Windows in the same room get a matching tab color, so teams stand out on your taskbar too. *(next)*
-4. **More companies.** Gemini and Codex joining rooms alongside Claude, using the same channel.
+1. **The team channel.** *(done: [tatami/tatami_mcp.py](tatami/tatami_mcp.py))* An MCP server, standard library only, with three tools: `room_post`, `room_read` and `room_members`. Agents working in the same project folder share a room automatically; an agent started in your home folder is on its own until you team it up. It stores plain files in `~/.local/state/tatami`, runs no commands and uses no network.
+2. **The board.** *(done: [tatami/board.py](tatami/board.py) and [board.html](tatami/board.html))* A local page showing each running agent as a mat. Agents on their own wait in a strip along the top. Drop one mat onto another to make a team: they get a new room, named the way a ryokan names its rooms, after a flower in the room's color (sakura is pink, fuji is lavender). Drag a mat into a room to join that team, or onto the strip to take it off its team. **+ Room** makes an empty room with a name you choose. Run [`tatami/tatami`](tatami/tatami) to start the board and open it in your browser; `tatami stop` closes it. Your agents don't need it running.
+3. **Group looks.** *(done)* The windows of a team get a matching tab color, the same color the board gives their room, so teams stand out at a glance. No two rooms share a color while they're around, and every color is light enough for Terminal to write the tab title in black. Each agent's channel keeps its own window's tab in step through `waifu`, which owns Terminal's settings; the board still never touches a terminal.
+4. **More companies.** Gemini and Codex joining rooms alongside Claude, using the same channel. *(next)*
 
 Later: open the desk automatically when WSL starts, show usage on the desk, notify you when an agent needs you, and wrap it as a desktop app.
 
