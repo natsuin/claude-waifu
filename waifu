@@ -119,6 +119,13 @@ dir = sh.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\\waifu\\"
 profile = "{distro}"
 On Error Resume Next
 profile = Trim(fs.OpenTextFile(dir & "next.txt").ReadLine)
+' Claim this slot at once: point next.txt at the one after it before waifu has readied it, so a
+' second click right after this one can't open the same slot (it'd get the same girl and color).
+If Len(profile) = 38 And Left(profile, 36) = "{{7a1f0c3e-5eed-4b1e-9a1f-00000000000" Then
+  Set f = fs.CreateTextFile(dir & "next.txt", True)
+  f.WriteLine Left(profile, 36) & ((CInt(Mid(profile, 37, 1)) + 1) Mod {slots}) & "}}"
+  f.Close
+End If
 On Error GoTo 0
 sh.Run "wt.exe -w new -p """ & profile & """", 1, False
 sh.Run "wsl.exe -d {distro} -- {waifu} advance", 0, False
@@ -327,7 +334,7 @@ def write_launcher():
     repo moved: a launcher that can't find waifu opens every window on the same slot."""
     tatami = tatami_path()
     desk = DESK_AUTOSTART.format(distro=DISTRO, tatami=tatami) if tatami else ""
-    scripts = {"launch.vbs": LAUNCH_VBS.format(distro=DISTRO, waifu=waifu_path(), desk=desk)}
+    scripts = {"launch.vbs": LAUNCH_VBS.format(distro=DISTRO, waifu=waifu_path(), desk=desk, slots=SLOTS)}
     if tatami:
         scripts["desk.vbs"] = DESK_VBS.format(distro=DISTRO, tatami=tatami, browser=CONF.get("browser", ""),
                                               app=win_path(os.path.join(app_dir(), APP_EXE)))
@@ -550,21 +557,34 @@ def deal_tint(state):
 
 def prepare_next(wt, state):
     """Load the next slot with a girl and a colour, and tell the shortcut about it."""
-    nxt = (state.get("slot", -1) + 1) % SLOTS
+    prev = state.get("slot", -1)
+    nxt = (prev + 1) % SLOTS
     if not state.get("off"):
         paint(wt, state, nxt, choose(state))
     tint(wt, state, nxt)
     slot_profiles(wt)[nxt].pop("tabColor", None)  # a new window isn't on anyone's team yet
     save_wt(wt)
     state["slot"] = nxt
-    write_next(state)
+    write_next(state, prev)
 
 
-def write_next(state):
-    """Tell the shortcut which slot holds the next window."""
+def write_next(state, prev=None):
+    """Tell the shortcut which slot holds the next window. The shortcut itself moves next.txt on
+    by one at each click, so quick clicks can't share a slot; when clicks have already moved it
+    past the slot just readied (prev + 1), it stays where they put it, and the next advance
+    readies that one."""
     state.pop("windows", None)  # window names, from a way of finding windows that isn't needed now
     state.pop("launches", None)
-    with open(os.path.join(LAUNCHER_DIR, "next.txt"), "w") as f:
+    path = os.path.join(LAUNCHER_DIR, "next.txt")
+    if prev is not None:
+        try:
+            with open(path) as f:
+                claimed = SLOT_GUIDS.index(f.readline().strip())
+            if 2 <= (claimed - prev) % SLOTS <= 4:
+                return
+        except (OSError, ValueError):
+            pass
+    with open(path, "w") as f:
         f.write(SLOT_GUIDS[state["slot"]] + "\r\n")
 
 
@@ -997,7 +1017,10 @@ def main():
             # launch: open a new window on the prepared slot from inside WSL. advance: what the
             # shortcut runs after opening that slot itself. Both then load the next slot.
             # hello (optional, e.g. from your shell) only does the daily top-up below.
-            write_launcher()
+            try:
+                write_launcher()
+            except Exception as e:  # keeping the launchers and the app up to date must never stop a slot being readied
+                print(f"waifu: launcher update skipped ({e})", file=sys.stderr)
             if cmd != "hello":
                 wt = load_wt()
                 slot_profiles(wt)
