@@ -1,6 +1,8 @@
-# The Desk: design goal
+# Tatami Room: design goal
 
-Claude Waifu gives one Claude Code window a girl and a color. The desk is the bigger picture: **a desktop for a whole host of AI agents**, from any company, that you can drag together to work on the same project.
+Claude Waifu gives one Claude Code window a girl and a color. **Tatami Room** is the bigger picture: **a desktop for a whole host of AI agents**, from any company, that you can drag together to work on the same project.
+
+The name comes from tatami, the woven mats that fit side by side to make a Japanese room. Each agent is a mat; lay them together and you've built a room for a project. Below, "the desk" means Tatami Room.
 
 This is the plan and the reasoning behind it. The polished design comes later. For now the desk borrows Claude Waifu's look (a color per window, a dot-art girl behind the text), so it's easy to see what's going on while it's being built.
 
