@@ -1,0 +1,679 @@
+#!/usr/bin/env python3
+"""waifu: every Claude Code window gets its own anime girl and its own background colour.
+
+Official HoYoverse art (Genshin Impact, Honkai: Star Rail, Zenless Zone Zero; wide
+wallpapers with the girls, never any males) becomes the Windows Terminal background,
+drawn as faint braille dots so your text stays readable. Open windows never change.
+
+  waifu setup [--pool DIR]  one-time install: profiles, shortcut, first wallpapers
+  waifu              give this window a different girl
+  waifu info         who's in this window (characters, game, where HoYoverse posted it)
+  waifu keep         keep this girl forever (cleanup never touches her)
+  waifu ban          never show this girl again, and swap her out here
+  waifu fetch [N]    download N more wallpapers (default 12)
+  waifu style S      dots (default) or image (the full-colour picture)
+  waifu opacity PCT  how strong the current style is behind your text
+  waifu show FILE [PCT]  pin any image from the wallpaper folder in this window
+  waifu off | on     hide them all (screen sharing) / bring them back
+  waifu launch       open a new Claude Waifu window from inside WSL
+  waifu open         open the wallpaper folder in Explorer
+  waifu uninstall    remove the profiles, shortcut and launcher (wallpapers are kept)
+
+How the per-window part works: Windows Terminal draws the background per profile. Setup
+adds ten hidden profiles ("slots"). The Claude Waifu shortcut opens a new window on the
+slot that already holds the next girl and colour, starts Claude in it, and runs
+`waifu advance` to load the slot after that for the next window.
+
+Drop your own .png/.jpg wallpapers into the wallpaper folder and they join the rotation.
+"""
+import fcntl
+import json
+import os
+import random
+import shutil
+import subprocess
+import sys
+import time
+import urllib.parse
+import urllib.request
+
+CONFIG = os.path.expanduser("~/.config/waifu/config.json")
+STATE_DIR = os.path.expanduser("~/.local/state/waifu")
+STATE = os.path.join(STATE_DIR, "state.json")
+CANDIDATES = os.path.join(STATE_DIR, "candidates.json")
+
+
+def load(path, default):
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return default
+
+
+def save(path, obj):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(obj, f, indent=2, ensure_ascii=False)
+    os.replace(path + ".tmp", path)
+
+
+# Everything machine-specific lives in the config that `waifu setup` writes.
+CONF = load(CONFIG, {})
+POOL = CONF.get("pool", "")                   # wallpapers; must be somewhere Windows can read
+CREDITS = os.path.join(POOL, "credits.json")
+DOTS_DIR = os.path.join(POOL, "dots")          # the dot renders Terminal actually shows
+WT_SETTINGS = CONF.get("wt_settings", "")      # Windows Terminal's settings.json
+WT_EXE = CONF.get("wt_exe", "")
+LAUNCHER_DIR = CONF.get("launcher_dir", "")    # the shortcut's script, icons and next.txt
+DISTRO = CONF.get("distro") or os.environ.get("WSL_DISTRO_NAME", "Ubuntu")
+
+SLOTS = 10  # windows that can hold different girls at once before the oldest is reused
+SLOT_GUIDS = ["{7a1f0c3e-5eed-4b1e-9a1f-%012d}" % i for i in range(SLOTS)]
+# Every shortcut window gets its own background colour, so windows can be told apart at a
+# glance: twelve hues 30 degrees apart at the same darkness (HSL lightness 16%, saturation
+# 60%), all dark enough for light text.
+TINTS = {"red": "#411010", "amber": "#412910", "olive": "#414110", "lime": "#294110",
+         "green": "#104110", "jade": "#104129", "teal": "#104141", "sky": "#102941",
+         "blue": "#101041", "violet": "#291041", "magenta": "#411041", "rose": "#411029"}
+BOORU = "https://danbooru.donmai.us"
+GAMES = {"genshin_impact": "Genshin Impact", "honkai:_star_rail": "Honkai: Star Rail",
+         "zenless_zone_zero": "Zenless Zone Zero"}
+AUTO = "gi-"             # prefix of downloaded wallpapers; only these get auto-cleaned
+AUTO_CAP = 90            # downloaded wallpapers kept before the oldest are cleaned up
+DAILY_REFILL = 6         # fresh downloads per day so the rotation never goes stale
+MAX_BYTES = 8_000_000    # most official wallpapers are 1-4 MB; skip the huge print masters
+STYLES = {"dots": 35, "image": 25}  # style -> default opacity percent
+EXTS = (".png", ".jpg", ".jpeg")
+COLS, CW, CH = 160, 12, 24   # braille cells across a 1920px canvas, and the cell size
+DOT = (245, 230, 240)        # a soft white, for a two-colour look
+# No males, two ways: Danbooru's head-count tags, plus a name list in case a post is under-tagged.
+BOYS = {"1boy", "2boys", "3boys", "4boys", "5boys", "6+boys", "multiple_boys", "male_focus"}
+MALES = {
+    "aether", "albedo", "alhaitham", "arataki_itto", "baizhu", "bennett", "capitano", "childe",
+    "chongyun", "cyno", "dainsleif", "diluc", "dottore", "flins", "freminet", "gaming", "gorou",
+    "ifa", "il_dottore", "kaedehara_kazuha", "kaeya", "kaveh", "kinich", "lyney", "mika",
+    "neuvillette", "ororon", "pantalone", "pierro", "razor", "scaramouche", "sethos",
+    "shikanoin_heizou", "tartaglia", "thoma", "tighnari", "venti", "wanderer", "wriothesley",
+    "xiao", "xingqiu", "zhongli",
+    "anaxa", "argenti", "arlan", "aventurine", "blade", "boothill", "caelus", "dan_heng",
+    "dr._ratio", "gallagher", "gepard_landau", "jiaoqiu", "jing_yuan", "luka", "luocha", "misha",
+    "moze", "mydei", "phainon", "sampo_koski", "sunday", "welt_yang", "yanqing",
+    "anton_ivanov", "asaba_harumasa", "ben_bigger", "billy_kid", "hugo_vlad", "komano_manato",
+    "lighter", "pan_yinhu", "seth_lowell", "von_lycaon", "wise",
+}
+CLUTTER = {"comic", "multiple_views", "text_focus", "english_text", "chinese_text", "japanese_text",
+           "korean_text", "french_text", "qr_code", "dated", "character_name",
+           "character_sheet", "reference_sheet", "chart"}  # event posters and sheets, not wallpapers
+BG_KEYS = ("backgroundImage", "backgroundImageStretchMode",
+           "backgroundImageAlignment", "backgroundImageOpacity")
+SHORTCUT = "Claude Waifu.lnk"
+LAUNCH_VBS = '''' Claude Waifu: open a new Windows Terminal window on the profile that already holds
+' the next girl (its id is in next.txt), then have waifu load the one after that.
+Set sh = CreateObject("WScript.Shell")
+Set fs = CreateObject("Scripting.FileSystemObject")
+dir = sh.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\\waifu\\"
+profile = "{distro}"
+On Error Resume Next
+profile = Trim(fs.OpenTextFile(dir & "next.txt").ReadLine)
+On Error GoTo 0
+sh.Run "wt.exe -w new -p """ & profile & """", 1, False
+sh.Run "wsl.exe -d {distro} -- {waifu} advance", 0, False
+'''
+
+
+def win_path(p):
+    """/mnt/d/TerminalGirls/x.png -> D:\\TerminalGirls\\x.png"""
+    if p.startswith("/mnt/") and len(p) > 6 and p[6] == "/":
+        return p[5].upper() + ":\\" + p[7:].replace("/", "\\")
+    return subprocess.run(["wslpath", "-w", p], capture_output=True, text=True).stdout.strip()
+
+
+def images():
+    return sorted(f for f in os.listdir(POOL) if f.lower().endswith(EXTS))
+
+
+def dots_path(name):
+    return os.path.join(DOTS_DIR, name.rsplit(".", 1)[0] + ".png")
+
+
+def names(tags):
+    """'furina_(genshin_impact) nahida_(genshin_impact)' -> 'Furina, Nahida'"""
+    out = [" ".join(w[:1].upper() + w[1:] for w in t.split("_(")[0].split("_")) for t in tags.split()]
+    out = list(dict.fromkeys(out))  # outfits are tagged separately: columbina_(damselette) is still Columbina
+    if not out:
+        return "HoYoverse girls"
+    return ", ".join(out[:4]) + (" and more" if len(out) > 4 else "")
+
+
+def girls_only(post):
+    """True when Danbooru says there are girls in it and nothing points to a male."""
+    tags = set(post.get("tag_string", "").split())
+    chars = {t.split("_(")[0] for t in post.get("tag_string_character", "").split()}
+    return bool(tags & {"1girl", "multiple_girls"}) and not tags & BOYS and not chars & MALES
+
+
+def style(state):
+    return state.get("style", "dots")
+
+
+def opacity(state):
+    return state.get("opacity", {}).get(style(state), STYLES[style(state)])
+
+
+def load_wt():
+    with open(WT_SETTINGS, encoding="utf-8-sig") as f:
+        try:
+            return json.load(f)
+        except ValueError:
+            sys.exit("Windows Terminal settings.json has comments or a typo, so I'm not touching it.")
+
+
+def save_wt(wt):
+    text = json.dumps(wt, indent=4, ensure_ascii=False).replace("\n", "\r\n") + "\r\n"
+    with open(WT_SETTINGS, "w", encoding="utf-8", newline="") as f:
+        f.write(text)
+
+
+def slot_template():
+    """What every slot profile looks like, minus its girl and colour."""
+    command = f"wsl.exe -d {DISTRO} --cd ~"
+    if CONF.get("start_claude", True):  # start Claude straight away, then drop to a shell
+        command += ' -- bash -lic "claude; exec bash"'
+    tpl = {"commandline": command, "hidden": True, **CONF.get("look", {})}
+    if CONF.get("start_claude", True):
+        tpl["tabTitle"] = "Claude"
+    if CONF.get("icon"):
+        tpl["icon"] = CONF["icon"]
+    return tpl
+
+
+def slot_profiles(wt):
+    """The hidden per-window profiles the shortcut opens windows with."""
+    profiles = wt["profiles"]["list"]
+    have = {p.get("guid"): p for p in profiles}
+    tpl = slot_template()
+    out = []
+    for i, guid in enumerate(SLOT_GUIDS):
+        if guid not in have:
+            have[guid] = {"guid": guid}
+            profiles.append(have[guid])
+        p = have[guid]
+        for k in [k for k in p if k not in BG_KEYS and k not in ("guid", "background")]:
+            del p[k]
+        p.update(tpl, name=f"Claude {i + 1}")
+        out.append(p)
+    return out
+
+
+def paint(wt, state, where, name):
+    """Show girl `name` (None = nothing) in one place: a slot number, or "default" for
+    windows that aren't Claude Waifu windows."""
+    prof = wt["profiles"].setdefault("defaults", {}) if where == "default" else slot_profiles(wt)[int(where)]
+    for k in BG_KEYS:
+        prof.pop(k, None)
+    if name and not state.get("off") and os.path.exists(os.path.join(POOL, name)):
+        if style(state) == "dots":
+            render([name])
+            path = dots_path(name)
+        else:
+            path = os.path.join(POOL, name)
+        prof.update({"backgroundImage": win_path(path), "backgroundImageStretchMode": "uniformToFill",
+                     "backgroundImageAlignment": "center", "backgroundImageOpacity": opacity(state) / 100})
+    state.setdefault("shown", {})[str(where)] = name
+
+
+def repaint_all(state):
+    wt = load_wt()
+    for where, name in list(state.get("shown", {}).items()):
+        paint(wt, state, where, name)
+    save_wt(wt)
+
+
+def tint(wt, state, slot):
+    """Give a slot its own background colour. Colours are dealt from a shuffled deck, so every
+    colour comes up once before any repeats, and a colour can't come back while one of the
+    last SLOTS - 1 windows (the most that can be open beside this one) might still show it."""
+    recent = state.get("recent_tints", [])[-(SLOTS - 1):]
+    deck = [t for t in state.get("tint_deck", []) if t in TINTS]
+    options = [t for t in deck if t not in recent]
+    if not options:  # deck used up: reshuffle
+        deck = list(TINTS)
+        options = [t for t in deck if t not in recent]
+    name = random.choice(options)
+    deck.remove(name)
+    state.update(tint_deck=deck, recent_tints=(recent + [name])[-(SLOTS - 1):])
+    slot_profiles(wt)[slot]["background"] = TINTS[name]
+    state.setdefault("tints", {})[str(slot)] = name
+
+
+def prepare_next(wt, state):
+    """Load the next slot with a girl and a colour, and tell the shortcut about it."""
+    nxt = (state.get("slot", -1) + 1) % SLOTS
+    if not state.get("off"):
+        paint(wt, state, nxt, choose(state))
+    tint(wt, state, nxt)
+    save_wt(wt)
+    state["slot"] = nxt
+    with open(os.path.join(LAUNCHER_DIR, "next.txt"), "w") as f:
+        f.write(SLOT_GUIDS[nxt] + "\r\n")
+
+
+def here(state):
+    """Where this window's girl lives. Terminal tells every shell it starts which profile it
+    used (WT_PROFILE_ID), so a Claude Waifu window knows its slot; any other window shares
+    the default one."""
+    profile = os.environ.get("WT_PROFILE_ID", "").lower()
+    return next((i for i, g in enumerate(SLOT_GUIDS) if g.lower() == profile), "default")
+
+
+def get(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "claude-waifu/1.0 (personal wallpaper script)"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return r.read()
+
+
+def candidates():
+    """Wide, safe-rated official art with girls and no males, from all three games,
+    cached for a week."""
+    cache = load(CANDIDATES, {})
+    if time.time() - cache.get("at", 0) < 7 * 86400 and cache.get("posts"):
+        return cache["posts"]
+    posts = []
+    for game in GAMES:
+        for page in range(1, 40):
+            batch = json.loads(get(f"{BOORU}/posts.json?tags={urllib.parse.quote(game)}+official_art&limit=200&page={page}"))
+            for p in batch:
+                tags = set(p.get("tag_string", "").split())
+                w, h = p.get("image_width") or 0, p.get("image_height") or 1
+                if p.get("rating") == "g" and p.get("file_ext") in ("png", "jpg") and p.get("file_url") \
+                        and w >= 1600 and w / h >= 1.5 and (p.get("file_size") or 0) <= MAX_BYTES \
+                        and girls_only(p) and not tags & CLUTTER:
+                    posts.append({"id": p["id"], "url": p["file_url"], "ext": p["file_ext"], "game": game,
+                                  "characters": p.get("tag_string_character", ""),
+                                  "source": p.get("source") or f"{BOORU}/posts/{p['id']}"})
+            if len(batch) < 200:
+                break
+            time.sleep(0.5)  # be polite to Danbooru
+    save(CANDIDATES, {"at": time.time(), "posts": posts})
+    return posts
+
+
+def fetch(n, state, games=None):
+    """Download n wallpapers we don't have yet; they get shown before older ones."""
+    have = set(images()) | set(state.get("banned", []))
+    try:
+        posts = [p for p in candidates() if f"{AUTO}{p['id']}.{p['ext']}" not in have
+                 and (not games or p["game"] in games)]
+    except (OSError, ValueError) as e:
+        print(f"  Danbooru unreachable ({e})")
+        return []
+    credits = load(CREDITS, {})
+    got = []
+    for p in random.sample(posts, min(n, len(posts))):
+        name = f"{AUTO}{p['id']}.{p['ext']}"
+        try:
+            data = get(p["url"])
+        except OSError as e:
+            print(f"  download failed ({e})")
+            continue
+        path = os.path.join(POOL, name)
+        with open(path + ".part", "wb") as f:
+            f.write(data)
+        os.replace(path + ".part", path)
+        got.append(name)
+        credits[name] = {"characters": names(p["characters"]), "game": GAMES[p["game"]], "source": p["source"]}
+        print(f"  + {credits[name]['characters']} ({credits[name]['game']})")
+    save(CREDITS, credits)
+    render(got)
+    state["fresh"] = state.get("fresh", []) + got
+    state["last_fetch"] = time.time()
+    return got
+
+
+def cleanup(state):
+    """Keep at most AUTO_CAP downloaded wallpapers; kept, hand-added and on-screen ones are never touched."""
+    on_screen = set(state.get("shown", {}).values())
+    auto = [f for f in images() if f.startswith(AUTO) and f not in on_screen]
+    auto.sort(key=lambda f: os.path.getmtime(os.path.join(POOL, f)))
+    extra = auto[:max(0, len(auto) - AUTO_CAP)]
+    if extra:
+        credits = load(CREDITS, {})
+        for f in extra:
+            os.remove(os.path.join(POOL, f))
+            if os.path.exists(dots_path(f)):
+                os.remove(dots_path(f))
+            credits.pop(f, None)
+        save(CREDITS, credits)
+
+
+def with_pillow(*args):
+    """Run one of the Pillow jobs below: in this Python if it has Pillow, otherwise
+    through uv, so waifu itself needs nothing beyond the standard library."""
+    try:
+        import PIL  # noqa: F401
+        return PILLOW_JOBS[args[0]](*args[1:])
+    except ImportError:
+        uv = shutil.which("uv") or os.path.expanduser("~/.local/bin/uv")
+        try:
+            subprocess.run([uv, "run", "--quiet", "--no-project", "--with", "pillow",
+                            "python3", os.path.realpath(__file__), *args])
+        except OSError as e:
+            print(f"  needs Pillow: install uv or python3-pil ({e})")
+
+
+def render(names):
+    """Make the dot versions that are missing."""
+    todo = [n for n in names if n and not os.path.exists(dots_path(n))]
+    if todo:
+        with_pillow("_render", *todo)
+
+
+def _render(*names):
+    """The negative braille look: a dot on every line of the line art and on the darkest
+    shadows, every other dot across the dark areas, and nothing where the picture is light,
+    so text on top stays readable. Mostly-dark pictures are flipped first, so their big
+    dark backgrounds come out empty instead of solid."""
+    from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps, ImageStat
+    os.makedirs(DOTS_DIR, exist_ok=True)
+    for name in names:
+        src = Image.open(os.path.join(POOL, name)).convert("L")
+        rows = round(COLS * src.height / src.width * CW / CH)
+        w, h, s = COLS * 2, rows * 4, 4  # the dot grid, supersampled 4x to find lines
+        g = ImageOps.autocontrast(src, cutoff=1)
+        if ImageStat.Stat(g).median[0] < 100:
+            g = ImageOps.invert(g)
+        big = g.resize((w * s, h * s), Image.LANCZOS).filter(ImageFilter.MedianFilter(5))
+        lines = ImageChops.subtract(big.filter(ImageFilter.GaussianBlur(s * 1.6)),
+                                    big.filter(ImageFilter.GaussianBlur(s * 0.6))).point(lambda v: 255 if v > 16 else 0)
+        hist = big.histogram()
+        total, dark, acc = sum(hist), 0, 0
+        while acc < total * 0.07:  # the darkest 7% counts as line art
+            acc += hist[dark]
+            dark += 1
+        ink = ImageChops.lighter(lines, big.point(lambda v: 255 if v < dark else 0))
+        ink = ink.resize((w, h), Image.BOX).point(lambda v: 255 if v >= 64 else 0).load()
+        grey = g.resize((w, h), Image.LANCZOS).load()
+        im = Image.new("RGBA", (COLS * CW, rows * CH), (0, 0, 0, 0))
+        d = ImageDraw.Draw(im)
+        rad = CW * 0.13
+        for y in range(h):
+            for x in range(w):
+                if ink[x, y] or (grey[x, y] < 96 and (x + y) % 2 == 0):
+                    cx = (x // 2) * CW + CW * (0.28 + 0.44 * (x % 2))
+                    cy = (y // 4) * CH + CH * (0.14 + 0.24 * (y % 4))
+                    d.ellipse((cx - rad, cy - rad, cx + rad, cy + rad), fill=DOT + (255,))
+        im.save(dots_path(name))
+
+
+def _icon(src, dst):
+    """Turn a PNG into a Windows .ico for the shortcut."""
+    from PIL import Image
+    Image.open(src).convert("RGBA").save(dst, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (256, 256)])
+
+
+PILLOW_JOBS = {"_render": _render, "_icon": _icon}
+
+
+def choose(state):
+    """The next girl: everyone gets a turn before anyone repeats; fresh downloads go first."""
+    pool = images()
+    if not pool:
+        sys.exit(f"No wallpapers in {win_path(POOL)} yet. Run: waifu fetch")
+    on_screen = set(state.get("shown", {}).values())
+    seen = [f for f in state.get("seen", []) if f in pool]
+    left = [f for f in pool if f not in seen and f not in on_screen]
+    if not left:  # everyone has had a turn: start a new round
+        seen, left = [], [f for f in pool if f not in on_screen] or pool
+    fresh = [f for f in state.get("fresh", []) if f in left]
+    pick = fresh[0] if fresh else random.choice(left)
+    state.update(seen=seen + [pick], fresh=[f for f in fresh if f != pick])
+    return pick
+
+
+def windows(*cmd):
+    """Run a Windows program from WSL and return what it printed."""
+    return subprocess.run(list(cmd), capture_output=True, text=True, cwd="/mnt/c").stdout.strip()
+
+
+def powershell(script):
+    """Run a PowerShell script (via a temporary .ps1 file, which sidesteps quoting)."""
+    path = os.path.join(LAUNCHER_DIR, "setup.ps1")
+    with open(path, "w", encoding="utf-8-sig") as f:
+        f.write(script)
+    try:
+        return windows("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", win_path(path))
+    finally:
+        os.remove(path)
+
+
+def ps_quote(s):
+    return "'" + s.replace("'", "''") + "'"
+
+
+def setup(args):
+    """Detect this machine's paths, write the config, and install everything."""
+    global CONF, POOL, CREDITS, DOTS_DIR, WT_SETTINGS, WT_EXE, LAUNCHER_DIR, DISTRO
+    if not os.environ.get("WSL_DISTRO_NAME"):
+        sys.exit("Run waifu setup inside WSL.")
+    to_linux = lambda p: subprocess.run(["wslpath", "-u", p], capture_output=True, text=True).stdout.strip()
+    local = to_linux(windows("cmd.exe", "/c", "echo %LOCALAPPDATA%").splitlines()[-1])
+    home = to_linux(windows("cmd.exe", "/c", "echo %USERPROFILE%").splitlines()[-1])
+    terminals = [os.path.join(local, "Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json"),
+                 os.path.join(local, "Packages/Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe/LocalState/settings.json"),
+                 os.path.join(local, "Microsoft/Windows Terminal/settings.json")]
+    wt_settings = next((p for p in terminals if os.path.exists(p)), None)
+    if not wt_settings:
+        sys.exit("Couldn't find Windows Terminal's settings.json. Open Windows Terminal once, then retry.")
+    conf = dict(CONF)
+    pool = args[args.index("--pool") + 1] if "--pool" in args else conf.get("pool") or os.path.join(home, "TerminalGirls")
+    conf.update(pool=os.path.abspath(pool), wt_settings=wt_settings, distro=os.environ["WSL_DISTRO_NAME"],
+                wt_exe=os.path.join(local, "Microsoft/WindowsApps/wt.exe"), launcher_dir=os.path.join(local, "waifu"))
+    conf.setdefault("start_claude", "--no-claude" not in args)
+    CONF = conf
+    POOL, WT_SETTINGS, WT_EXE, LAUNCHER_DIR, DISTRO = (conf["pool"], conf["wt_settings"], conf["wt_exe"],
+                                                     conf["launcher_dir"], conf["distro"])
+    CREDITS, DOTS_DIR = os.path.join(POOL, "credits.json"), os.path.join(POOL, "dots")
+    os.makedirs(POOL, exist_ok=True)
+    os.makedirs(LAUNCHER_DIR, exist_ok=True)
+    wt = load_wt()
+    # On the Ubuntu app, Claude Waifu windows copy the Ubuntu app's own look.
+    if any(str(p.get("source", "")).startswith("CanonicalGroupLimited.Ubuntu") for p in wt["profiles"]["list"]):
+        conf.setdefault("look", {"colorScheme": "Ubuntu-ColorScheme", "cursorShape": "filledBox",
+                                 "font": {"face": "Cascadia Mono", "size": 12}})
+    # The Claude desktop app's icon, if it's installed, for the tabs and the shortcut.
+    found = powershell(f"""$p = Get-AppxPackage Claude -ErrorAction SilentlyContinue
+if ($p) {{
+  foreach ($rel in 'app\\resources\\ion-dist\\images\\claude_app_icon.png', 'assets\\Square150x150Logo.png') {{
+    $src = Join-Path $p.InstallLocation $rel
+    if (Test-Path $src) {{ Copy-Item $src (Join-Path {ps_quote(win_path(LAUNCHER_DIR))} (Split-Path $rel -Leaf)) -Force; 'copied ' + $rel }}
+  }}
+}}""")
+    tab_icon = os.path.join(LAUNCHER_DIR, "claude_app_icon.png")
+    big_icon = os.path.join(LAUNCHER_DIR, "Square150x150Logo.png")
+    shortcut_icon = ""
+    if os.path.exists(tab_icon):
+        conf["icon"] = win_path(tab_icon)
+    if os.path.exists(big_icon) or os.path.exists(tab_icon):
+        with_pillow("_icon", big_icon if os.path.exists(big_icon) else tab_icon, os.path.join(LAUNCHER_DIR, "claude.ico"))
+        if os.path.exists(os.path.join(LAUNCHER_DIR, "claude.ico")):
+            shortcut_icon = win_path(os.path.join(LAUNCHER_DIR, "claude.ico"))
+    save(CONFIG, conf)
+    print(f"config: {CONFIG}\nwallpapers: {win_path(POOL)}\nterminal settings: {win_path(WT_SETTINGS)}"
+          + ("\nicon: from the Claude desktop app" if "copied" in found else ""))
+    # The launcher script the shortcut runs.
+    with open(os.path.join(LAUNCHER_DIR, "launch.vbs"), "w", newline="\r\n") as f:
+        f.write(LAUNCH_VBS.format(distro=DISTRO, waifu=os.path.realpath(__file__)))
+    # Profiles, the first wallpapers, and the first prepared window.
+    state = load(STATE, {})
+    slot_profiles(wt)
+    save_wt(wt)
+    if len(images()) < 10:
+        print("downloading the first wallpapers (this takes a minute)...")
+        fetch(20, state)
+    if state.get("slot") is None or not state.get("shown", {}).get(str(state["slot"])):
+        prepare_next(wt, state)
+    else:
+        with open(os.path.join(LAUNCHER_DIR, "next.txt"), "w") as f:
+            f.write(SLOT_GUIDS[state["slot"]] + "\r\n")
+    save(STATE, state)
+    # The shortcut, on the desktop and in the Start menu.
+    print(powershell(f"""$ws = New-Object -ComObject WScript.Shell
+$dirs = @([Environment]::GetFolderPath('Desktop'), (Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs'))
+foreach ($d in $dirs) {{
+  $s = $ws.CreateShortcut((Join-Path $d {ps_quote(SHORTCUT)}))
+  $s.TargetPath = (Join-Path $env:WINDIR 'System32\\wscript.exe')
+  $s.Arguments = '"' + {ps_quote(win_path(os.path.join(LAUNCHER_DIR, "launch.vbs")))} + '"'
+  if ({ps_quote(shortcut_icon)}) {{ $s.IconLocation = {ps_quote(shortcut_icon)} }}
+  $s.Description = 'Claude in a new window with its own background girl and colour'
+  $s.Save()
+  'shortcut: ' + (Join-Path $d {ps_quote(SHORTCUT)})
+}}"""))
+    print("done: open 'Claude Waifu' from your desktop or Start menu (right-click it to pin it to the taskbar)")
+
+
+def uninstall():
+    """Take out everything setup added. The wallpapers stay, in case you want them."""
+    wt = load_wt()
+    wt["profiles"]["list"] = [p for p in wt["profiles"]["list"] if p.get("guid") not in SLOT_GUIDS]
+    for k in BG_KEYS:
+        wt["profiles"].get("defaults", {}).pop(k, None)
+    if wt.get("defaultProfile") in SLOT_GUIDS:
+        wt["defaultProfile"] = wt["profiles"]["list"][0]["guid"]
+    save_wt(wt)
+    print(powershell(f"""foreach ($d in @([Environment]::GetFolderPath('Desktop'), (Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs'))) {{
+  $f = Join-Path $d {ps_quote(SHORTCUT)}
+  if (Test-Path $f) {{ Remove-Item $f; 'removed ' + $f }}
+}}"""))
+    shutil.rmtree(LAUNCHER_DIR, ignore_errors=True)
+    for path in (CONFIG, STATE, CANDIDATES):
+        if os.path.exists(path):
+            os.remove(path)
+    print(f"Removed. Your wallpapers are still in {win_path(POOL)}; delete that folder to remove them too.")
+
+
+def main():
+    args = sys.argv[1:] or ["next"]
+    cmd = args[0]
+    if cmd in PILLOW_JOBS:  # a Pillow job, possibly inside uv's Python
+        PILLOW_JOBS[cmd](*args[1:])
+        return
+    if cmd in ("-h", "--help", "help"):
+        print(__doc__)
+        return
+    if cmd == "setup":
+        setup(args[1:])
+        return
+    if not CONF:
+        sys.exit("waifu isn't set up yet. Run: waifu setup")
+    if cmd == "uninstall":
+        uninstall()
+        return
+    os.makedirs(POOL, exist_ok=True)
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(os.path.join(STATE_DIR, "lock"), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        state = load(STATE, {})
+        cur = state.get("shown", {}).get(str(here(state)))
+        if cmd in ("launch", "advance", "hello"):
+            # launch: open a new window on the prepared slot from inside WSL. advance: what the
+            # shortcut runs after opening that slot itself. Both then load the next slot.
+            # hello (optional, e.g. from your shell) only does the daily top-up below.
+            if cmd != "hello":
+                wt = load_wt()
+                slot_profiles(wt)
+                if cmd == "launch":
+                    subprocess.Popen([WT_EXE, "-w", "new", "-p", SLOT_GUIDS[state.get("slot", 0) % SLOTS]],
+                                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL, start_new_session=True)
+                prepare_next(wt, state)
+            if time.time() - state.get("last_fetch", 0) > 20 * 3600:  # daily top-up, in the background
+                state["last_fetch"] = time.time()
+                with open(os.path.join(STATE_DIR, "refill.log"), "a") as log:
+                    subprocess.Popen([os.path.realpath(__file__), "refill"], stdin=subprocess.DEVNULL,
+                                     stdout=log, stderr=log, start_new_session=True)
+        elif cmd == "next":  # a different girl in this window
+            if state.get("off"):
+                return
+            wt = load_wt()
+            paint(wt, state, here(state), choose(state))
+            save_wt(wt)
+        elif cmd == "refill":
+            fetch(DAILY_REFILL, state)
+            cleanup(state)
+        elif cmd == "fetch":
+            got = fetch(int(args[1]) if len(args) > 1 else 12, state, set(args[2:]) or None)
+            print(f"{len(got)} new wallpapers in {win_path(POOL)}")
+        elif cmd == "info":
+            c = load(CREDITS, {}).get(cur) or {}
+            print(f"here: {c.get('characters', cur)} ({c.get('game', '?')})" +
+                  ("  (all hidden, run: waifu on)" if state.get("off") else ""))
+            print(f"link: {c.get('source', '-')}")
+            if here(state) != "default":
+                print(f"colour: {state.get('tints', {}).get(str(here(state)), '-')}")
+            print(f"pool: {len(images())} wallpapers in {win_path(POOL)},"
+                  f" style {style(state)} at {opacity(state)}%")
+        elif cmd == "style":
+            if len(args) < 2 or args[1] not in STYLES:
+                sys.exit("usage: waifu style dots|image")
+            state["style"] = args[1]
+            repaint_all(state)
+        elif cmd == "opacity":
+            state.setdefault("opacity", {})[style(state)] = max(5, min(100, int(args[1])))
+            repaint_all(state)
+            print(f"{style(state)} opacity {opacity(state)}%")
+        elif cmd == "show":
+            path = os.path.abspath(args[1])
+            if not path.startswith(POOL + "/") or not os.path.exists(path):
+                sys.exit(f"show needs an image inside {win_path(POOL)}")
+            wt = load_wt()
+            where = here(state)
+            prof = wt["profiles"].setdefault("defaults", {}) if where == "default" else slot_profiles(wt)[int(where)]
+            for k in BG_KEYS:
+                prof.pop(k, None)
+            prof.update({"backgroundImage": win_path(path), "backgroundImageStretchMode": "uniformToFill",
+                         "backgroundImageAlignment": "center",
+                         "backgroundImageOpacity": (int(args[2]) if len(args) > 2 else opacity(state)) / 100})
+            save_wt(wt)
+            print("pinned in this window until: waifu next")
+        elif cmd == "keep":
+            if cur and cur.startswith(AUTO):
+                new = cur[len(AUTO):]
+                os.replace(os.path.join(POOL, cur), os.path.join(POOL, new))
+                if os.path.exists(dots_path(cur)):
+                    os.replace(dots_path(cur), dots_path(new))
+                credits = load(CREDITS, {})
+                credits[new] = credits.pop(cur, {})
+                save(CREDITS, credits)
+                state["shown"] = {k: (new if v == cur else v) for k, v in state.get("shown", {}).items()}
+                state["seen"] = [new if f == cur else f for f in state.get("seen", [])]
+                repaint_all(state)
+            print("kept, cleanup will never remove her")
+        elif cmd == "ban":
+            if cur and os.path.exists(os.path.join(POOL, cur)):
+                os.makedirs(os.path.join(POOL, "banned"), exist_ok=True)
+                os.replace(os.path.join(POOL, cur), os.path.join(POOL, "banned", cur))
+                state.setdefault("banned", []).append(cur)
+            wt = load_wt()
+            for where, name in list(state.get("shown", {}).items()):
+                if name == cur:  # swap her out everywhere she's showing
+                    paint(wt, state, where, choose(state))
+            save_wt(wt)
+            if cur and os.path.exists(dots_path(cur)):
+                os.remove(dots_path(cur))
+        elif cmd == "off":
+            state["off"] = True
+            repaint_all(state)
+        elif cmd == "on":
+            state["off"] = False
+            repaint_all(state)
+        elif cmd == "open":
+            subprocess.run(["explorer.exe", win_path(POOL)], cwd="/mnt/c")
+        else:
+            print(__doc__)
+            return
+        save(STATE, state)
+
+
+if __name__ == "__main__":
+    main()
