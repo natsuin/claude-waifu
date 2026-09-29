@@ -6,6 +6,8 @@ A small add-on for [Claude Code](https://code.claude.com) on Windows Terminal + 
 
 Windows that are already open never change. Only new windows get the next girl.
 
+> **Coming next:** the desk, a desktop for a whole host of AI agents that you can drag together to work on the same project. See [DESK.md](DESK.md) for the design goal.
+
 ## What you get
 
 - **A Claude Waifu shortcut** on your desktop and in the Start menu. It opens a new window and starts Claude immediately. When you exit Claude you're left in a normal shell.
