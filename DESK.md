@@ -45,10 +45,11 @@ Each step is usable on its own.
 3. **Group looks.** *(done)* The windows of a team get a matching tab color, the same color the board gives their room, so teams stand out at a glance. No two rooms share a color while they're around, and every color is light enough for Terminal to write the tab title in black. Each agent's channel keeps its own window's tab in step through `waifu`, which owns Terminal's settings; the board still never touches a terminal.
 4. **More companies.** Gemini and Codex joining rooms alongside Claude, using the same channel. *(next)*
 
-Later: open the desk automatically when WSL starts, and wrap it as a desktop app.
+Later: wrap the desk as a proper installed app, and bring in other companies' agents (step 4).
 
 Started early:
 
+- **The desk is an app.** A **Tatami Room** shortcut (desktop and Start menu, with the mark as its icon) starts the board if needed and opens it in a window of its own: Brave, Chrome or Edge without tabs or an address bar. Clicking it again brings up the open desk instead of a second one. The first Claude Waifu window after WSL starts opens the desk too (`tatami autostart off` stops that), and while a desk window is open it holds WSL up, since WSL otherwise stops a minute or so after its last terminal closes.
 - **Your usage on the desk.** The board's header shows your 5-hour and weekly Claude usage, with reset times, from the Tatami Room status line ([extras/statusline.py](extras/statusline.py)), which leaves the numbers in `~/.local/state/tatami/usage.json` whenever they change.
 - **The board shows which agents need you.** Run `tatami hooks on` once and Claude Code tells the board what each agent is doing ([tatami/hooks.py](tatami/hooks.py)). A mat reads *working*, *your turn* or *needs your OK*, and one waiting on a permission prompt pulses pink, with a count in the board's tab title. `tatami hooks off` takes the hooks out again.
 

@@ -24,6 +24,7 @@ import tatami_mcp as channel  # same folder: shares the file layout and helpers
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOKEN_FILE = os.path.join(channel.HOME, "board.token")
+SEEN_FILE = os.path.join(channel.HOME, "board.seen")  # touched while a desk window is open (tatami hold)
 WAIFU_CONFIG = os.path.expanduser("~/.config/waifu/config.json")
 TINTS = {"red": "#411010", "amber": "#412910", "olive": "#414110", "lime": "#294110",
          "green": "#104110", "jade": "#104129", "teal": "#104141", "sky": "#102941",
@@ -153,6 +154,27 @@ def change(path, body):
     return None
 
 
+def looked_at():
+    """Note that a desk window is open. WSL stops a distro soon after its last terminal
+    closes, so `tatami hold` keeps it up for as long as this keeps being touched."""
+    try:
+        if time.time() - os.path.getmtime(SEEN_FILE) < 10:
+            return
+    except OSError:
+        pass
+    with open(SEEN_FILE, "w"):
+        pass
+
+
+def publish(url):
+    """Leave the desk's address where the Windows shortcuts can read it (next to waifu's
+    launcher scripts), so the Tatami Room shortcut can open it."""
+    launcher = channel.load(WAIFU_CONFIG, {}).get("launcher_dir")
+    if launcher and os.path.isdir(launcher):
+        with open(os.path.join(launcher, "board.url"), "w") as f:
+            f.write(url + "\r\n")
+
+
 def girl_file(agent_id):
     """The dot-art girl for an agent's Claude Waifu window, looked up by id only."""
     rec = channel.load(os.path.join(channel.AGENTS, channel.safe_name(agent_id) + ".json"), {})
@@ -203,6 +225,7 @@ class Board(BaseHTTPRequestHandler):
                 page = f.read().replace("__TOKEN__", self.server.token).replace("__NONCE__", nonce)
             return self.send(200, page.encode(), "text/html; charset=utf-8", nonce)
         if path == "/api/state":
+            looked_at()
             return self.send(200, state())
         if path.startswith("/girl/"):
             f = girl_file(path[len("/girl/"):])
@@ -241,7 +264,9 @@ def main():
         os.makedirs(d, exist_ok=True)
     server = ThreadingHTTPServer(("127.0.0.1", port), Board)
     server.token = token()
-    print(f"Tatami Room: http://127.0.0.1:{port}/?token={server.token}", flush=True)
+    url = f"http://127.0.0.1:{port}/?token={server.token}"
+    publish(url)
+    print(f"Tatami Room: {url}", flush=True)
     server.serve_forever()
 
 

@@ -17,7 +17,8 @@ drawn as faint braille dots so your text stays readable. Open windows never chan
   waifu off | on     hide them all (screen sharing) / bring them back
   waifu launch       open a new Claude Waifu window from inside WSL
   waifu open         open the wallpaper folder in Explorer
-  waifu uninstall    remove the profiles, shortcut and launcher (wallpapers are kept)
+  waifu desk         (re)make the Tatami Room shortcut that opens the desk (setup does this)
+  waifu uninstall    remove the profiles, shortcuts and launchers (wallpapers are kept)
 
 How the per-window part works: Windows Terminal draws the background per profile. Setup
 adds ten hidden profiles ("slots"). The Claude Waifu shortcut opens a new window on the
@@ -108,6 +109,7 @@ CLUTTER = {"comic", "multiple_views", "text_focus", "english_text", "chinese_tex
 BG_KEYS = ("backgroundImage", "backgroundImageStretchMode",
            "backgroundImageAlignment", "backgroundImageOpacity")
 SHORTCUT = "Claude Waifu.lnk"
+DESK_SHORTCUT = "Tatami Room.lnk"
 LAUNCH_VBS = '''' Claude Waifu: open a new Windows Terminal window on the profile that already holds
 ' the next girl (its id is in next.txt), then have waifu load the one after that.
 Set sh = CreateObject("WScript.Shell")
@@ -119,7 +121,83 @@ profile = Trim(fs.OpenTextFile(dir & "next.txt").ReadLine)
 On Error GoTo 0
 sh.Run "wt.exe -w new -p """ & profile & """", 1, False
 sh.Run "wsl.exe -d {distro} -- {waifu} advance", 0, False
+{desk}'''
+# With Tatami Room's desk set up, the first window after WSL starts opens the desk too.
+DESK_AUTOSTART = '''' The first window since WSL started also opens the Tatami Room desk (tatami autostart off
+' stops that).
+If sh.Run("wsl.exe -d {distro} -- {tatami} start --auto", 0, True) = 3 Then
+  sh.Run "wscript.exe """ & dir & "desk.vbs""", 1, False
+End If
 '''
+DESK_VBS = '''' Tatami Room: start the board inside WSL if it isn't running, then open the desk in a
+' window of its own. If a desk window is already open, bring that one up instead.
+Set sh = CreateObject("WScript.Shell")
+Set fs = CreateObject("Scripting.FileSystemObject")
+dir = sh.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\\waifu\\"
+rc = sh.Run("wsl.exe -d {distro} -- {tatami} start", 0, True)
+url = ""
+On Error Resume Next
+url = Trim(fs.OpenTextFile(dir & "board.url").ReadLine)
+On Error GoTo 0
+If (rc <> 0 And rc <> 3) Or url = "" Then
+  MsgBox "The Tatami Room board didn't start. Open Ubuntu and run: tatami", 48, "Tatami Room"
+  WScript.Quit
+End If
+' WSL stops soon after its last terminal closes; hold it up while the desk is open.
+sh.Run "wsl.exe -d {distro} -- {tatami} hold", 0, False
+' Already open? Bring that window up instead of opening another. (AppActivate alone would also
+' match any window whose title merely ends in "Tatami Room", such as a terminal.)
+If sh.Run("powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File """ & dir & "desk-open.ps1""", 0, True) = 0 Then
+  title = ""
+  On Error Resume Next
+  title = fs.OpenTextFile(dir & "desk-title.txt", 1, False, -1).ReadLine
+  On Error GoTo 0
+  If title <> "" Then sh.AppActivate title
+  WScript.Quit
+End If
+browser = "{browser}"
+If browser <> "" And fs.FileExists(browser) Then
+  sh.Run """" & browser & """ --app=" & url, 1, False
+Else
+  sh.Run url, 1, False
+End If
+'''
+DESK_OPEN_PS1 = r'''# Tatami Room: is the desk already open? Finds a browser window whose title starts with
+# "Tatami Room" (the board's page) and leaves its exact title for desk.vbs to bring it up.
+Add-Type @"
+using System; using System.Text; using System.Collections.Generic; using System.Runtime.InteropServices;
+public class TatamiWindows {
+  delegate bool Each(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(Each f, IntPtr l);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  public static List<KeyValuePair<string, uint>> All() {
+    var found = new List<KeyValuePair<string, uint>>();
+    EnumWindows((h, l) => {
+      var s = new StringBuilder(512);
+      GetWindowText(h, s, 512);
+      uint pid;
+      GetWindowThreadProcessId(h, out pid);
+      if (IsWindowVisible(h) && s.Length > 0) found.Add(new KeyValuePair<string, uint>(s.ToString(), pid));
+      return true;
+    }, IntPtr.Zero);
+    return found;
+  }
+}
+"@
+$browsers = @('brave', 'chrome', 'msedge', 'vivaldi', 'chromium')
+foreach ($w in [TatamiWindows]::All()) {
+  if ($w.Key.StartsWith('Tatami Room', [StringComparison]::Ordinal) -and
+      $browsers -contains (Get-Process -Id $w.Value -ErrorAction SilentlyContinue).ProcessName) {
+    Set-Content -Path (Join-Path $PSScriptRoot 'desk-title.txt') -Value $w.Key -Encoding Unicode
+    exit 0
+  }
+}
+exit 1
+'''
+# Browsers that can open a page as an app window of its own (--app), without tabs or an address bar.
+APP_BROWSERS = ("brave.exe", "chrome.exe", "msedge.exe", "vivaldi.exe", "chromium.exe")
 
 
 def waifu_path():
@@ -129,19 +207,32 @@ def waifu_path():
     return link if os.path.realpath(link) == me else me
 
 
+def tatami_path():
+    """Tatami Room's desk command, if it's set up (linked in ~/.local/bin like waifu)."""
+    link = os.path.expanduser("~/.local/bin/tatami")
+    return link if os.path.exists(link) else None
+
+
 def write_launcher():
-    """The script the shortcut runs. Rewritten whenever it's out of date, e.g. after the repo
-    moved: a launcher that can't find waifu opens every window on the same slot."""
-    path = os.path.join(LAUNCHER_DIR, "launch.vbs")
-    text = LAUNCH_VBS.format(distro=DISTRO, waifu=waifu_path())
-    try:
-        with open(path, encoding="utf-8") as f:
-            if f.read() == text:
-                return
-    except (OSError, UnicodeDecodeError):
-        pass
-    with open(path, "w", newline="\r\n") as f:
-        f.write(text)
+    """The scripts the shortcuts run. Rewritten whenever they're out of date, e.g. after the
+    repo moved: a launcher that can't find waifu opens every window on the same slot."""
+    tatami = tatami_path()
+    desk = DESK_AUTOSTART.format(distro=DISTRO, tatami=tatami) if tatami else ""
+    scripts = {"launch.vbs": LAUNCH_VBS.format(distro=DISTRO, waifu=waifu_path(), desk=desk)}
+    if tatami:
+        scripts["desk.vbs"] = DESK_VBS.format(distro=DISTRO, tatami=tatami, browser=CONF.get("browser", ""))
+        scripts["desk-open.ps1"] = DESK_OPEN_PS1
+    for name, text in scripts.items():
+        path = os.path.join(LAUNCHER_DIR, name)
+        try:
+            with open(path, encoding="utf-8-sig") as f:
+                if f.read() == text:
+                    continue
+        except (OSError, UnicodeDecodeError):
+            pass
+        # PowerShell reads a script without a byte order mark as the old ANSI code page
+        with open(path, "w", newline="\r\n", encoding="utf-8-sig" if name.endswith(".ps1") else None) as f:
+            f.write(text)
 
 
 def win_path(p):
@@ -463,7 +554,22 @@ def _icon(src, dst):
     Image.open(src).convert("RGBA").save(dst, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (256, 256)])
 
 
-PILLOW_JOBS = {"_render": _render, "_icon": _icon}
+def _mark(dst):
+    """Tatami Room's mark as a Windows .ico: four mats turning around a half mat, the way
+    a four-and-a-half-mat room is laid (the same drawing as the board's own icon)."""
+    from PIL import Image, ImageDraw
+    size = 512
+    u = size / 30
+    im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    for x, y, w, h, fill in ((.6, .6, 18.8, 8.8, (255, 133, 192, 255)), (20.6, .6, 8.8, 18.8, (195, 166, 255, 255)),
+                             (10.6, 20.6, 18.8, 8.8, (126, 232, 181, 255)), (.6, 10.6, 8.8, 18.8, (142, 203, 255, 255)),
+                             (10.6, 10.6, 8.8, 8.8, (245, 230, 240, 90))):
+        d.rounded_rectangle((x * u, y * u, (x + w) * u, (y + h) * u), radius=1.2 * u, fill=fill)
+    im.save(dst, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (256, 256)])
+
+
+PILLOW_JOBS = {"_render": _render, "_icon": _icon, "_mark": _mark}
 
 
 def choose(state):
@@ -500,6 +606,48 @@ def powershell(script):
 
 def ps_quote(s):
     return "'" + s.replace("'", "''") + "'"
+
+
+def shortcut(name, script, icon, description):
+    """A shortcut on the desktop and in the Start menu that runs one of our launcher scripts."""
+    return powershell(f"""$ws = New-Object -ComObject WScript.Shell
+$dirs = @([Environment]::GetFolderPath('Desktop'), (Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs'))
+foreach ($d in $dirs) {{
+  $s = $ws.CreateShortcut((Join-Path $d {ps_quote(name)}))
+  $s.TargetPath = (Join-Path $env:WINDIR 'System32\\wscript.exe')
+  $s.Arguments = '"' + {ps_quote(win_path(os.path.join(LAUNCHER_DIR, script)))} + '"'
+  if ({ps_quote(icon)}) {{ $s.IconLocation = {ps_quote(icon)} }}
+  $s.Description = {ps_quote(description)}
+  $s.Save()
+  'shortcut: ' + (Join-Path $d {ps_quote(name)})
+}}""")
+
+
+def find_browser():
+    """Your default browser, if it can open a page as an app window of its own (Brave, Chrome,
+    Edge and other Chromium browsers can). Empty if it can't: the desk then opens in a tab."""
+    command = powershell(r"""$p = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice' -ErrorAction SilentlyContinue).ProgId
+if ($p) { (Get-ItemProperty "Registry::HKEY_CLASSES_ROOT\$p\shell\open\command" -ErrorAction SilentlyContinue).'(default)' }""")
+    exe = command.split('"')[1] if command.startswith('"') else (command.split() or [""])[0]
+    return exe if exe.lower().rsplit("\\", 1)[-1] in APP_BROWSERS else ""
+
+
+def install_desk():
+    """Tatami Room's desk on the Windows side: a Tatami Room shortcut that starts the board and
+    opens it in a window of its own, and the Claude Waifu launcher opening the desk with the
+    first window after WSL starts. Needs the tatami command linked (install.sh does that)."""
+    if not tatami_path():
+        print("desk: skipped (link the tatami command first; install.sh does that)")
+        return
+    CONF["browser"] = find_browser()
+    save(CONFIG, CONF)
+    write_launcher()
+    icon = os.path.join(LAUNCHER_DIR, "tatami.ico")
+    with_pillow("_mark", icon)
+    print(shortcut(DESK_SHORTCUT, "desk.vbs", win_path(icon) if os.path.exists(icon) else "",
+                   "Tatami Room: the desk where your Claude agents team up"))
+    print("desk: " + ("opens in its own " + CONF["browser"].rsplit("\\", 1)[-1] + " window" if CONF["browser"]
+                      else "opens in your default browser"))
 
 
 def setup(args):
@@ -566,18 +714,9 @@ if ($p) {{
         with open(os.path.join(LAUNCHER_DIR, "next.txt"), "w") as f:
             f.write(SLOT_GUIDS[state["slot"]] + "\r\n")
     save(STATE, state)
-    # The shortcut, on the desktop and in the Start menu.
-    print(powershell(f"""$ws = New-Object -ComObject WScript.Shell
-$dirs = @([Environment]::GetFolderPath('Desktop'), (Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs'))
-foreach ($d in $dirs) {{
-  $s = $ws.CreateShortcut((Join-Path $d {ps_quote(SHORTCUT)}))
-  $s.TargetPath = (Join-Path $env:WINDIR 'System32\\wscript.exe')
-  $s.Arguments = '"' + {ps_quote(win_path(os.path.join(LAUNCHER_DIR, "launch.vbs")))} + '"'
-  if ({ps_quote(shortcut_icon)}) {{ $s.IconLocation = {ps_quote(shortcut_icon)} }}
-  $s.Description = 'Claude in a new window with its own background girl and colour'
-  $s.Save()
-  'shortcut: ' + (Join-Path $d {ps_quote(SHORTCUT)})
-}}"""))
+    # The shortcuts, on the desktop and in the Start menu.
+    print(shortcut(SHORTCUT, "launch.vbs", shortcut_icon, "Claude in a new window with its own background girl and colour"))
+    install_desk()
     print("done: open 'Claude Waifu' from your desktop or Start menu (right-click it to pin it to the taskbar)")
 
 
@@ -591,8 +730,10 @@ def uninstall():
         wt["defaultProfile"] = wt["profiles"]["list"][0]["guid"]
     save_wt(wt)
     print(powershell(f"""foreach ($d in @([Environment]::GetFolderPath('Desktop'), (Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs'))) {{
-  $f = Join-Path $d {ps_quote(SHORTCUT)}
-  if (Test-Path $f) {{ Remove-Item $f; 'removed ' + $f }}
+  foreach ($n in @({ps_quote(SHORTCUT)}, {ps_quote(DESK_SHORTCUT)})) {{
+    $f = Join-Path $d $n
+    if (Test-Path $f) {{ Remove-Item $f; 'removed ' + $f }}
+  }}
 }}"""))
     shutil.rmtree(LAUNCHER_DIR, ignore_errors=True)
     for path in (CONFIG, STATE, CANDIDATES):
@@ -617,6 +758,9 @@ def main():
         sys.exit("waifu isn't set up yet. Run: waifu setup")
     if cmd == "uninstall":
         uninstall()
+        return
+    if cmd == "desk":
+        install_desk()
         return
     os.makedirs(POOL, exist_ok=True)
     os.makedirs(STATE_DIR, exist_ok=True)

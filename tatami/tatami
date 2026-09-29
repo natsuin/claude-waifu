@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
-# tatami: open the Tatami Room board in your browser, starting it first if it isn't running.
+# tatami: open the Tatami Room desk (the board), starting it first if it isn't running.
 #
-#   tatami            start the board if needed, and open it
-#   tatami stop       stop the board (your agents keep running; they don't need it)
-#   tatami hooks on   let the board show which agents need you (adds Claude Code hooks;
-#                     `tatami hooks off` takes them out)
+#   tatami                 open the desk (on Windows, in a window of its own)
+#   tatami stop            stop the board (your agents keep running; they don't need it)
+#   tatami autostart off   don't open the desk with the first Claude Waifu window after WSL
+#                          starts (`tatami autostart on` turns it back on)
+#   tatami hooks on        let the board show which agents need you (adds Claude Code hooks;
+#                          `tatami hooks off` takes them out)
 #
-# The board listens on this PC only. TATAMI_PORT picks another port (default 7373).
+# The shortcuts and Claude Code also run `tatami start`, `tatami hold`, `tatami hook` and
+# `tatami mcp`. The board listens on this PC only. TATAMI_PORT picks another port (default 7373).
 set -euo pipefail
 here="$(dirname "$(readlink -f "$0")")"
 case "${1:-}" in
-  hook) exec python3 "$here/hooks.py" event ;;  # what Claude Code runs; see hooks.py
+  mcp) exec python3 "$here/tatami_mcp.py" ;;    # the team channel, which Claude Code starts
+  hook) exec python3 "$here/hooks.py" event ;;  # what the hooks run; see hooks.py
   hooks) exec python3 "$here/hooks.py" "${2:-}" ;;
 esac
 port="${TATAMI_PORT:-7373}"
@@ -24,24 +28,62 @@ c.request("GET", "/")
 sys.exit(not c.getresponse().getheader("Server", "").startswith("TatamiRoom"))' "$port" 2>/dev/null
 }
 
+start() {  # the board, unless it's running already; returns 3 when it had to start it
+  running && return 0
+  mkdir -p "$state"
+  # In its own session so it outlives this shell. The log stays private: it holds the token.
+  (umask 077; setsid python3 "$here/board.py" --port "$port" >>"$state/board.log" 2>&1 </dev/null &)
+  for _ in $(seq 50); do running && return 3; sleep 0.1; done
+  echo "The board didn't start. See $state/board.log" >&2
+  return 1
+}
+
 case "${1:-open}" in
   open) ;;
+  start)
+    # What the Windows shortcuts run. 3 means it had to start the board; with --auto (the
+    # Claude Waifu shortcut) that's the first window since WSL started, so the desk opens too.
+    rc=0; start || rc=$?
+    if [ "$rc" = 3 ] && [ "${2:-}" = --auto ] && [ -e "$state/autostart-off" ]; then rc=0; fi
+    exit "$rc" ;;
+  hold)
+    # WSL stops a distro soon after its last terminal closes, and the board with it. The desk
+    # shortcut runs this, hidden, to hold WSL up for as long as a desk window is open.
+    mkdir -p "$state"
+    exec 9>"$state/hold.lock"
+    flock -n 9 || exit 0  # one is enough
+    sleep 20              # time for the desk to open and check in
+    while running && [ $(( $(date +%s) - $(stat -c %Y "$state/board.seen" 2>/dev/null || echo 0) )) -lt 180 ]; do
+      sleep 15
+    done
+    exit 0 ;;
+  autostart)
+    mkdir -p "$state"
+    case "${2:-}" in
+      on) rm -f "$state/autostart-off"; echo "The desk opens with your first Claude Waifu window after WSL starts." ;;
+      off) touch "$state/autostart-off"; echo "The desk only opens when you ask: the Tatami Room shortcut, or tatami." ;;
+      *) echo "usage: tatami autostart on|off" >&2; exit 1 ;;
+    esac
+    exit 0 ;;
   stop)
     # Only the board as this script starts it, never, say, an editor that has board.py open.
     if pkill -f "^python3 $here/board\.py --port "; then echo "Board stopped. Your agents are still running."
     else echo "The board wasn't running."; fi
     exit 0 ;;
-  *) sed -n '4,7s/^#  *//p' "$0"; exit 1 ;;
+  *) sed -n '4,9s/^#  *//p' "$0"; exit 1 ;;
 esac
 
-if ! running; then
-  mkdir -p "$state"
-  # In its own session so it outlives this shell. The log stays private: it holds the token.
-  (umask 077; setsid python3 "$here/board.py" --port "$port" >>"$state/board.log" 2>&1 </dev/null &)
-  for _ in $(seq 50); do running && break; sleep 0.1; done
-  running || { echo "The board didn't start. See $state/board.log" >&2; exit 1; }
+rc=0; start || rc=$?
+[ "$rc" = 1 ] && exit 1
+# On Windows, open it the way the Tatami Room shortcut does: in a window of its own, or the
+# desk window that's already open.
+launcher="$(python3 -c 'import json, os
+print(json.load(open(os.path.expanduser("~/.config/waifu/config.json"))).get("launcher_dir", ""))' 2>/dev/null || true)"
+if [ -n "$launcher" ] && [ -f "$launcher/desk.vbs" ] && command -v wscript.exe >/dev/null; then
+  (cd /mnt/c && wscript.exe "$(wslpath -w "$launcher/desk.vbs")") >/dev/null 2>&1 &
+  echo "Tatami Room is open."
+  exit 0
 fi
-
 url="http://127.0.0.1:$port/?token=$(cat "$state/board.token")"
 if command -v powershell.exe >/dev/null; then  # WSL: your default Windows browser
   (cd /mnt/c && powershell.exe -NoProfile -Command "Start-Process '$url'") >/dev/null 2>&1
