@@ -329,12 +329,27 @@ function createWindow(background) {
   win.once("ready-to-show", reveal);
   win.webContents.once("did-finish-load", reveal);
   setTimeout(reveal, 4000);
+  // Closing the window quits, unless Claude is running in the app's own terminals: then it asks,
+  // and they can keep running in the tray instead. (Nothing runs hidden without you choosing it.)
   win.on("close", (e) => {
     saveBounds();
-    if (quitting) return;
-    e.preventDefault();  // closing puts it in the tray, where it can still tell you who needs you
-    win.hide();
-    trayHint();
+    if (quitting || !sessions.size) {
+      quitting = true;
+      return;
+    }
+    e.preventDefault();
+    const n = sessions.size;
+    const choice = dialog.showMessageBoxSync(win, { type: "question", buttons: ["Quit", "Keep running in the tray", "Cancel"],
+      defaultId: 0, cancelId: 2, title: "Tatami Room", message: "Quit Tatami Room?",
+      detail: `${n} terminal${n === 1 ? "" : "s"} in the app will close, and Claude in ${n === 1 ? "it" : "them"} stops. ` +
+              `Or keep ${n === 1 ? "it" : "them"} running in the tray, where the desk can still tell you who needs you.` });
+    if (choice === 0) {
+      quitting = true;
+      app.quit();
+    } else if (choice === 1) {
+      win.hide();
+      trayHint();
+    }
   });
 }
 
@@ -355,7 +370,7 @@ function trayHint() {
   if (fs.existsSync(seen)) return;
   try { fs.writeFileSync(seen, ""); } catch { return; }
   new Notification({ title: "Tatami Room is still here", icon: ICON,
-    body: "It keeps running in the tray, so it can tell you when an agent needs you. Quit from the tray icon." }).show();
+    body: "Claude keeps running in the tray. Click the tray icon to come back, or quit from its menu." }).show();
 }
 
 function createTray() {
@@ -489,6 +504,6 @@ if (!app.requestSingleInstanceLock()) {
     if (helper) helper.kill();
     for (const s of sessions.values()) s.proc.kill();  // its terminals end with it, like closing their windows
   });
-  app.on("window-all-closed", () => {});  // the tray keeps it running
+  app.on("window-all-closed", () => { if (quitting) app.quit(); });
   app.whenReady().then(start);
 }
