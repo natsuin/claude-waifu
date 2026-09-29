@@ -1,6 +1,6 @@
-__pycache__/
-*.pyc
 # Downloaded art belongs to its owners and never goes in the repo.
-*.png
-*.jpg
 *.jpeg
+*.jpg
+*.png
+*.pyc
+__pycache__/

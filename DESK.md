@@ -25,23 +25,23 @@ Something anyone can pick up without learning it. No menus to memorize, no sessi
 - **Claude as the hub.** Other agents join a team, and Claude coordinates by default.
 - **Drag to decide.** Grouping, joining a project and teaming up are all done by dragging, not by forms or settings.
 - **Tell them apart at a glance.** Every window keeps a distinct color and girl, carried over from Claude Waifu.
-- **Nothing gets lost.** Closing or refreshing the page doesn't stop your agents; the desk reconnects to them.
-- **Local and safe.** Everything runs on your own PC. The desk only listens on this machine and needs a secret token, so no website or other device can reach your terminals.
+- **Nothing gets lost.** Your agents live in their own windows. Closing the board never touches them.
+- **Local and safe.** Everything runs on your own PC. The board can't reach any terminal or run commands; it only arranges agents into rooms. It listens on this machine only and needs a secret token.
 
 ## How it works
 
-- **Sessions live in WSL.** Each agent runs inside tmux, on the desk's own private tmux server, so it keeps running when the page is closed.
-- **Windows live in the browser.** Each agent window is a real terminal (xterm.js) connected to its session by a small local server. The browser is the first home because it's the fastest to build and try; a desktop app wrapper can come later.
+- **Agents live in real Terminal windows.** Each one is a normal Claude Waifu window (later also Gemini and Codex), with its own girl and color.
+- **The board shows them as mats.** Every running agent announces itself through the team channel, so the board can show it as a mat. Dragging a mat into a room changes which team the agent belongs to, and nothing else.
 - **Teams talk through MCP.** Claude Code, Gemini CLI and Codex all support MCP, the plug-in standard for giving agents new tools. Each project gets a shared channel, an MCP server every agent in the team connects to, with tools to post updates, read the others' messages and ask each other for help. Dragging an agent onto a team connects it to that team's channel.
 
 ## Build order
 
 Each step is usable on its own.
 
-1. **The desk.** Draggable, resizable windows running real Claude sessions in WSL, each with its own color and girl. Windows survive a page refresh. *(in progress)*
-2. **Projects.** Drag windows together to form a team that shares a folder and a group color.
-3. **The team channel.** Agents in a team can message each other and hand off work.
-4. **More companies.** Gemini and Codex windows alongside Claude.
+1. **The team channel.** *(done: [tatami/tatami_mcp.py](tatami/tatami_mcp.py))* An MCP server, standard library only, with three tools: `room_post`, `room_read` and `room_members`. Agents working in the same project folder share a room automatically. It stores plain files in `~/.local/state/tatami`, runs no commands and uses no network.
+2. **The board.** A local page showing each running agent as a mat, grouped by room. Drag a mat into another room to team agents up. *(next)*
+3. **Group looks.** Windows in the same room get a matching tab color, so teams stand out on your taskbar too.
+4. **More companies.** Gemini and Codex joining rooms alongside Claude, using the same channel.
 
 Later: open the desk automatically when WSL starts, show usage on the desk, notify you when an agent needs you, and wrap it as a desktop app.
 
