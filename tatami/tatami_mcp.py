@@ -242,6 +242,7 @@ class Agent:
             # there before it arrived.
             self.read_upto = upto if isinstance(upto, dict) else {}
             self.touch()
+        self.known_room = self.room  # the room it has been told about
 
     @property
     def room(self):
@@ -301,6 +302,18 @@ def fmt(m):
 
 def call(agent, name, args):
     room = agent.room
+    text, is_error = answer(agent, name, args, room)
+    if room != agent.known_room:  # moved on the board since its last call: nothing else tells it
+        agent.known_room = room
+        note = (f"The user moved you into room '{room}'." if room else
+                "The user took you off your team: you're on your own now.")
+        if room and name != "room_members":
+            note += " Call room_members to see who's there."
+        text = f"{note}\n\n{text}"
+    return text, is_error
+
+
+def answer(agent, name, args, room):
     if name in ("room_post", "room_read") and not room:
         return ALONE, False
     if name == "room_post":
