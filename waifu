@@ -304,7 +304,9 @@ APP_BROWSERS = ("brave.exe", "chrome.exe", "msedge.exe", "vivaldi.exe", "chromiu
 # picked, and checked against the checksum Electron published for it (SHASUMS256.txt).
 ELECTRON = ("v44.4.3", "790a355b684d5c7cc8dc3cdd8c4cca7c4b2d054685427c7554a956879a82e70b")
 APP_EXE = "Tatami Room.exe"
-APP_FILES = ("package.json", "main.js", "preload.js", "helper.ps1")  # the app's own code, in this repo's app/ folder
+APP_FILES = ("package.json", "main.js", "preload.js", "helper.ps1", "terminal.html", "terminal.js",
+             "terminal-preload.js", "vendor/xterm.js", "vendor/xterm.css", "vendor/addon-fit.js",
+             "vendor/LICENSE-xterm", "vendor/LICENSE-addon-fit")  # the app's own code, in this repo's app/ folder
 
 
 def waifu_path():
@@ -404,6 +406,7 @@ def sync_app():
             files["tatami.ico"] = f.read()
     for name, data in files.items():
         path = os.path.join(dst, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         try:
             with open(path, "rb") as f:
                 if f.read() == data:
@@ -523,9 +526,16 @@ def repaint_all(state):
 
 
 def tint(wt, state, slot):
-    """Give a slot its own background colour. Colours are dealt from a shuffled deck, so every
-    colour comes up once before any repeats, and a colour can't come back while one of the
-    last SLOTS - 1 windows (the most that can be open beside this one) might still show it."""
+    """Give a slot its own background colour."""
+    name = deal_tint(state)
+    slot_profiles(wt)[slot]["background"] = TINTS[name]
+    state.setdefault("tints", {})[str(slot)] = name
+
+
+def deal_tint(state):
+    """The next window's colour. Colours are dealt from a shuffled deck, so every colour comes
+    up once before any repeats, and a colour can't come back while one of the last SLOTS - 1
+    windows (the most that can be open beside this one) might still show it."""
     recent = state.get("recent_tints", [])[-(SLOTS - 1):]
     deck = [t for t in state.get("tint_deck", []) if t in TINTS]
     options = [t for t in deck if t not in recent]
@@ -535,8 +545,7 @@ def tint(wt, state, slot):
     name = random.choice(options)
     deck.remove(name)
     state.update(tint_deck=deck, recent_tints=(recent + [name])[-(SLOTS - 1):])
-    slot_profiles(wt)[slot]["background"] = TINTS[name]
-    state.setdefault("tints", {})[str(slot)] = name
+    return name
 
 
 def prepare_next(wt, state):
@@ -1008,6 +1017,10 @@ def main():
             wt = load_wt()
             paint(wt, state, here(state), choose(state))
             save_wt(wt)
+        elif cmd == "pick":  # a girl and a colour for a terminal inside the Tatami Room app
+            girl = None if state.get("off") else choose(state)
+            render([girl])
+            print(json.dumps({"girl": girl, "color": deal_tint(state)}))
         elif cmd == "refill":
             fetch(DAILY_REFILL, state)
             cleanup(state)

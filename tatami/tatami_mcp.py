@@ -130,9 +130,10 @@ def waifu_slot():
 
 
 def waifu_look(slot):
-    """If this agent is in a Claude Waifu window, its color name and girl."""
+    """If this agent is in a Claude Waifu window, its color name and girl. A terminal inside the
+    Tatami Room app has them from waifu too, handed over by the app's terminal (term.py)."""
     if slot is None:
-        return None, None
+        return os.environ.get("TATAMI_COLOR") or None, os.environ.get("TATAMI_GIRL") or None
     state = load(WAIFU_STATE, {})
     return state.get("tints", {}).get(str(slot)), state.get("shown", {}).get(str(slot))
 
@@ -258,7 +259,8 @@ class Agent:
         with self.saving:  # the window finder saves from its own thread
             save(self.path, {"id": self.id, "agent": self.kind, "color": self.color, "girl": self.girl,
                              "cwd": self.cwd, "room": self.room, "pid": self.pid, "started": self.started,
-                             "hwnd": self.hwnd, "seen": time.time(), "read_upto": self.read_upto})
+                             "hwnd": self.hwnd, "session": os.environ.get("TATAMI_SESSION"),
+                             "seen": time.time(), "read_upto": self.read_upto})
 
     def messages(self, room):
         return load_jsonl(os.path.join(ROOMS, room + ".jsonl"))

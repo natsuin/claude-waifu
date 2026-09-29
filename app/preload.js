@@ -6,4 +6,5 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("tatami", {
   newClaude: () => ipcRenderer.invoke("tatami:new-claude"),
   focus: (id) => ipcRenderer.invoke("tatami:focus", String(id)),
+  onPanel: (cb) => ipcRenderer.on("tatami:panel", (_e, width) => cb(Number(width) || 0)),
 });

@@ -75,6 +75,8 @@ button, input { font: inherit; color: inherit; }
    for the window buttons Windows draws over its right end. */
 .app .bar { min-height: 64px; padding-right: 150px; -webkit-app-region: drag; }
 .app .bar a, .app .bar button, .app .bar input { -webkit-app-region: no-drag; }
+/* ...and the app's terminal panel takes the right side under the header: the desk makes room. */
+.app main, .app .lobby, .app .empty { margin-right: var(--panel, 0px); }
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand svg { width: 30px; height: 30px; flex: none; }
 h1 { margin: 0; font: 600 1.45rem/1 var(--display); letter-spacing: .02em; }
@@ -477,6 +479,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 const TOKEN = "__TOKEN__";
 const APP = window.tatami;   // set inside the Tatami Room app (its preload.js); absent in a browser
 if (APP) document.documentElement.classList.add("app");
+APP?.onPanel?.((width) => document.documentElement.style.setProperty("--panel", `${width}px`));
 const COMPANIES = { claude: "Claude", gemini: "Gemini", codex: "Codex" };
 const STATUS = { working: "working", done: "your turn", asking: "needs your OK" };   // from the hooks
 const HEX = /^#[0-9a-f]{6}$/i;

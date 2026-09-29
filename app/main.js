@@ -3,7 +3,8 @@
 // new Claude window, bring an agent's window up, keep WSL running while it's open, sit in the
 // tray, and tell you when an agent needs your OK.
 "use strict";
-const { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeTheme, screen, shell } = require("electron");
+const { app, BrowserWindow, Menu, Notification, Tray, WebContentsView, clipboard, dialog, ipcMain, nativeTheme, screen,
+  shell } = require("electron");
 const { execFile, spawn } = require("child_process");
 const fs = require("fs");
 const http = require("http");
@@ -56,7 +57,13 @@ function holdWsl() {
 
 // ---- what the desk page may ask for ----
 
+// + Claude: Claude in a terminal of the app's own, in the panel beside the desk (see below). A
+// Claude Waifu window in Windows Terminal is still in the tray menu.
 function newClaude() {
+  startSession();
+}
+
+function newWindow() {
   execFile("wscript.exe", [path.join(CONFIG.launcher, "launch.vbs")], { windowsHide: true }, () => {});
 }
 
@@ -100,6 +107,12 @@ function bringUp(hwnd) {
 const windows = new Map();  // agent id -> its window's handle, from the board
 async function focusAgent(id) {
   if (!AGENT_ID.test(id)) return 2;
+  for (const [key, a] of bySession) {  // one of the app's own terminals: show it in the panel
+    if (a.id === id && sessions.has(key)) {
+      showSession(key);
+      return 0;
+    }
+  }
   const hwnd = windows.get(id);
   if (hwnd) {
     const rc = await bringUp(hwnd);
@@ -118,6 +131,109 @@ function fromBoard(event) {
 
 ipcMain.handle("tatami:new-claude", (event) => { if (fromBoard(event)) newClaude(); });
 ipcMain.handle("tatami:focus", (event, id) => (fromBoard(event) ? focusAgent(String(id)) : 2));
+
+// ---- terminals inside the app ----
+// Each runs `tatami term` through a wsl.exe of its own: Claude in a pseudo-terminal inside WSL,
+// relayed over plain pipes and drawn with xterm.js in a panel beside the desk (terminal.html).
+
+const sessions = new Map();   // session key -> { proc, log }
+const bySession = new Map();  // session key -> its agent on the desk, once it has checked in
+const LOG_MAX = 4 << 20;      // what a terminal printed before the panel drew it, kept for it
+const HEAD = 64;              // the desk's header stays whole above the panel
+let panel = null;
+let panelReady = false;
+let queued = [];
+let shown = null;             // the session in the panel, while it's open
+
+function startSession() {
+  const key = "app-" + Date.now().toString(36);
+  const proc = spawn("wsl.exe", ["-d", CONFIG.distro, "--", CONFIG.tatami, "term", key],
+    { windowsHide: true, stdio: ["pipe", "pipe", "ignore"] });
+  const s = { proc, log: [], size: 0 };
+  sessions.set(key, s);
+  proc.stdout.on("data", (chunk) => {
+    s.log.push(chunk);
+    s.size += chunk.length;
+    while (s.size > LOG_MAX && s.log.length > 1) s.size -= s.log.shift().length;
+    toPanel("term:data", key, chunk);
+  });
+  proc.on("error", () => {});
+  proc.on("exit", () => {
+    sessions.delete(key);
+    toPanel("term:end", key);
+  });
+  showSession(key);
+}
+
+function toPanel(channel, ...args) {
+  if (panelReady) panel.webContents.send(channel, ...args);
+  else if (channel !== "term:data") queued.push([channel, ...args]);  // data waits in the log
+}
+
+function ensurePanel() {
+  if (panel) return;
+  panel = new WebContentsView({ webPreferences: {
+    preload: path.join(__dirname, "terminal-preload.js"), contextIsolation: true, sandbox: true,
+    nodeIntegration: false, spellcheck: false, backgroundThrottling: false } });
+  panel.setBackgroundColor("#1f1726");
+  panel.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  panel.webContents.on("will-navigate", (e) => e.preventDefault());
+  panel.webContents.once("did-finish-load", () => {
+    panelReady = true;
+    for (const [channel, ...args] of queued) panel.webContents.send(channel, ...args);
+    queued = [];
+  });
+  panel.webContents.loadFile(path.join(__dirname, "terminal.html"));
+  win.contentView.addChildView(panel);
+  win.on("resize", layout);
+}
+
+// The panel takes the right side under the desk's header; the desk makes room for it.
+function layout() {
+  if (!panel || win.isDestroyed()) return;
+  const [w, h] = win.getContentSize();
+  const width = shown ? Math.max(0, Math.min(w - 300, Math.max(520, Math.round(w * 0.58)))) : 0;
+  panel.setBounds({ x: w - width, y: HEAD, width, height: Math.max(0, h - HEAD) });
+  panel.setVisible(!!shown);
+  win.webContents.send("tatami:panel", width);
+}
+
+function lookOf(key) {
+  const a = bySession.get(key);
+  return { name: a ? a.id : "Claude", tint: (a && a.tint) || "#2a2233",
+    girl: a && a.girl ? `${board.origin}/girl/${encodeURIComponent(a.id)}?token=${board.searchParams.get("token")}` : "" };
+}
+
+function showSession(key) {
+  ensurePanel();
+  showDesk();
+  shown = key;
+  layout();
+  toPanel("term:show", key, lookOf(key));
+  panel.webContents.focus();
+}
+
+function hidePanel() {
+  shown = null;
+  layout();
+  win.webContents.focus();
+}
+
+function fromPanel(event) {
+  return panel && event.sender === panel.webContents;
+}
+
+ipcMain.on("term:input", (e, key, data) => { if (fromPanel(e)) sessions.get(key)?.proc.stdin.write(String(data)); });
+ipcMain.on("term:binary", (e, key, data) => { if (fromPanel(e)) sessions.get(key)?.proc.stdin.write(Buffer.from(String(data), "latin1")); });
+ipcMain.on("term:resize", (e, key, cols, rows) => {
+  if (fromPanel(e) && Number.isInteger(cols) && Number.isInteger(rows) && cols > 1 && rows > 1) {
+    sessions.get(key)?.proc.stdin.write(`\x1b]7373;resize;${cols};${rows}\x07`);
+  }
+});
+ipcMain.handle("term:backlog", (e, key) => (fromPanel(e) && sessions.has(key) ? Buffer.concat(sessions.get(key).log) : null));
+ipcMain.handle("term:paste", (e) => (fromPanel(e) ? clipboard.readText() : ""));
+ipcMain.on("term:copy", (e, text) => { if (fromPanel(e)) clipboard.writeText(String(text)); });
+ipcMain.on("term:hide", (e) => { if (fromPanel(e)) hidePanel(); });
 
 // ---- the window ----
 
@@ -206,6 +322,7 @@ function createTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "Open the desk", click: showDesk },
     { label: "+ Claude", click: newClaude },
+    { label: "+ Claude in a Terminal window", click: newWindow },
     { type: "separator" },
     { label: "Quit Tatami Room", click: () => { quitting = true; app.quit(); } },
   ]));
@@ -258,6 +375,12 @@ function seen(s) {
   const agents = [...s.alone, ...s.rooms.flatMap((r) => r.members)];
   windows.clear();
   for (const a of agents) if (Number.isInteger(a.hwnd)) windows.set(a.id, a.hwnd);
+  for (const a of agents) {  // the app's own terminals: their agent, and its name, color and girl
+    if (!a.session || !sessions.has(a.session)) continue;
+    const before = JSON.stringify(lookOf(a.session));
+    bySession.set(a.session, a);
+    if (JSON.stringify(lookOf(a.session)) !== before) toPanel("term:look", a.session, lookOf(a.session));
+  }
   for (const a of agents) if (a.status === "asking" && !asking.has(a.id)) notifyAsking(a);
   asking.clear();
   for (const a of agents) if (a.status === "asking") asking.add(a.id);
@@ -307,13 +430,23 @@ async function start() {
   createWindow(process.argv.includes("--background"));
   createTray();
   watch();
+  if (process.argv.includes("--new-claude")) startSession();
 }
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();  // it's already running: that one comes to the front (see second-instance)
 } else {
-  app.on("second-instance", (_e, argv) => { if (!argv.includes("--background")) showDesk(); });
-  app.on("before-quit", () => { quitting = true; saveBounds(); if (hold) hold.kill(); if (helper) helper.kill(); });
+  app.on("second-instance", (_e, argv) => {
+    if (argv.includes("--new-claude")) startSession();
+    else if (!argv.includes("--background")) showDesk();
+  });
+  app.on("before-quit", () => {
+    quitting = true;
+    saveBounds();
+    if (hold) hold.kill();
+    if (helper) helper.kill();
+    for (const s of sessions.values()) s.proc.kill();  // its terminals end with it, like closing their windows
+  });
   app.on("window-all-closed", () => {});  // the tray keeps it running
   app.whenReady().then(start);
 }

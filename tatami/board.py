@@ -14,6 +14,7 @@ other devices and other websites can't use it.
 import hmac
 import json
 import os
+import re
 import secrets
 import sys
 import time
@@ -56,7 +57,9 @@ def agents():
              "seen": rec.get("seen", 0), "girl": bool(rec.get("girl")) and not hidden,
              "status": channel.load(os.path.join(channel.HOME, "status", rec["id"] + ".json"), {}).get("state"),
              # its window's handle, found by the agent itself, which the app uses to bring it up
-             "hwnd": rec["hwnd"] if isinstance(rec.get("hwnd"), int) else None}
+             "hwnd": rec["hwnd"] if isinstance(rec.get("hwnd"), int) else None,
+             # set when the agent runs in a terminal inside the Tatami Room app
+             "session": rec["session"] if re.fullmatch(r"[a-z0-9-]{1,40}", str(rec.get("session"))) else None}
             for rec in channel.live_agents()]
 
 
