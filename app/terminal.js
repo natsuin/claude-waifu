@@ -85,6 +85,7 @@ function fitCurrent() {
 }
 
 T.onShow((key, look) => {
+  for (const k of [...ended]) if (k !== key) forget(k);
   const t = terms.get(key) || make(key);
   for (const [k, o] of terms) o.el.hidden = k !== key;
   current = key;
@@ -97,9 +98,22 @@ T.onData((key, chunk) => {
   if (!t) return;  // not drawn yet: its backlog has this
   if (t.pending) t.pending.push(chunk); else t.term.write(chunk);
 });
+// An ended terminal says so while it's on show, and is let go once it isn't.
+const ended = new Set();
+function forget(key) {
+  const t = terms.get(key);
+  if (!t) return;
+  t.term.dispose();
+  t.el.remove();
+  terms.delete(key);
+  ended.delete(key);
+}
 T.onEnd((key) => {
   const t = terms.get(key);
-  if (t) t.term.write("\r\n\x1b[2m[This terminal has ended.]\x1b[0m\r\n");
+  if (!t) return;
+  if (key !== current) return forget(key);
+  ended.add(key);
+  t.term.write("\r\n\x1b[2m[This terminal has ended.]\x1b[0m\r\n");
 });
 document.getElementById("hide").addEventListener("click", () => T.hide());
 document.getElementById("end").addEventListener("click", () => { if (current) T.end(current); });

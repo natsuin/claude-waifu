@@ -480,6 +480,7 @@ const TOKEN = "__TOKEN__";
 const APP = window.tatami;   // set inside the Tatami Room app (its preload.js); absent in a browser
 if (APP) document.documentElement.classList.add("app");
 APP?.onPanel?.((width) => document.documentElement.style.setProperty("--panel", `${width}px`));
+if (APP) document.getElementById("new-claude").title = "Start Claude in a terminal beside the desk";
 const COMPANIES = { claude: "Claude", gemini: "Gemini", codex: "Codex" };
 const STATUS = { working: "working", done: "your turn", asking: "needs your OK" };   // from the hooks
 const HEX = /^#[0-9a-f]{6}$/i;

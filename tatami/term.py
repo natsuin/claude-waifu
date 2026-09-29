@@ -35,7 +35,8 @@ def set_size(fd, cols, rows):
 def look():
     """A girl and a color for this terminal, dealt by waifu like a new window's."""
     try:
-        out = subprocess.run([WAIFU, "pick"], capture_output=True, text=True, timeout=60).stdout
+        # A few seconds at most: waifu can be busy downloading, and Claude shouldn't wait for a girl.
+        out = subprocess.run([WAIFU, "pick"], capture_output=True, text=True, timeout=6).stdout
         pick = json.loads(out.strip().splitlines()[-1])
         return str(pick.get("color") or ""), str(pick.get("girl") or "")
     except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
@@ -63,6 +64,7 @@ def main():
     session = sys.argv[1] if len(sys.argv) > 1 else ""
     if not re.fullmatch(r"[a-z0-9-]{1,40}", session):
         sys.exit("usage: tatami term <session>")
+    os.write(1, b"\x1b[2mStarting Claude\xe2\x80\xa6\x1b[0m")  # something to see straight away
     color, girl = look()
     start = desk()
     pid, fd = pty.fork()
@@ -72,6 +74,7 @@ def main():
         os.chdir(start)
         os.execvp("bash", ["bash", "-lic", "claude; exec bash"])
     set_size(fd, 100, 30)
+    os.write(1, b"\r\x1b[2K")  # Claude draws from here
     try:
         while True:
             ready, _, _ = select.select([0, fd], [], [])
