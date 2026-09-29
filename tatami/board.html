@@ -719,7 +719,9 @@ function fillMat(mat, a, heri, now) {
   mat.style.setProperty("--tint", tint);
   mat.style.setProperty("--hue", lightHue(tint));
   mat.style.setProperty("--heri", heri);
-  $(".kind", mat).textContent = a.agent === "claude" ? "" : company;
+  // Which kind of agent, when it isn't plain Claude in a Terminal window.
+  $(".kind", mat).textContent = a.session ? (a.agent === "claude" ? "in the app" : `${company} in the app`)
+    : a.agent === "claude" ? "" : company;
   $(".name", mat).textContent = a.id;
   $(".folder", mat).textContent = a.folder ? `${a.folder}/` : "";
   const status = STATUS[a.status];

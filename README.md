@@ -4,21 +4,22 @@
 
 The name comes from tatami, the woven mats that fit side by side to make a Japanese room. Each agent is a mat. Lay mats together and you've made a room: a team working on the same thing.
 
-> **Work in progress.** Everything below works today with Claude Code on Windows Terminal and WSL. Next up: the agents' terminals inside the desk itself, and later agents from other companies, like Gemini CLI and Codex, joining the same rooms. The plan and the reasoning behind it are in [DESK.md](DESK.md).
+> **Work in progress.** Everything below works today with Claude Code on Windows Terminal and WSL. Later: agents from other companies, like Gemini CLI and Codex, joining the same rooms. The plan and the reasoning behind it are in [DESK.md](DESK.md).
 
 ## Why
 
 One agent in one terminal is easy. Five agents in five terminals is a mess: which one is doing what, which one is waiting for you, and how do they share what they've found? Tatami Room turns them into a team you can see.
 
 - **See every agent at once.** The desk shows each running agent as a mat, with its folder and whether it's busy, done, or waiting for your OK.
-- **Get to any of them.** Click a mat and that agent's window comes to the front. **+ Claude** starts a new one.
+- **Get to any of them.** **+ Claude** starts Claude in a terminal right inside the app, and clicking a mat brings that agent up.
 - **Team up by dragging.** Drop one mat onto another and those agents share a room. In a room they post updates, hand off tasks and ask each other questions.
 - **Tell them apart at a glance.** Every window has its own color, and the windows of a team share a tab color.
 
 ## What you get
 
 - **The Tatami Room app.** The desk runs as a Windows app of its own, with a shortcut on your desktop and in the Start menu, and its header as the title bar. It opens with your first Claude window after WSL starts, and every running agent is a mat on it. Close it and it keeps running in the tray, so it can pop up a Windows notification when an agent needs your OK.
-- **+ Claude and click-to-open.** The desk's **+ Claude** button opens a new Claude window. Click a mat, or press Enter on it, to bring that agent's window to the front.
+- **Claude inside the app.** **+ Claude** starts Claude in a terminal of the app's own, in a panel beside the desk, drawn over its own girl and color like a Claude Waifu window. Click its mat to bring it back, **Hide** it while Claude keeps working, **End** it when you're done, and drag the panel's edge to resize it. **Ctrl+`** switches between the desk and the last terminal.
+- **Click-to-open for your other windows.** Agents in Windows Terminal windows (the **Claude Waifu** shortcut, or **+ Claude in a Terminal window** in the tray menu) are on the desk too: click a mat, or press Enter on it, and that window comes to the front.
 - **Rooms you make by dragging.** New agents wait on their own in a strip along the top. Drop one mat onto another and the two get a new room, named the way a Japanese inn names its rooms: after a flower in the room's color (sakura is pink, fuji is lavender, momiji is peach). Drag a mat into a room to join that team, or back to the strip to take it off. Agents started in the same project folder share that project's room automatically.
 - **A team channel.** Each agent gets three tools: `room_post` for an update, a hand-off or a question, `room_read` for what the others said, and `room_members` for who's on the team. An agent is told when you move it.
 - **Matching tab colors.** Windows on the same team get the same tab color, the one the desk shows for their room. No two teams share a color.
@@ -57,7 +58,7 @@ To update later, run `git pull` in the folder. Everything is linked, not copied,
 ## Everyday use
 
 1. Open **Tatami Room**, or **Claude Waifu**: the desk opens with your first Claude window.
-2. Press **+ Claude** for each agent you want. Every one appears on the desk, on its own.
+2. Press **+ Claude** for each agent you want. Every one appears on the desk, on its own, and its terminal opens beside the desk. The first time, Claude asks whether you trust `~/desk`, the folder the app's terminals start in: say yes once, and Claude Code remembers it for that folder.
 3. When agents should work together, drag one mat onto another. They're a team now: their tabs turn their room's color, and they can talk in their room.
 4. Click a mat to jump to that agent. Glance at the desk to see who's busy and who's waiting for you.
 
@@ -74,6 +75,7 @@ From inside Claude Code, put `!` in front of a command, like `! tatami hooks on`
 
 - **The team channel** is a small MCP server, plain Python with no dependencies, that every Claude Code session starts for itself. The agents share a folder of plain files in `~/.local/state/tatami`: the messages of each room, and a note per agent saying which room it's in. There's no daemon, no network, and nothing that runs commands.
 - **An agent's room** is its project's room if you started it in a project folder, or none (on its own) if you started it in your home folder, which is where new Claude windows start. The desk records the rooms you drag agents into.
+- **The app's terminals** run Claude in a pseudo-terminal inside WSL (`tatami term`) and relay it to the app, which draws it with [xterm.js](https://xtermjs.org). They start in `~/desk` rather than your home folder, so Claude Code's folder check is answered once instead of in every session, and they end when you quit the app (it asks first).
 - **The Tatami Room app** is a small [Electron](https://www.electronjs.org) app. It starts the desk's server inside WSL, shows the desk, opens and brings up windows for its buttons, and keeps WSL running while it's open. Quit it from its tray icon.
 - **The desk** itself is a local web page served from your own PC, which is also why it works in a browser. It listens on this machine only and needs a secret token, so other devices and websites can't use it. Its server shows your agents and changes which room each one is in, and nothing else: it can't run commands or reach your terminals.
 - **The desk's buttons** open a new Claude window or bring an agent's window to the front. In the app, the app does that. In a browser they're `tatami-room:` links, which Windows hands to a small script that does exactly those two things and ignores anything else (the first time, your browser asks before opening Windows Script Host: tick **Always allow** and choose **Open**). To find an agent's window, it asks from inside that agent's own WSL session: the session's console belongs to the window the agent lives in, so this works for every window, however it was opened.

@@ -145,6 +145,7 @@ let panelReady = false;
 let queued = [];
 let shown = null;             // the session in the panel, while it's open
 let panelWidth = null;        // set by dragging its edge; until then, a share of the window
+let lastShown = null;         // for Ctrl+`, which goes back to it
 
 function startSession() {
   const key = "app-" + Date.now().toString(36);
@@ -184,6 +185,7 @@ function ensurePanel() {
     for (const [channel, ...args] of queued) panel.webContents.send(channel, ...args);
     queued = [];
   });
+  panel.webContents.on("before-input-event", toggleKey);
   panel.webContents.loadFile(path.join(__dirname, "terminal.html"));
   win.contentView.addChildView(panel);
   win.on("resize", layout);
@@ -209,7 +211,7 @@ function lookOf(key) {
 function showSession(key) {
   ensurePanel();
   showDesk();
-  shown = key;
+  shown = lastShown = key;
   layout();
   toPanel("term:show", key, lookOf(key));
   panel.webContents.focus();
@@ -219,6 +221,14 @@ function hidePanel() {
   shown = null;
   layout();
   win.webContents.focus();
+}
+
+// Ctrl+` switches between the desk and the terminal you had open last, from either side.
+function toggleKey(event, input) {
+  if (input.type !== "keyDown" || !input.control || input.key !== "`") return;
+  event.preventDefault();
+  if (shown) hidePanel();
+  else if (lastShown && sessions.has(lastShown)) showSession(lastShown);
 }
 
 function fromPanel(event) {
@@ -306,6 +316,7 @@ function createWindow(background) {
   win.webContents.on("will-navigate", (e, to) => {
     try { if (new URL(to).origin !== board.origin) e.preventDefault(); } catch { e.preventDefault(); }
   });
+  win.webContents.on("before-input-event", toggleKey);
   win.loadURL(board.href);
   // Show it once the desk has painted. On a first start Chromium sets up its caches and that
   // signal can go missing, so the page finishing, or a few seconds, will do as well.

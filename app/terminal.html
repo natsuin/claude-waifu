@@ -69,6 +69,11 @@ main { position: relative; flex: 1; min-height: 0; background: var(--tint); }
 .term { position: absolute; inset: 10px 4px 6px 12px; }
 .term[hidden] { display: none; }
 .xterm .xterm-viewport { background-color: transparent !important; }
+.xterm-viewport::-webkit-scrollbar { width: 10px; }
+.xterm-viewport::-webkit-scrollbar-track { background: transparent; }
+.xterm-viewport::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 8px; background: rgba(195, 166, 255, .28) padding-box; }
+.xterm-viewport::-webkit-scrollbar-thumb:hover { background-color: rgba(195, 166, 255, .45); }
+.xterm-viewport::-webkit-scrollbar-button { display: none; }
 </style>
 </head>
 <body>
