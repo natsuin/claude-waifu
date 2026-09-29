@@ -20,6 +20,10 @@ Something anyone can pick up without learning it. No menus to memorize, no sessi
 4. You want help, so you click **+ Claude** (or **+ Gemini**) again and drag the new window onto the first one.
 5. Now they're a team. They work in the same project folder, share a group color, and can talk to each other: one can hand the other a task, ask a question, or report what it did.
 
+## The look
+
+The desk is drawn as the room it's named after, seen from above. Each team's room is a tatami floor in a dark wooden frame: the mats lie edge to edge, their rush catching the lamplight a little differently mat to mat, with cloth edging (heri) in the room's color. An agent sits on its mat on a zabuton, a floor cushion in its window's color with its girl printed on it; the mats nobody sits on stay dim. Beside each floor is a tokonoma, the alcove where a Japanese room hangs its scroll: a flower room's scroll shows its flower in kanji, with the room's color as its seal. Agents on their own wait at the entrance, on stone. The header is a shoji screen, the terminal panel slides open like a fusuma door and its pull is the handle that resizes it, and + Claude is pressed like a seal.
+
 ## Principles
 
 - **A host of agents, not one.** The unit is a team working on a project, not a single chat.

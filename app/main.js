@@ -188,18 +188,29 @@ function ensurePanel() {
   panel.webContents.on("before-input-event", toggleKey);
   panel.webContents.loadFile(path.join(__dirname, "terminal.html"));
   win.contentView.addChildView(panel);
-  win.on("resize", layout);
+  win.on("resize", () => layout());
 }
 
-// The panel takes the right side under the desk's header; the desk makes room for it.
-function layout() {
+// The panel takes the right side under the desk's header; the desk makes room for it. When it
+// opens, it slides in from the edge like a fusuma door.
+let sliding = null;
+function layout(slide = false) {
   if (!panel || win.isDestroyed()) return;
   const [w, h] = win.getContentSize();
   const wanted = panelWidth || Math.max(520, Math.round(w * 0.58));
   const width = shown ? Math.max(0, Math.min(w - 300, Math.max(360, wanted))) : 0;
-  panel.setBounds({ x: w - width, y: HEAD, width, height: Math.max(0, h - HEAD) });
+  const place = (x) => panel.setBounds({ x, y: HEAD, width, height: Math.max(0, h - HEAD) });
+  clearInterval(sliding);
   panel.setVisible(!!shown);
   win.webContents.send("tatami:panel", width);
+  if (!slide || !width) return place(w - width);
+  const start = Date.now();
+  place(w);
+  sliding = setInterval(() => {
+    const t = Math.min(1, (Date.now() - start) / 190);
+    place(Math.round(w - width * (1 - Math.pow(1 - t, 3))));
+    if (t === 1) clearInterval(sliding);
+  }, 12);
 }
 
 function lookOf(key) {
@@ -211,8 +222,9 @@ function lookOf(key) {
 function showSession(key) {
   ensurePanel();
   showDesk();
+  const opening = !shown;
   shown = lastShown = key;
-  layout();
+  layout(opening);
   toPanel("term:show", key, lookOf(key));
   panel.webContents.focus();
 }

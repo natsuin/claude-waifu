@@ -20,11 +20,18 @@
   --text: #f5e6f0;             /* the dot colour of the terminal girls */
   --muted: #a898b4;
   --plain: #6f6180;            /* the edging of a mat that isn't on a team */
+  --wood: #33242a;             /* the room's frame and the alcove, dark cedar at night */
+  --wood-2: #45313a;
+  --straw: #45432e;            /* tatami rush by lamplight */
+  --straw-2: #4f4d35;
+  --paper: #eadfca;            /* washi, for the hanging scrolls */
+  --ink: #2a1c22;
+  --stone: #241e29;            /* the entrance floor */
   --display: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", Georgia, serif;
   --ui: "Bahnschrift", "Segoe UI Variable Text", "Segoe UI", "Noto Sans", sans-serif;
   --mono: "Cascadia Mono", "Cascadia Code", Consolas, "DejaVu Sans Mono", monospace;
-  --mat-w: 216px;
-  --mat-h: 108px;               /* a real tatami is twice as long as it is wide */
+  --mat-w: 244px;
+  --mat-h: 122px;               /* a real tatami is twice as long as it is wide */
   --gutter: clamp(16px, 3vw, 36px);
   scrollbar-color: #4a3a58 transparent;
 }
@@ -67,7 +74,10 @@ button, input { font: inherit; color: inherit; }
   flex-wrap: wrap;
   gap: 10px 20px;
   padding: 14px var(--gutter);
-  background: color-mix(in srgb, var(--plum) 84%, transparent);
+  background:   /* a shoji: paper over a fine wooden lattice */
+    repeating-linear-gradient(90deg, rgba(245, 230, 240, .04) 0 1px, transparent 1px 56px),
+    repeating-linear-gradient(0deg, rgba(245, 230, 240, .04) 0 1px, transparent 1px 21px),
+    color-mix(in srgb, var(--plum) 88%, transparent);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
 }
@@ -139,6 +149,15 @@ h1 { margin: 0; font: 600 1.45rem/1 var(--display); letter-spacing: .02em; }
 .add:hover { background: #ff9fcd; }
 .add:active { transform: translateY(1px); }
 a.add { display: inline-block; text-decoration: none; }
+/* + Claude is pressed like a seal: natsuin, the stamp that says yes. */
+#new-claude {
+  border-radius: 8px;
+  font-family: var(--display);
+  font-weight: 700;
+  transform: rotate(-1.5deg);
+  box-shadow: inset 0 0 0 2px rgba(43, 19, 33, .3), 0 8px 20px -10px rgba(255, 133, 192, .9);
+}
+#new-claude:hover { transform: rotate(0); }
 .add.quiet { background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
 .add.quiet:hover { background: rgba(255, 255, 255, .06); }
 
@@ -148,17 +167,30 @@ a.add { display: inline-block; text-decoration: none; }
   padding: 20px var(--gutter) 4px;
 }
 .lobby[hidden] { display: none; }
-.lobby.is-target .floor { background: rgba(255, 255, 255, .04); }
+.lobby.is-target .floor { box-shadow: inset 0 1px 3px rgba(0, 0, 0, .5), 0 0 0 2px var(--muted); }
 .lobby-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; margin: 0 2px 10px; }
 .lobby-head h2 { margin: 0; font: 600 1.1rem/1.2 var(--display); }
 .lobby-hint { order: 2; color: var(--muted); font-size: .82rem; }
-.lobby .floor { min-height: 0; border-radius: 10px; transition: background-color .15s ease; }
+.lobby .floor {
+  min-height: calc(var(--mat-h) + 24px);
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background:
+    radial-gradient(rgba(255, 255, 255, .035) 1px, transparent 1.6px) 0 0 / 7px 7px,
+    linear-gradient(180deg, #2a2330, var(--stone));
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .5);
+  transition: box-shadow .15s ease;
+}
+.lobby .mat { box-shadow: 0 12px 18px -12px rgba(0, 0, 0, .9); }
+.lobby .floor:empty { min-height: 0; }
 .lobby .floor:empty::before {
   content: "Drop a mat here to take it off its team";
   width: 100%;
-  height: 44px;
+  height: 40px;
   border-color: transparent;
 }
+body.dragging .lobby .floor:empty::before { border-color: color-mix(in srgb, var(--muted) 60%, transparent); }
 body.dragging .lobby .floor:empty::before { border-color: color-mix(in srgb, var(--muted) 60%, transparent); }
 
 /* ---- rooms ---- */
@@ -175,31 +207,83 @@ body.stale main { opacity: .5; filter: saturate(.5); }
 .room {
   --room: var(--lavender);
   position: relative;
-  margin: -10px -12px 0;
-  padding: 10px 12px 12px;
-  border-radius: 12px;
-  transition: background-color .15s ease, box-shadow .15s ease;
 }
-.room.is-target {
-  background-color: color-mix(in srgb, var(--room) 7%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--room) 50%, transparent);
+.room.is-target .floor {
+  box-shadow: 0 0 0 2px var(--room), 0 0 34px -6px color-mix(in srgb, var(--room) 60%, transparent);
 }
-.room.flash { animation: flash 1.2s ease-out; }
-@keyframes flash { from { background-color: color-mix(in srgb, var(--room) 18%, transparent); } }
-.room-head { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; min-width: 0; }
-.room-head::after {   /* the room's colour, laid like the heri along a mat */
+.room.flash .floor { animation: flash 1.2s ease-out; }
+@keyframes flash { from { box-shadow: 0 0 0 3px var(--room), 0 0 44px color-mix(in srgb, var(--room) 70%, transparent); } }
+.room-head { display: flex; align-items: baseline; gap: 12px; margin: 0 2px 10px; min-width: 0; }
+.room-body { display: flex; align-items: flex-start; gap: 14px; }
+.room .floor {   /* a whole tatami floor in a frame of dark wood; the agents sit on some of its mats */
+  --empty-heri: color-mix(in srgb, var(--room) 38%, #2b2320);
+  flex: none;
+  min-width: calc(var(--mat-w) + 14px);
+  max-width: 100%;
+  gap: 0;
+  align-content: flex-start;
+  min-height: calc(var(--mat-h) + 14px);
+  padding: 0;
+  border: 7px solid var(--wood);
+  border-radius: 5px;
+  background:   /* the mats nobody sits on: edging, seams, rush, straw */
+    repeating-linear-gradient(180deg, var(--empty-heri) 0 4px, transparent 4px calc(var(--mat-h) - 4px),
+                              var(--empty-heri) calc(var(--mat-h) - 4px) var(--mat-h)),
+    repeating-linear-gradient(90deg, transparent 0 calc(var(--mat-w) - 1px), rgba(0, 0, 0, .35) calc(var(--mat-w) - 1px) var(--mat-w)),
+    repeating-linear-gradient(90deg, rgba(255, 244, 200, .03) 0 1px, transparent 1px 3px),
+    #39372a;
+  background-clip: padding-box;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04), 0 18px 30px -18px rgba(0, 0, 0, .9);
+  transition: box-shadow .15s ease;
+}
+.room .floor .mat { border-radius: 0; }
+/* The tokonoma: the alcove where a Japanese room hangs its scroll. */
+.tokonoma { flex: none; width: 52px; display: grid; justify-items: center; padding-top: 10px; }
+.scroll {
+  position: relative;
+  width: 36px;
+  min-height: 112px;
+  padding: 14px 0 26px;
+  display: grid;
+  justify-items: center;
+  border-radius: 2px;
+  background:
+    radial-gradient(rgba(120, 90, 60, .08) 1px, transparent 1.5px) 0 0 / 5px 5px,
+    linear-gradient(180deg, #f1e7d4, var(--paper));
+  box-shadow: 0 12px 18px -10px rgba(0, 0, 0, .85);
+}
+.scroll::before, .scroll::after {   /* the wooden rods at each end */
   content: "";
-  order: 2;
-  flex: 1;
-  height: 2px;
+  position: absolute;
+  left: -5px;
+  right: -5px;
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #6b4b43, #3d2a27);
+}
+.scroll::before { top: -3px; }
+.scroll::after { bottom: -3px; }
+.scroll-text {
+  writing-mode: vertical-rl;
+  color: var(--ink);
+  font: 700 1.3rem/1 var(--display);
+  letter-spacing: .1em;
+  text-shadow: none;
+}
+.scroll-text.latin { font-size: .82rem; letter-spacing: .06em; }
+.seal {   /* the room's own stamp */
+  position: absolute;
+  bottom: 9px;
+  width: 11px;
+  height: 11px;
   border-radius: 2px;
   background: var(--room);
-  opacity: .65;
+  box-shadow: inset 0 0 0 1.5px rgba(42, 28, 34, .3);
 }
-.room-head h2 { margin: 0; min-width: 0; font: 600 1.35rem/1.2 var(--display); overflow-wrap: anywhere; }
-.room-count { order: 1; flex: none; color: var(--muted); font-size: .82rem; }
+.room-head h2 { margin: 0; min-width: 0; font: 700 1.45rem/1.2 var(--display); overflow-wrap: anywhere; }
+.room-count { flex: none; color: var(--muted); font-size: .82rem; }
 .room-remove {
-  order: 3;
+  margin-left: auto;
   flex: none;
   padding: 2px 4px;
   border: 0;
@@ -229,6 +313,7 @@ body.stale main { opacity: .5; filter: saturate(.5); }
 /* ---- mats ---- */
 .mat {
   --tint: #2a2233;
+  --cushion: #5a4870;
   --hue: var(--lavender);
   --heri: var(--room, var(--pink));
   position: relative;
@@ -236,30 +321,32 @@ body.stale main { opacity: .5; filter: saturate(.5); }
   width: var(--mat-w);
   height: var(--mat-h);
   display: grid;
-  grid-template: "kind seen" auto "name name" 1fr "folder folder" auto / 1fr auto;
+  grid-template: "cushion kind seen" auto "cushion name name" 1fr "cushion folder folder" auto / 64px 1fr auto;
   align-items: end;
-  gap: 0 8px;
-  padding: 12px 13px 13px;
+  gap: 1px 12px;
+  padding: 16px 14px 15px 15px;
   overflow: hidden;
   border-radius: 3px;
-  background: var(--tint);
+  background: var(--straw);
   color: var(--text);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, .75);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .65);
   cursor: grab;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07), 0 12px 18px -12px rgba(0, 0, 0, .85);
-  transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, .35);   /* the seam against the next mat */
+  transition: box-shadow .15s ease, opacity .15s ease, filter .15s ease, transform .15s ease;
 }
-.mat::before {   /* woven rush, running across the mat, and a little sheen */
+.mat:nth-child(even) { background: var(--straw-2); }   /* rush catches the lamplight differently mat to mat */
+.mat::before {   /* woven rush: stalks laid side by side along the mat */
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
   background:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, .03) 0 1px, transparent 1px 3px),
-    linear-gradient(180deg, rgba(255, 255, 255, .05), transparent 50%, rgba(0, 0, 0, .24));
+    repeating-linear-gradient(90deg, rgba(255, 244, 200, .05) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, transparent 0 35px, rgba(0, 0, 0, .1) 35px 36px),
+    linear-gradient(180deg, rgba(255, 240, 200, .07), transparent 55%, rgba(0, 0, 0, .25));
 }
 .mat::after {    /* the heri: cloth edging on both long sides, in the room's colour */
   content: "";
@@ -271,16 +358,29 @@ body.stale main { opacity: .5; filter: saturate(.5); }
     linear-gradient(transparent 0, rgba(0, 0, 0, .35) 0 1px, var(--heri) 1px) bottom / 100% 6px no-repeat;
   transition: background .15s ease;
 }
+.mat .cushion {   /* the zabuton the agent sits on: its window's color, its girl printed on it */
+  grid-area: cushion;
+  align-self: center;
+  position: relative;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .2), transparent 62%), var(--cushion);
+  box-shadow: 0 7px 10px -5px rgba(0, 0, 0, .7), inset 0 0 0 1px rgba(255, 255, 255, .14), inset 0 -7px 12px rgba(0, 0, 0, .22);
+}
 .mat .girl {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: .4;
+  object-position: 50% 22%;
+  opacity: .9;
   pointer-events: none;
 }
 .mat > span, .mat > strong { position: relative; min-width: 0; }
+.mat > .cushion { position: relative; }
 .mat .kind { grid-area: kind; align-self: start; color: var(--hue); font-size: .74rem; font-weight: 600; }
 .mat .seen { grid-area: seen; align-self: start; color: rgba(245, 230, 240, .6); font-size: .74rem; }
 .mat .open {   /* a click brings up the agent's own window */
@@ -313,7 +413,7 @@ body.stale main { opacity: .5; filter: saturate(.5); }
   0%, 100% { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07), 0 0 0 2px var(--pink), 0 0 26px -4px rgba(255, 133, 192, .75); }
   50% { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07), 0 0 0 2px rgba(255, 133, 192, .35), 0 0 12px -6px rgba(255, 133, 192, .4); }
 }
-.mat .name { grid-area: name; font: 600 1.02rem/1.2 var(--ui); overflow-wrap: anywhere; }
+.mat .name { grid-area: name; font: 600 1.02rem/1.2 var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mat .folder {
   grid-area: folder;
   color: rgba(245, 230, 240, .66);
@@ -322,7 +422,7 @@ body.stale main { opacity: .5; filter: saturate(.5); }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.mat:hover { transform: translateY(-2px); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12), 0 16px 22px -12px rgba(0, 0, 0, .9); }
+.mat:hover { filter: brightness(1.12); }
 .mat.is-target {   /* another mat on its own, about to become a team with the one being carried */
   transform: translateY(-3px);
   box-shadow: 0 0 0 2px var(--pink), 0 0 28px -4px rgba(255, 133, 192, .65), 0 16px 22px -12px rgba(0, 0, 0, .9);
@@ -455,13 +555,16 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
       <span class="room-count"></span>
       <button class="room-remove" type="button" aria-label="Remove this empty room" title="Remove this empty room">&times;</button>
     </header>
-    <div class="floor" role="list"></div>
+    <div class="room-body">
+      <div class="floor" role="list"></div>
+      <aside class="tokonoma" aria-hidden="true"><div class="scroll"><span class="scroll-text"></span><i class="seal"></i></div></aside>
+    </div>
     <ol class="talk"></ol>
   </section>
 </template>
 <template id="tpl-mat">
   <div class="mat" role="listitem" tabindex="0" aria-describedby="how">
-    <img class="girl" alt="" draggable="false" hidden>
+    <span class="cushion"><img class="girl" alt="" draggable="false" hidden></span>
     <span class="kind"></span>
     <span class="seen"></span>
     <strong class="name"></strong>
@@ -483,6 +586,14 @@ APP?.onPanel?.((width) => document.documentElement.style.setProperty("--panel", 
 if (APP) document.getElementById("new-claude").title = "Start Claude in a terminal beside the desk";
 const COMPANIES = { claude: "Claude", gemini: "Gemini", codex: "Codex" };
 const STATUS = { working: "working", done: "your turn", asking: "needs your OK" };   // from the hooks
+// The flowers the desk names new teams after, as they'd be written on a hanging scroll.
+const KANJI = {
+  sakura: "\u685c", momo: "\u6843", nadeshiko: "\u64ab\u5b50", ajisai: "\u7d2b\u967d\u82b1",
+  asagao: "\u671d\u9854", kikyo: "\u6854\u6897", kiku: "\u83ca", nanohana: "\u83dc\u306e\u82b1",
+  yuzu: "\u67da\u5b50", take: "\u7af9", wakaba: "\u82e5\u8449", hakka: "\u8584\u8377",
+  fuji: "\u85e4", sumire: "\u83eb", ayame: "\u83d6\u84b2", momiji: "\u7d05\u8449",
+  mikan: "\u871c\u67d1", kaki: "\u67ff",
+};
 const HEX = /^#[0-9a-f]{6}$/i;
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -600,6 +711,7 @@ function render(s) {
     if (lobbyFloor.children[i] !== mat) lobbyFloor.insertBefore(mat, lobbyFloor.children[i] || null);
   });
   for (const [id, el] of matEls) if (!live.has(id)) { el.remove(); matEls.delete(id); }
+  fitFloors();
 
   const n = live.size, rooms = s.rooms.length;
   const asking = alone.concat(...s.rooms.map((r) => r.members)).filter((a) => a.status === "asking").length;
@@ -640,6 +752,17 @@ function resetTime(epoch, weekly) {
     ? `${d.toLocaleDateString([], { weekday: "short" })} ${clock}` : clock;
 }
 
+// A room's floor is a whole number of mats wide, as much as fits beside its alcove.
+function fitFloors() {
+  const matW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--mat-w")) || 244;
+  for (const el of roomEls.values()) {
+    const body = $(".room-body", el), floor = $(".floor", el);
+    const room = body.clientWidth - $(".tokonoma", el).offsetWidth - 14 - 14;   // the alcove, the gap, the frame
+    floor.style.width = `${Math.max(1, Math.floor(room / matW)) * matW + 14}px`;
+  }
+}
+new ResizeObserver(fitFloors).observe(roomsEl);
+
 function newRoom(i) {
   const el = tpl("#tpl-room").cloneNode(true);
   el.addEventListener("animationend", (e) => { if (e.target === el) el.classList.remove("flash"); });
@@ -656,6 +779,9 @@ function fillRoom(el, r, now, hues, live) {
   el.style.setProperty("--room", color);
   el.setAttribute("aria-label", `Room ${r.name}`);
   $("h2", el).textContent = r.name;
+  const scroll = $(".scroll-text", el), kanji = KANJI[r.name.replace(/-\d+$/, "")];
+  scroll.textContent = kanji || r.name;
+  scroll.classList.toggle("latin", !kanji);
   $(".room-count", el).textContent = n ? `${n} ${n === 1 ? "mat" : "mats"}` : "empty";
   $(".room-remove", el).hidden = n > 0;
 
@@ -719,6 +845,7 @@ function fillMat(mat, a, heri, now) {
   mat.title = "Click to bring up its window, drag to move it";
   mat.style.setProperty("--tint", tint);
   mat.style.setProperty("--hue", lightHue(tint));
+  mat.style.setProperty("--cushion", cushionOf(tint));
   mat.style.setProperty("--heri", heri);
   // Which kind of agent, when it isn't plain Claude in a Terminal window.
   $(".kind", mat).textContent = a.session ? (a.agent === "claude" ? "in the app" : `${company} in the app`)
@@ -737,6 +864,21 @@ function fillMat(mat, a, heri, now) {
     img.hidden = true;               // shown again once it loads
     if (src) img.src = src; else img.removeAttribute("src");
   }
+}
+
+// The cushion: the agent's window color, bright enough to sit on a lamplit mat.
+function cushionOf(hex) {
+  const h = hueOf(hex);
+  return h === null ? "#5a4870" : `hsl(${h} 42% 36%)`;
+}
+
+function hueOf(hex) {
+  if (!HEX.test(hex || "")) return null;
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+  if (!d) return null;
+  return Math.round((max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60);
 }
 
 // The window tints are very dark; the same hue, light, is the agent's text colour.
@@ -841,7 +983,7 @@ function lift() {
   held = true;
   const r = drag.mat.getBoundingClientRect();
   const ghost = drag.mat.cloneNode(true);
-  for (const p of ["--tint", "--hue", "--heri"]) ghost.style.setProperty(p, drag.mat.style.getPropertyValue(p));
+  for (const p of ["--tint", "--hue", "--heri", "--cushion"]) ghost.style.setProperty(p, drag.mat.style.getPropertyValue(p));
   ghost.style.width = `${r.width}px`;
   ghost.style.height = `${r.height}px`;
   ghost.classList.add("ghost");
