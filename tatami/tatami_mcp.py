@@ -228,6 +228,8 @@ class Agent:
         self.pid = os.getppid()  # the agent process that started us; gone means the agent closed
         self.started = proc_start(self.pid)
         self.default_room = project_room(self.cwd)
+        self.hwnd = None  # its window's handle, once find_window has found it
+        self.saving = threading.Lock()
         with locked():
             forget_the_gone()
             # A running agent may already have this id: another tab in the same window, or a
@@ -253,9 +255,10 @@ class Agent:
         return safe_name(room) if room else None
 
     def touch(self):
-        save(self.path, {"id": self.id, "agent": self.kind, "color": self.color, "girl": self.girl,
-                         "cwd": self.cwd, "room": self.room, "pid": self.pid, "started": self.started,
-                         "seen": time.time(), "read_upto": self.read_upto})
+        with self.saving:  # the window finder saves from its own thread
+            save(self.path, {"id": self.id, "agent": self.kind, "color": self.color, "girl": self.girl,
+                             "cwd": self.cwd, "room": self.room, "pid": self.pid, "started": self.started,
+                             "hwnd": self.hwnd, "seen": time.time(), "read_upto": self.read_upto})
 
     def messages(self, room):
         return load_jsonl(os.path.join(ROOMS, room + ".jsonl"))
@@ -359,6 +362,28 @@ def answer(agent, name, args, room):
     return f"Unknown tool: {name}", True
 
 
+def find_window(agent):
+    """Find the agent's own window, once, so the Tatami Room app can bring it up straight away
+    by its handle instead of going through WSL each time. It runs waifu's focus-window.ps1 with
+    -Find: started from here, inside the agent's WSL session, the script shares the agent's
+    console, which belongs to the agent's window."""
+    launcher = load(os.path.expanduser("~/.config/waifu/config.json"), {}).get("launcher_dir")
+    script = launcher and os.path.join(launcher, "focus-window.ps1")
+    if not script or not os.path.isfile(script) or not os.environ.get("WSL_INTEROP"):
+        return
+    try:
+        win = subprocess.run(["wslpath", "-w", script], capture_output=True, text=True).stdout.strip()
+        found = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                                "-File", win, "-Find"], capture_output=True, text=True, timeout=30,
+                               stdin=subprocess.DEVNULL, cwd="/mnt/c")
+        hwnd = int(found.stdout.strip()) if found.returncode == 0 else None
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return
+    if hwnd:
+        agent.hwnd = hwnd
+        agent.touch()
+
+
 def waifu_cli():
     """The waifu command in the folder above, loaded as a module: it owns Windows Terminal's
     settings, so it's the one that changes a tab's colour."""
@@ -417,6 +442,7 @@ class Tab:
 def main():
     agent = Agent()
     tab = Tab(agent)
+    threading.Thread(target=find_window, args=(agent,), daemon=True).start()
     for sig in (signal.SIGTERM, signal.SIGHUP):  # closing the window or the agent: clean up first
         signal.signal(sig, lambda *_: sys.exit(0))
     try:

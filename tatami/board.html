@@ -510,22 +510,28 @@ async function api(path, body) {
   return data;
 }
 
-let timer = 0, polling = false, again = false;
+// The board sends its state each time it changes (server-sent events), and nothing in between.
+function listen() {
+  const stream = new EventSource(`/api/events?token=${encodeURIComponent(TOKEN)}`);
+  stream.onmessage = (e) => {
+    setStatus("live");
+    if (epoch % 2 === 0) show(JSON.parse(e.data));   // not while one of our own changes is on its way
+  };
+  stream.onerror = () => {
+    if (stream.readyState !== EventSource.CLOSED) return setStatus("offline");   // it reconnects itself
+    stream.close();   // refused, or gone: find out which, and try again soon
+    poll();
+    setTimeout(listen, 3000);
+  };
+}
+
 async function poll() {
-  if (polling) { again = true; return; }
-  polling = true;
-  clearTimeout(timer);
-  const mine = epoch;
   try {
     const s = await api("/api/state");
     setStatus("live");
-    if (mine === epoch) show(s);
+    if (epoch % 2 === 0) show(s);
   } catch (e) {
     setStatus(e.status === 403 ? "denied" : "offline");
-  } finally {
-    polling = false;
-    timer = setTimeout(poll, again ? 0 : 2000);
-    again = false;
   }
 }
 
@@ -1038,12 +1044,11 @@ function announce(msg) {
   $("#live").textContent = msg;
 }
 
-document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 if (TOKEN.startsWith("__")) {
   setStatus("denied");
   toast("Open the board with the tatami launcher, not as a file.");
 } else {
-  poll();
+  listen();
 }
 </script>
 </body>

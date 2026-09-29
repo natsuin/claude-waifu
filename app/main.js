@@ -60,9 +60,52 @@ function newClaude() {
   execFile("wscript.exe", [path.join(CONFIG.launcher, "launch.vbs")], { windowsHide: true }, () => {});
 }
 
+// Bringing windows up: helper.ps1, started once and kept running, does it by the window's handle,
+// which each agent finds for itself when it starts. Asking takes milliseconds, not a trip to WSL.
+let helper = null;
+let asked = 0;
+const answers = new Map();
+function startHelper() {
+  helper = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-NoLogo", "-ExecutionPolicy", "Bypass",
+    "-File", path.join(__dirname, "helper.ps1")], { windowsHide: true, stdio: ["pipe", "pipe", "ignore"] });
+  let buf = "";
+  helper.stdout.setEncoding("utf8");
+  helper.stdout.on("data", (chunk) => {
+    buf += chunk;
+    for (let i; (i = buf.indexOf("\n")) >= 0; buf = buf.slice(i + 1)) {
+      const [id, rc] = buf.slice(0, i).trim().split(" ");
+      answers.get(id)?.(Number(rc));
+      answers.delete(id);
+    }
+  });
+  helper.on("error", () => {});
+  helper.on("exit", () => {
+    helper = null;
+    for (const done of answers.values()) done(2);
+    answers.clear();
+  });
+}
+
+function bringUp(hwnd) {
+  return new Promise((resolve) => {
+    if (!helper) startHelper();
+    const id = String(++asked);
+    const late = setTimeout(() => { answers.delete(id); resolve(2); }, 3000);
+    answers.set(id, (rc) => { clearTimeout(late); resolve(rc); });
+    helper.stdin.write(`${id} ${hwnd}\n`);
+  });
+}
+
 // 0: its window is in front. 1: shown, but Windows kept the focus elsewhere. 2: no window.
-function focusAgent(id) {
-  return AGENT_ID.test(id) ? tatami(["window", id], 30000) : Promise.resolve(2);
+const windows = new Map();  // agent id -> its window's handle, from the board
+async function focusAgent(id) {
+  if (!AGENT_ID.test(id)) return 2;
+  const hwnd = windows.get(id);
+  if (hwnd) {
+    const rc = await bringUp(hwnd);
+    if (rc !== 2) return rc;
+  }
+  return tatami(["window", id], 30000);  // no handle yet, or the tab moved: the slow way, through WSL
 }
 
 function fromBoard(event) {
@@ -183,40 +226,41 @@ function shortcuts() {
 
 // ---- watching the board: who needs you, and whether it's still running ----
 
-function getState() {
-  return new Promise((resolve) => {
-    const req = http.get({ host: "127.0.0.1", port: board.port, path: "/api/state", timeout: 4000,
-      headers: { "X-Tatami-Token": board.searchParams.get("token") } }, (res) => {
-      let body = "";
-      res.setEncoding("utf8");
-      res.on("data", (c) => { body += c; });
-      res.on("end", () => { try { resolve(res.statusCode === 200 ? JSON.parse(body) : null); } catch { resolve(null); } });
+// The board's event stream: its state each time something changes.
+let misses = 0;
+function watch() {
+  const req = http.get({ host: "127.0.0.1", port: board.port, path: "/api/events",
+    headers: { "X-Tatami-Token": board.searchParams.get("token") } }, (res) => {
+    if (res.statusCode !== 200) return res.resume();
+    misses = 0;
+    let buf = "";
+    res.setEncoding("utf8");
+    res.on("data", (chunk) => {
+      buf += chunk;
+      for (let i; (i = buf.indexOf("\n\n")) >= 0; buf = buf.slice(i + 2)) {
+        const data = buf.slice(0, i).split("\n").filter((l) => l.startsWith("data: ")).map((l) => l.slice(6)).join("");
+        if (data) try { seen(JSON.parse(data)); } catch { /* a half line: the next one will do */ }
+      }
     });
-    req.on("timeout", () => req.destroy());
-    req.on("error", () => resolve(null));
+  });
+  req.on("error", () => {});
+  req.on("close", async () => {  // the stream ended: the board stopped (WSL restarted?)
+    if (++misses >= 3) {
+      await tatami(["start"]);  // start it again; the page reconnects by itself
+      misses = 0;
+    }
+    setTimeout(watch, 2000);
   });
 }
 
 const asking = new Set();
-let misses = 0;
-async function watch() {
-  const s = await getState();
-  if (!s) {
-    if (++misses === 3) {  // gone (WSL restarted?): start it again; the page reconnects by itself
-      await tatami(["start"]);
-      misses = 0;
-    }
-  } else {
-    misses = 0;
-    const agents = [...s.alone, ...s.rooms.flatMap((r) => r.members)];
-    for (const a of agents) {
-      if (a.status === "asking" && !asking.has(a.id)) notifyAsking(a);
-    }
-    asking.clear();
-    for (const a of agents) if (a.status === "asking") asking.add(a.id);
-  }
-  holdWsl();
-  setTimeout(watch, 3000);
+function seen(s) {
+  const agents = [...s.alone, ...s.rooms.flatMap((r) => r.members)];
+  windows.clear();
+  for (const a of agents) if (Number.isInteger(a.hwnd)) windows.set(a.id, a.hwnd);
+  for (const a of agents) if (a.status === "asking" && !asking.has(a.id)) notifyAsking(a);
+  asking.clear();
+  for (const a of agents) if (a.status === "asking") asking.add(a.id);
 }
 
 function notifyAsking(a) {
@@ -229,19 +273,37 @@ function notifyAsking(a) {
 
 // ---- starting up ----
 
+// Is the board already running? It answers every request, even a refused one, as TatamiRoom, and
+// Windows reaches it directly, which is much quicker than asking inside WSL.
+function answering(url) {
+  return new Promise((resolve) => {
+    const req = http.get({ host: "127.0.0.1", port: url.port, path: "/", timeout: 1500 }, (res) => {
+      res.resume();
+      resolve(String(res.headers.server || "").startsWith("TatamiRoom"));
+    });
+    req.on("timeout", () => req.destroy());
+    req.on("error", () => resolve(false));
+  });
+}
+
 async function start() {
   app.setAppUserModelId(APP_ID);
   nativeTheme.themeSource = "dark";
   Menu.setApplicationMenu(null);
   shortcuts();
-  const rc = await tatami(["start"]);
   board = readBoard();
-  if ((rc !== 0 && rc !== 3) || !board) {
-    dialog.showErrorBox("Tatami Room", "The desk's server didn't start inside WSL. Open Ubuntu and run: tatami");
-    app.exit(1);
-    return;
+  if (!board || !(await answering(board))) {  // not running yet: start it inside WSL
+    const rc = await tatami(["start"]);
+    board = readBoard();
+    if ((rc !== 0 && rc !== 3) || !board) {
+      dialog.showErrorBox("Tatami Room", "The desk's server didn't start inside WSL. Open Ubuntu and run: tatami");
+      app.exit(1);
+      return;
+    }
   }
+  startHelper();  // ready before the first click
   holdWsl();
+  setInterval(holdWsl, 60000);
   createWindow(process.argv.includes("--background"));
   createTray();
   watch();
@@ -251,7 +313,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();  // it's already running: that one comes to the front (see second-instance)
 } else {
   app.on("second-instance", (_e, argv) => { if (!argv.includes("--background")) showDesk(); });
-  app.on("before-quit", () => { quitting = true; saveBounds(); if (hold) hold.kill(); });
+  app.on("before-quit", () => { quitting = true; saveBounds(); if (hold) hold.kill(); if (helper) helper.kill(); });
   app.on("window-all-closed", () => {});  // the tray keeps it running
   app.whenReady().then(start);
 }

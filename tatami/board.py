@@ -54,7 +54,9 @@ def agents():
              "color": rec.get("color"), "tint": TINTS.get(rec.get("color") or "", "#2a2233"),
              "folder": "~" if rec.get("cwd") == home else os.path.basename(rec.get("cwd", "")),
              "seen": rec.get("seen", 0), "girl": bool(rec.get("girl")) and not hidden,
-             "status": channel.load(os.path.join(channel.HOME, "status", rec["id"] + ".json"), {}).get("state")}
+             "status": channel.load(os.path.join(channel.HOME, "status", rec["id"] + ".json"), {}).get("state"),
+             # its window's handle, found by the agent itself, which the app uses to bring it up
+             "hwnd": rec["hwnd"] if isinstance(rec.get("hwnd"), int) else None}
             for rec in channel.live_agents()]
 
 
@@ -227,12 +229,41 @@ class Board(BaseHTTPRequestHandler):
         if path == "/api/state":
             looked_at()
             return self.send(200, state())
+        if path == "/api/events":
+            return self.events()
         if path.startswith("/girl/"):
             f = girl_file(path[len("/girl/"):])
             if f:
                 with open(f, "rb") as fh:
                     return self.send(200, fh.read(), "image/png")
         return self.send(404, {"error": "not found"})
+
+    def events(self):
+        """Server-sent events: the desk's state each time it changes, so the page and the app hear
+        about a move or a new agent straight away instead of asking every few seconds."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        last, sent = None, time.time()
+        try:
+            self.wfile.write(b"retry: 2000\n\n")
+            while True:
+                looked_at()  # a desk is open, which keeps WSL up (tatami hold)
+                s = state()
+                now = json.dumps({k: v for k, v in s.items() if k != "now"}, sort_keys=True)
+                if now != last:
+                    last, sent = now, time.time()
+                    self.wfile.write(b"data: " + json.dumps(s).encode() + b"\n\n")
+                    self.wfile.flush()
+                elif time.time() - sent > 15:  # now and then, to notice a reader that has gone
+                    sent = time.time()
+                    self.wfile.write(b": still here\n\n")
+                    self.wfile.flush()
+                time.sleep(0.4)
+        except OSError:  # the page or the app went away
+            return
 
     def do_POST(self):
         origin = self.headers.get("Origin")

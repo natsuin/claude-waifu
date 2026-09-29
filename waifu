@@ -243,7 +243,9 @@ FOCUS_PS1 = r'''# Tatami Room: bring up the window of the WSL session this runs 
 # shares. The console belongs to the agent's window (Windows Terminal's, or any other), however
 # that window was opened. Exit 0: in front. 1: shown, but Windows kept the focus elsewhere (the
 # title goes to the file given, for open.vbs). 2: this session has no window of its own.
-param([string]$TitleFile)
+# With -Find it only prints the window's handle, for the agent to keep (the Tatami Room app then
+# brings it up by that handle, without going through WSL).
+param([string]$TitleFile, [switch]$Find)
 Add-Type @"
 using System; using System.Text; using System.Runtime.InteropServices;
 public class TatamiWindow {
@@ -262,13 +264,17 @@ public class TatamiWindow {
   [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
   public static string Title = "";
-  public static int Focus() {
+  public static IntPtr Find() {
     FreeConsole();
-    if (!AttachConsole(0xFFFFFFFF)) return 2;   // the parent's console, which is the agent's
+    if (!AttachConsole(0xFFFFFFFF)) return IntPtr.Zero;   // the parent's console, which is the agent's
     IntPtr console = GetConsoleWindow();
     FreeConsole();
     IntPtr w = GetAncestor(console, 3);         // its root owner: the window the agent lives in
-    if (w == IntPtr.Zero || !IsWindowVisible(w)) return 2;
+    return w != IntPtr.Zero && IsWindowVisible(w) ? w : IntPtr.Zero;
+  }
+  public static int Focus() {
+    IntPtr w = Find();
+    if (w == IntPtr.Zero) return 2;
     var s = new StringBuilder(512);
     GetWindowText(w, s, 512);
     Title = s.ToString();
@@ -282,6 +288,12 @@ public class TatamiWindow {
   }
 }
 "@
+if ($Find) {
+  $w = [TatamiWindow]::Find()
+  if ($w -eq [IntPtr]::Zero) { exit 2 }
+  [Console]::Out.WriteLine($w.ToInt64())
+  exit 0
+}
 $rc = [TatamiWindow]::Focus()
 if ($TitleFile -and [TatamiWindow]::Title) { Set-Content -Path $TitleFile -Value ([TatamiWindow]::Title) -Encoding Unicode }
 exit $rc
@@ -292,7 +304,7 @@ APP_BROWSERS = ("brave.exe", "chrome.exe", "msedge.exe", "vivaldi.exe", "chromiu
 # picked, and checked against the checksum Electron published for it (SHASUMS256.txt).
 ELECTRON = ("v44.4.3", "790a355b684d5c7cc8dc3cdd8c4cca7c4b2d054685427c7554a956879a82e70b")
 APP_EXE = "Tatami Room.exe"
-APP_FILES = ("package.json", "main.js", "preload.js")  # the app's own code, in this repo's app/ folder
+APP_FILES = ("package.json", "main.js", "preload.js", "helper.ps1")  # the app's own code, in this repo's app/ folder
 
 
 def waifu_path():
