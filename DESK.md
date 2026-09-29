@@ -39,8 +39,8 @@ Something anyone can pick up without learning it. No menus to memorize, no sessi
 Each step is usable on its own.
 
 1. **The team channel.** *(done: [tatami/tatami_mcp.py](tatami/tatami_mcp.py))* An MCP server, standard library only, with three tools: `room_post`, `room_read` and `room_members`. Agents working in the same project folder share a room automatically. It stores plain files in `~/.local/state/tatami`, runs no commands and uses no network.
-2. **The board.** A local page showing each running agent as a mat, grouped by room. Drag a mat into another room to team agents up. *(next)*
-3. **Group looks.** Windows in the same room get a matching tab color, so teams stand out on your taskbar too.
+2. **The board.** *(done: [tatami/board.py](tatami/board.py) and [board.html](tatami/board.html))* A local page showing each running agent as a mat, grouped by room. Drag a mat into another room to team agents up, or make an empty room with **+ Room**. Run [`tatami/tatami`](tatami/tatami) to start the board and open it in your browser; `tatami stop` closes it. Your agents don't need it running.
+3. **Group looks.** Windows in the same room get a matching tab color, so teams stand out on your taskbar too. *(next)*
 4. **More companies.** Gemini and Codex joining rooms alongside Claude, using the same channel.
 
 Later: open the desk automatically when WSL starts, show usage on the desk, notify you when an agent needs you, and wrap it as a desktop app.

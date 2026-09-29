@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# tatami: open the Tatami Room board in your browser, starting it first if it isn't running.
+#
+#   tatami          start the board if needed, and open it
+#   tatami stop     stop the board (your agents keep running; they don't need it)
+#
+# The board listens on this PC only. TATAMI_PORT picks another port (default 7373).
+set -euo pipefail
+here="$(dirname "$(readlink -f "$0")")"
+port="${TATAMI_PORT:-7373}"
+state="${TATAMI_HOME:-$HOME/.local/state/tatami}"
+
+running() {  # the board answers every request, even a refused one, as "TatamiRoom"
+  python3 -c '
+import http.client, sys
+c = http.client.HTTPConnection("127.0.0.1", int(sys.argv[1]), timeout=2)
+c.request("GET", "/")
+sys.exit(not c.getresponse().getheader("Server", "").startswith("TatamiRoom"))' "$port" 2>/dev/null
+}
+
+case "${1:-open}" in
+  open) ;;
+  stop)
+    # Only the board as this script starts it, never, say, an editor that has board.py open.
+    if pkill -f "^python3 $here/board\.py --port "; then echo "Board stopped. Your agents are still running."
+    else echo "The board wasn't running."; fi
+    exit 0 ;;
+  *) sed -n '4,5s/^#  *//p' "$0"; exit 1 ;;
+esac
+
+if ! running; then
+  mkdir -p "$state"
+  # In its own session so it outlives this shell. The log stays private: it holds the token.
+  (umask 077; setsid python3 "$here/board.py" --port "$port" >>"$state/board.log" 2>&1 </dev/null &)
+  for _ in $(seq 50); do running && break; sleep 0.1; done
+  running || { echo "The board didn't start. See $state/board.log" >&2; exit 1; }
+fi
+
+url="http://127.0.0.1:$port/?token=$(cat "$state/board.token")"
+if command -v powershell.exe >/dev/null; then  # WSL: your default Windows browser
+  (cd /mnt/c && powershell.exe -NoProfile -Command "Start-Process '$url'") >/dev/null 2>&1
+elif command -v xdg-open >/dev/null; then
+  xdg-open "$url" >/dev/null 2>&1 &
+else
+  echo "Open this in your browser: $url"
+  exit 0
+fi
+echo "Tatami Room is open in your browser."
