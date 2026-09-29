@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Claude Waifu installer. Run it inside WSL from the cloned repo:  ./install.sh
+# Tatami Room installer (sets up the window looks). Run it inside WSL from the cloned repo:  ./install.sh
 # Options are passed to `waifu setup`: --pool DIR (where wallpapers go), --no-claude
 # (open a plain shell instead of starting Claude).
 set -euo pipefail

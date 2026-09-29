@@ -2,11 +2,11 @@
 
 > **Status: work in progress.** The team channel and the board (steps 1 and 2 of the build order below) work today. Group looks, other companies and the rest aren't built yet.
 
-Claude Waifu gives one Claude Code window a girl and a color. **Tatami Room** is the bigger picture: **a desktop for a whole host of AI agents**, from any company, that you can drag together to work on the same project.
+Tatami Room's window looks give each Claude Code window a girl and a color. **The desk** is the bigger picture: **a desktop for a whole host of AI agents**, from any company, that you can drag together to work on the same project.
 
-The name comes from tatami, the woven mats that fit side by side to make a Japanese room. Each agent is a mat; lay them together and you've built a room for a project. Below, "the desk" means Tatami Room.
+The name comes from tatami, the woven mats that fit side by side to make a Japanese room. Each agent is a mat; lay them together and you've built a room for a project.
 
-This is the plan and the reasoning behind it. The polished design comes later. For now the desk borrows Claude Waifu's look (a color per window, a dot-art girl behind the text), so it's easy to see what's going on while it's being built.
+This is the plan and the reasoning behind it. The polished design comes later. For now the desk borrows the window looks (a color per window, a dot-art girl behind the text), so it's easy to see what's going on while it's being built.
 
 ## The goal
 
@@ -26,7 +26,7 @@ Something anyone can pick up without learning it. No menus to memorize, no sessi
 - **Any company.** Claude Code, Gemini CLI, Codex and whatever comes next. If it runs in a terminal, it can live on the desk.
 - **Claude as the hub.** Other agents join a team, and Claude coordinates by default.
 - **Drag to decide.** Grouping, joining a project and teaming up are all done by dragging, not by forms or settings.
-- **Tell them apart at a glance.** Every window keeps a distinct color and girl, carried over from Claude Waifu.
+- **Tell them apart at a glance.** Every window keeps a distinct color and girl, carried over from the window looks.
 - **Nothing gets lost.** Your agents live in their own windows. Closing the board never touches them.
 - **Local and safe.** Everything runs on your own PC. The board can't reach any terminal or run commands; it only arranges agents into rooms. It listens on this machine only and needs a secret token.
 

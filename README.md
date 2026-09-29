@@ -1,12 +1,13 @@
-# Claude Waifu
+# Tatami Room
 
-**Every Claude Code window gets its own anime girl and its own color.**
+**Every Claude Code window gets its own anime girl and its own color, and a desk where your agents team up.**
 
-A small add-on for [Claude Code](https://code.claude.com) on Windows Terminal + WSL. Open a window from the **Claude Waifu** shortcut and Claude starts right away, with a girl from Genshin Impact, Honkai: Star Rail or Zenless Zone Zero drawn behind your text as faint braille dots. The window also gets a background color no other open window has, so you can tell your sessions apart at a glance.
+Tatami Room is a small add-on for [Claude Code](https://code.claude.com) on Windows Terminal + WSL. The name comes from tatami, the woven mats that fit side by side to make a Japanese room: each agent window is a mat, and laying them together makes a room for a project.
 
-Windows that are already open never change. Only new windows get the next girl.
+It has two parts:
 
-> **In progress: Tatami Room**, a desktop for a whole host of AI agents that you can drag together to work on the same project. The team channel and the board already work, but it isn't finished. See [DESK.md](DESK.md) for the plan and what's done.
+- **Window looks (ready to use).** Open a window from the **Claude Waifu** shortcut and Claude starts right away, with a girl from Genshin Impact, Honkai: Star Rail or Zenless Zone Zero drawn behind your text as faint braille dots. The window also gets a background color no other open window has, so you can tell your sessions apart at a glance. Windows that are already open never change. Only new windows get the next girl.
+- **The desk (work in progress).** A board that shows every running agent as a mat, and a team channel so agents on the same project can talk to each other. Drag mats together to team agents up. See [The desk](#the-desk-work-in-progress) below, and [DESK.md](DESK.md) for the plan.
 
 ## What you get
 
@@ -29,8 +30,8 @@ Windows that are already open never change. Only new windows get the next girl.
 Inside WSL:
 
 ```bash
-git clone https://github.com/natsuin/claude-waifu.git
-cd claude-waifu
+git clone https://github.com/natsuin/tatami-room.git
+cd tatami-room
 ./install.sh
 ```
 
@@ -68,7 +69,25 @@ Run these inside a Claude Waifu window. From inside Claude Code, put `!` in fron
 
 You can also drop your own `.png` or `.jpg` wallpapers into the folder. They join the rotation.
 
-## How it works
+## The desk (work in progress)
+
+Two pieces work today:
+
+- **The team channel**, an MCP server that gives agents three tools: `room_post`, `room_read` and `room_members`. Agents working in the same project folder share a room automatically.
+- **The board**, a local page that shows each running agent as a mat, grouped by room. Drag a mat into another room to team agents up, or make an empty room with **+ Room**.
+
+`install.sh` doesn't set these up yet. To try them, run this inside the repo folder:
+
+```bash
+claude mcp add --scope user tatami -- python3 "$PWD/tatami/tatami_mcp.py"
+ln -sf "$PWD/tatami/tatami" ~/.local/bin/tatami
+```
+
+New Claude sessions pick up the channel. Run `tatami` to open the board in your browser, and `tatami stop` to close it; your agents keep running without it. The board listens on your PC only, needs a secret token, and can't run commands or touch your terminals. It only arranges agents into rooms.
+
+Next up: a matching tab color for windows in the same room, then Gemini CLI and Codex joining rooms alongside Claude.
+
+## How the window looks work
 
 Windows Terminal can only give a background image to a *profile*, and every tab using that profile shares it. So setup adds ten hidden profiles, called slots, and each slot holds its own girl and color.
 
@@ -105,7 +124,7 @@ Copy it to `~/.claude/statusline.py` and add this to `~/.claude/settings.json`:
 waifu uninstall
 ```
 
-This removes the hidden profiles, the shortcut and the launcher. Your wallpapers stay in their folder in case you want them. Delete that folder, this repo and `~/.local/bin/waifu` to remove everything.
+This removes the hidden profiles, the shortcut and the launcher. Your wallpapers stay in their folder in case you want them. Delete that folder, this repo and `~/.local/bin/waifu` to remove everything. If you set up the desk, also run `claude mcp remove tatami -s user` and delete `~/.local/bin/tatami` and `~/.local/state/tatami`.
 
 ## Art and credits
 

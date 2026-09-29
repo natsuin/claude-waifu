@@ -268,7 +268,7 @@ def here(state):
 
 
 def get(url):
-    req = urllib.request.Request(url, headers={"User-Agent": "claude-waifu/1.0 (personal wallpaper script)"})
+    req = urllib.request.Request(url, headers={"User-Agent": "tatami-room/1.0 (personal wallpaper script)"})
     with urllib.request.urlopen(req, timeout=60) as r:
         return r.read()
 

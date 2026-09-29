@@ -25,7 +25,7 @@ HOME = os.environ.get("TATAMI_HOME") or os.path.expanduser("~/.local/state/tatam
 ROOMS, AGENTS = os.path.join(HOME, "rooms"), os.path.join(HOME, "agents")
 MEMBERS = os.path.join(HOME, "members.json")
 WAIFU_STATE = os.path.expanduser("~/.local/state/waifu/state.json")
-SLOT_GUIDS = ["{7a1f0c3e-5eed-4b1e-9a1f-%012d}" % i for i in range(10)]  # Claude Waifu's window slots
+SLOT_GUIDS = ["{7a1f0c3e-5eed-4b1e-9a1f-%012d}" % i for i in range(10)]  # the Claude Waifu shortcut's window slots
 MAX_TEXT = 4000
 INSTRUCTIONS = (
     "You share a Tatami Room with other AI agents (possibly from other companies) working on the "
