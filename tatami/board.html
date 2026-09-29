@@ -300,6 +300,18 @@ body.stale main { opacity: .5; filter: saturate(.5); }
   text-transform: uppercase;
 }
 .mat .seen { grid-area: seen; align-self: start; color: rgba(245, 230, 240, .6); font-size: .64rem; }
+/* With the hooks on (tatami hooks on), what each agent is doing. */
+.mat[data-status="working"] .seen { color: var(--lavender); }
+.mat[data-status="done"] .seen { color: var(--mint); font-weight: 600; }
+.mat[data-status="asking"] .seen { color: var(--pink); font-weight: 700; }
+.mat[data-status="asking"] {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07), 0 0 0 2px var(--pink), 0 0 26px -4px rgba(255, 133, 192, .75);
+  animation: asking 1.8s ease-in-out infinite;
+}
+@keyframes asking {
+  0%, 100% { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07), 0 0 0 2px var(--pink), 0 0 26px -4px rgba(255, 133, 192, .75); }
+  50% { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07), 0 0 0 2px rgba(255, 133, 192, .35), 0 0 12px -6px rgba(255, 133, 192, .4); }
+}
 .mat .name { grid-area: name; font: 700 .95rem/1.2 var(--mono); overflow-wrap: anywhere; }
 .mat .folder {
   grid-area: folder;
@@ -490,6 +502,7 @@ footer {
 // Everything agents wrote goes on the page with textContent only, never as HTML.
 const TOKEN = "__TOKEN__";
 const COMPANIES = { claude: "Claude", gemini: "Gemini", codex: "Codex" };
+const STATUS = { working: "working", done: "your turn", asking: "needs your OK" };   // from the hooks
 const HEX = /^#[0-9a-f]{6}$/i;
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -603,11 +616,13 @@ function render(s) {
   for (const [id, el] of matEls) if (!live.has(id)) { el.remove(); matEls.delete(id); }
 
   const n = live.size, rooms = s.rooms.length;
+  const asking = alone.concat(...s.rooms.map((r) => r.members)).filter((a) => a.status === "asking").length;
+  const needs = asking && `${asking} ${asking === 1 ? "needs" : "need"} you`;
   lobbyEl.hidden = n === 0;
   $("#lobby-count").textContent = alone.length ? `${alone.length} ${alone.length === 1 ? "mat" : "mats"}` : "";
   $("#summary").textContent = [n && `${n} ${n === 1 ? "agent" : "agents"}`,
-                               rooms && `${rooms} ${rooms === 1 ? "room" : "rooms"}`].filter(Boolean).join(", ");
-  document.title = n ? `Tatami Room (${n})` : "Tatami Room";
+                               rooms && `${rooms} ${rooms === 1 ? "room" : "rooms"}`, needs].filter(Boolean).join(", ");
+  document.title = n ? `Tatami Room (${n})${needs ? ` · ${needs}` : ""}` : "Tatami Room";
   $("#empty").hidden = rooms > 0 || n > 0;
   firstPaint = false;
 }
@@ -696,9 +711,11 @@ function fillMat(mat, a, heri, now) {
   $(".kind", mat).textContent = company;
   $(".name", mat).textContent = a.id;
   $(".folder", mat).textContent = a.folder ? `${a.folder}/` : "";
-  $(".seen", mat).textContent = ago(now - a.seen);
+  const status = STATUS[a.status];
+  mat.dataset.status = status ? a.status : "";
+  $(".seen", mat).textContent = status || ago(now - a.seen);
   mat.setAttribute("aria-label", `${a.id}, ${company} agent, folder ${a.folder || "unknown"}, `
-                                 + (a.room ? `in room ${a.room}` : "on its own"));
+                                 + (a.room ? `in room ${a.room}` : "on its own") + (status ? `, ${status}` : ""));
   const img = $(".girl", mat);
   const src = a.girl ? `/girl/${encodeURIComponent(a.id)}?token=${encodeURIComponent(TOKEN)}` : "";
   if (img.dataset.src !== src) {

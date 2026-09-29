@@ -45,7 +45,9 @@ Each step is usable on its own.
 3. **Group looks.** *(done)* The windows of a team get a matching tab color, the same color the board gives their room, so teams stand out at a glance. No two rooms share a color while they're around, and every color is light enough for Terminal to write the tab title in black. Each agent's channel keeps its own window's tab in step through `waifu`, which owns Terminal's settings; the board still never touches a terminal.
 4. **More companies.** Gemini and Codex joining rooms alongside Claude, using the same channel. *(next)*
 
-Later: open the desk automatically when WSL starts, show usage on the desk, notify you when an agent needs you, and wrap it as a desktop app.
+Later: open the desk automatically when WSL starts, show usage on the desk, and wrap it as a desktop app.
+
+Started early: **the board shows which agents need you.** Run `tatami hooks on` once and Claude Code tells the board what each agent is doing ([tatami/hooks.py](tatami/hooks.py)). A mat reads *working*, *your turn* or *needs your OK*, and one waiting on a permission prompt pulses pink, with a count in the board's tab title. `tatami hooks off` takes the hooks out again.
 
 ## Not goals, for now
 

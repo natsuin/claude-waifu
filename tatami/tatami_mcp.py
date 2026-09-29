@@ -12,6 +12,8 @@ runs commands: agents can only post and read short messages in their room.
                        null for "on its own")
   rooms.json           rooms made on the board, kept even while they're empty
   colors.json          each room's colour, so no two live rooms share one
+  status/<id>.json     whether each agent is working or waiting for you (only with the
+                       optional hooks in hooks.py)
 
 An agent started in a project folder joins that project's room. One started in your home
 folder isn't working on any project yet, so it's on its own until the board teams it up.
@@ -274,6 +276,10 @@ def forget_the_gone():
         path = os.path.join(AGENTS, fn)
         if fn.endswith(".json") and not alive(load(path, {})):
             os.remove(path)
+    status = os.path.join(HOME, "status")  # what the hooks noted about each agent
+    for fn in os.listdir(status) if os.path.isdir(status) else []:
+        if not os.path.exists(os.path.join(AGENTS, fn)):
+            os.remove(os.path.join(status, fn))
     members = load(MEMBERS, {})
     kept = {a: r for a, r in members.items() if os.path.exists(os.path.join(AGENTS, a + ".json"))}
     if kept != members:

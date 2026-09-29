@@ -46,12 +46,14 @@ def girls_hidden():
 
 
 def agents():
-    """The running agents, as the page shows them. A room of None means on its own."""
+    """The running agents, as the page shows them. A room of None means on its own. With the
+    hooks on, `status` says whether each one is working, done (your turn) or asking you."""
     hidden, home = girls_hidden(), os.path.expanduser("~")
     return [{"id": rec["id"], "agent": rec.get("agent", "claude"), "room": rec["room"],
              "color": rec.get("color"), "tint": TINTS.get(rec.get("color") or "", "#2a2233"),
              "folder": "~" if rec.get("cwd") == home else os.path.basename(rec.get("cwd", "")),
-             "seen": rec.get("seen", 0), "girl": bool(rec.get("girl")) and not hidden}
+             "seen": rec.get("seen", 0), "girl": bool(rec.get("girl")) and not hidden,
+             "status": channel.load(os.path.join(channel.HOME, "status", rec["id"] + ".json"), {}).get("state")}
             for rec in channel.live_agents()]
 
 

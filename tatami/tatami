@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # tatami: open the Tatami Room board in your browser, starting it first if it isn't running.
 #
-#   tatami          start the board if needed, and open it
-#   tatami stop     stop the board (your agents keep running; they don't need it)
+#   tatami            start the board if needed, and open it
+#   tatami stop       stop the board (your agents keep running; they don't need it)
+#   tatami hooks on   let the board show which agents need you (adds Claude Code hooks;
+#                     `tatami hooks off` takes them out)
 #
 # The board listens on this PC only. TATAMI_PORT picks another port (default 7373).
 set -euo pipefail
 here="$(dirname "$(readlink -f "$0")")"
+case "${1:-}" in
+  hook) exec python3 "$here/hooks.py" event ;;  # what Claude Code runs; see hooks.py
+  hooks) exec python3 "$here/hooks.py" "${2:-}" ;;
+esac
 port="${TATAMI_PORT:-7373}"
 state="${TATAMI_HOME:-$HOME/.local/state/tatami}"
 
@@ -25,7 +31,7 @@ case "${1:-open}" in
     if pkill -f "^python3 $here/board\.py --port "; then echo "Board stopped. Your agents are still running."
     else echo "The board wasn't running."; fi
     exit 0 ;;
-  *) sed -n '4,5s/^#  *//p' "$0"; exit 1 ;;
+  *) sed -n '4,7s/^#  *//p' "$0"; exit 1 ;;
 esac
 
 if ! running; then
