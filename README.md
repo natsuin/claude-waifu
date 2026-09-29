@@ -6,7 +6,7 @@ A small add-on for [Claude Code](https://code.claude.com) on Windows Terminal + 
 
 Windows that are already open never change. Only new windows get the next girl.
 
-> **Coming next: Tatami Room**, a desktop for a whole host of AI agents that you can drag together to work on the same project. See [DESK.md](DESK.md) for the design goal.
+> **In progress: Tatami Room**, a desktop for a whole host of AI agents that you can drag together to work on the same project. The team channel and the board already work, but it isn't finished. See [DESK.md](DESK.md) for the plan and what's done.
 
 ## What you get
 

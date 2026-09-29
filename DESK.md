@@ -1,5 +1,7 @@
 # Tatami Room: design goal
 
+> **Status: work in progress.** The team channel and the board (steps 1 and 2 of the build order below) work today. Group looks, other companies and the rest aren't built yet.
+
 Claude Waifu gives one Claude Code window a girl and a color. **Tatami Room** is the bigger picture: **a desktop for a whole host of AI agents**, from any company, that you can drag together to work on the same project.
 
 The name comes from tatami, the woven mats that fit side by side to make a Japanese room. Each agent is a mat; lay them together and you've built a room for a project. Below, "the desk" means Tatami Room.
