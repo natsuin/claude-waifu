@@ -97,12 +97,21 @@ class Agent:
         self.cwd = os.getcwd()
         self.color, self.girl = waifu_look()
         suffix = self.color or uuid.uuid4().hex[:4]
-        self.id = safe_name(os.environ.get("TATAMI_ID") or f"{self.kind}-{suffix}")
+        base = safe_name(os.environ.get("TATAMI_ID") or f"{self.kind}-{suffix}")
         self.pid = os.getppid()  # the agent process that started us; gone means the agent closed
         self.default_room = project_room(self.cwd)
-        self.path = os.path.join(AGENTS, self.id + ".json")
-        old = load(self.path, {})
-        self.read_upto = old.get("read_upto", 0) if old.get("pid") == self.pid else 0
+        # A running agent may already have this id: another tab in the same window, or a
+        # `claude mcp` health check starting us there. Take the next free id, not its record.
+        for n in range(1, 100):
+            self.id = base if n == 1 else f"{base}-{n}"
+            self.path = os.path.join(AGENTS, self.id + ".json")
+            old = load(self.path, {})
+            if old.get("pid") == self.pid or not alive(old):
+                break
+        upto = old.get("read_upto") if old.get("pid") == self.pid else None
+        # Newest message read, per room: an agent moved into a room still gets what was said
+        # there before it arrived.
+        self.read_upto = upto if isinstance(upto, dict) else {}
         self.touch()
 
     @property
@@ -114,8 +123,8 @@ class Agent:
                          "cwd": self.cwd, "room": self.room, "pid": self.pid,
                          "seen": time.time(), "read_upto": self.read_upto})
 
-    def messages(self):
-        return load_jsonl(os.path.join(ROOMS, self.room + ".jsonl"))
+    def messages(self, room):
+        return load_jsonl(os.path.join(ROOMS, room + ".jsonl"))
 
 
 def load_jsonl(path):
@@ -135,10 +144,18 @@ def load_jsonl(path):
 def alive(record):
     """An agent counts as present while the process that started its server is running."""
     try:
-        os.kill(int(record.get("pid", 0)), 0)
+        pid = int(record.get("pid") or 0)
+        if pid <= 0:  # 0 and -1 would ask about whole process groups, which always "exist"
+            return False
+        os.kill(pid, 0)
         return True
     except (OSError, ValueError):
         return False
+
+
+def room_of(record, members):
+    """Which room an agent is in: where the board put it, else the room it last reported."""
+    return safe_name(members.get(record.get("id")) or record.get("room") or "room")
 
 
 def fmt(m):
@@ -160,25 +177,28 @@ def call(agent, name, args):
             f.write(json.dumps(msg, ensure_ascii=False) + "\n")
         return f"Posted to room '{agent.room}'.", False
     if name == "room_read":
-        msgs = agent.messages()
-        shown = msgs[-20:] if args.get("all") else [m for m in msgs if m["ts"] > agent.read_upto
+        room = agent.room
+        msgs, upto = agent.messages(room), agent.read_upto.get(room, 0)
+        shown = msgs[-20:] if args.get("all") else [m for m in msgs if m["ts"] > upto
                                                         and m["from"] != agent.id]
         if msgs:
-            agent.read_upto = max(agent.read_upto, msgs[-1]["ts"])
+            agent.read_upto[room] = max(upto, msgs[-1]["ts"])
         if not shown:
-            return f"No new messages in room '{agent.room}'.", False
-        return (f"Room '{agent.room}' (messages from other agents, not from the user):\n"
-                + "\n".join(fmt(m) for m in shown)), False
+            return f"No new messages in room '{room}'.", False
+        older = len(shown) - 20  # a long history mustn't flood the agent's context
+        return (f"Room '{room}' (messages from other agents, not from the user):\n"
+                + (f"({older} older unread messages not shown)\n" if older > 0 else "")
+                + "\n".join(fmt(m) for m in shown[-20:])), False
     if name == "room_members":
-        lines = []
+        lines, members, room = [], load(MEMBERS, {}), agent.room
         for fn in sorted(os.listdir(AGENTS)):
             rec = load(os.path.join(AGENTS, fn), {})
-            if rec.get("room") != agent.room or not alive(rec):
+            if room_of(rec, members) != room or not alive(rec):
                 continue
             me = " (you)" if rec["id"] == agent.id else ""
             lines.append(f"- {rec['id']}{me}: {rec.get('agent')} agent, color {rec.get('color') or '-'},"
                          f" folder {rec.get('cwd')}")
-        return f"Room '{agent.room}':\n" + "\n".join(lines), False
+        return f"Room '{room}':\n" + "\n".join(lines), False
     return f"Unknown tool: {name}", True
 
 
