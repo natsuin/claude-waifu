@@ -144,6 +144,7 @@ let panel = null;
 let panelReady = false;
 let queued = [];
 let shown = null;             // the session in the panel, while it's open
+let panelWidth = null;        // set by dragging its edge; until then, a share of the window
 
 function startSession() {
   const key = "app-" + Date.now().toString(36);
@@ -192,7 +193,8 @@ function ensurePanel() {
 function layout() {
   if (!panel || win.isDestroyed()) return;
   const [w, h] = win.getContentSize();
-  const width = shown ? Math.max(0, Math.min(w - 300, Math.max(520, Math.round(w * 0.58)))) : 0;
+  const wanted = panelWidth || Math.max(520, Math.round(w * 0.58));
+  const width = shown ? Math.max(0, Math.min(w - 300, Math.max(360, wanted))) : 0;
   panel.setBounds({ x: w - width, y: HEAD, width, height: Math.max(0, h - HEAD) });
   panel.setVisible(!!shown);
   win.webContents.send("tatami:panel", width);
@@ -234,6 +236,34 @@ ipcMain.handle("term:backlog", (e, key) => (fromPanel(e) && sessions.has(key) ? 
 ipcMain.handle("term:paste", (e) => (fromPanel(e) ? clipboard.readText() : ""));
 ipcMain.on("term:copy", (e, text) => { if (fromPanel(e)) clipboard.writeText(String(text)); });
 ipcMain.on("term:hide", (e) => { if (fromPanel(e)) hidePanel(); });
+ipcMain.on("term:width", (e, px) => {
+  if (!fromPanel(e) || !Number.isFinite(px)) return;
+  panelWidth = Math.round(px);
+  layout();
+});
+ipcMain.on("term:end-session", (e, key) => {
+  const s = sessions.get(key);
+  if (!fromPanel(e) || !s) return;
+  const name = bySession.get(key)?.id || "this Claude";
+  const choice = dialog.showMessageBoxSync(win, { type: "question", buttons: ["End", "Cancel"], defaultId: 1,
+    cancelId: 1, title: "Tatami Room", message: `End ${name}?`, detail: "Claude stops and this terminal closes." });
+  if (choice !== 0) return;
+  s.proc.kill();
+  hidePanel();
+});
+
+// Quitting ends the app's own terminals, so it asks first while any are running.
+function quit() {
+  if (sessions.size) {
+    const n = sessions.size;
+    const choice = dialog.showMessageBoxSync(win, { type: "warning", buttons: ["Quit", "Cancel"], defaultId: 1,
+      cancelId: 1, title: "Tatami Room", message: "Quit Tatami Room?",
+      detail: `${n} terminal${n === 1 ? "" : "s"} in the app will close, and Claude in ${n === 1 ? "it" : "them"} stops.` });
+    if (choice !== 0) return;
+  }
+  quitting = true;
+  app.quit();
+}
 
 // ---- the window ----
 
@@ -251,12 +281,13 @@ function loadBounds() {
 function saveBounds() {
   if (!win || win.isDestroyed() || win.isMinimized()) return;
   try {
-    fs.writeFileSync(BOUNDS, JSON.stringify({ ...win.getNormalBounds(), maximized: win.isMaximized() }));
+    fs.writeFileSync(BOUNDS, JSON.stringify({ ...win.getNormalBounds(), maximized: win.isMaximized(), panel: panelWidth }));
   } catch { /* not worth failing over */ }
 }
 
 function createWindow(background) {
   const b = loadBounds();
+  panelWidth = Number.isInteger(b.panel) ? b.panel : null;
   win = new BrowserWindow({
     x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 440, minHeight: 360,
     title: "Tatami Room", icon: ICON, show: false, backgroundColor: "#1f1726",
@@ -324,7 +355,7 @@ function createTray() {
     { label: "+ Claude", click: newClaude },
     { label: "+ Claude in a Terminal window", click: newWindow },
     { type: "separator" },
-    { label: "Quit Tatami Room", click: () => { quitting = true; app.quit(); } },
+    { label: "Quit Tatami Room", click: quit },
   ]));
   tray.on("click", showDesk);
 }

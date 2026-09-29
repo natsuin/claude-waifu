@@ -102,4 +102,23 @@ T.onEnd((key) => {
   if (t) t.term.write("\r\n\x1b[2m[This terminal has ended.]\x1b[0m\r\n");
 });
 document.getElementById("hide").addEventListener("click", () => T.hide());
+document.getElementById("end").addEventListener("click", () => { if (current) T.end(current); });
+
+// The grip on the left edge: the app moves the panel's edge as it's dragged.
+const grip = document.getElementById("grip");
+let drag = null;
+grip.addEventListener("pointerdown", (e) => {
+  drag = { x: e.screenX, width: window.innerWidth, next: null };
+  grip.setPointerCapture(e.pointerId);
+  grip.classList.add("held");
+});
+grip.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  const first = drag.next === null;
+  drag.next = drag.width + (drag.x - e.screenX);
+  if (first) requestAnimationFrame(() => { if (drag) { T.width(drag.next); drag.next = null; } });
+});
+const letGo = () => { drag = null; grip.classList.remove("held"); };
+grip.addEventListener("pointerup", letGo);
+grip.addEventListener("pointercancel", letGo);
 new ResizeObserver(fitCurrent).observe(main);

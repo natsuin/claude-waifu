@@ -43,6 +43,9 @@ COLORS_FILE = os.path.join(HOME, "colors.json")
 WAIFU_STATE = os.path.expanduser("~/.local/state/waifu/state.json")
 SLOT_GUIDS = ["{7a1f0c3e-5eed-4b1e-9a1f-%012d}" % i for i in range(10)]  # the Claude Waifu shortcut's window slots
 MAX_TEXT = 4000
+# Where the Tatami Room app's own terminals start Claude: a folder of their own, so Claude Code's
+# folder check is answered once for it instead of for your whole home folder each time.
+DESK_DIR = os.path.expanduser(os.environ.get("TATAMI_DESK_DIR") or "~/desk")
 # Room colours: six pastels, far enough apart to tell teams apart on a tab, and all light
 # enough that Terminal writes the tab's title in black. New teams take them in this order,
 # most different first.
@@ -111,13 +114,14 @@ def safe_name(s):
 
 def project_room(cwd):
     """The default room: the git repository's folder name, or the folder itself. None in the
-    home folder, which isn't a project: an agent started there is on its own."""
+    home folder and the app's desk folder, which aren't projects: an agent started there is on
+    its own."""
     try:
         top = subprocess.run(["git", "-C", cwd, "rev-parse", "--show-toplevel"],
                              capture_output=True, text=True).stdout.strip() or cwd
     except OSError:  # no git
         top = cwd
-    if os.path.realpath(top) in (os.path.realpath(os.path.expanduser("~")), "/"):
+    if os.path.realpath(top) in (os.path.realpath(os.path.expanduser("~")), os.path.realpath(DESK_DIR), "/"):
         return None
     return safe_name(os.path.basename(top))
 

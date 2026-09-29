@@ -14,4 +14,6 @@ contextBridge.exposeInMainWorld("term", {
   paste: () => ipcRenderer.invoke("term:paste"),
   copy: (text) => ipcRenderer.send("term:copy", String(text)),
   hide: () => ipcRenderer.send("term:hide"),
+  end: (key) => ipcRenderer.send("term:end-session", key),
+  width: (px) => ipcRenderer.send("term:width", Number(px)),
 });

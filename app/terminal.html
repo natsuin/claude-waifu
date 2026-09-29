@@ -47,8 +47,22 @@ header {
   font-size: .84rem;
   cursor: pointer;
 }
-#hide:hover { background: rgba(255, 255, 255, .06); }
-#hide:focus-visible { outline: 2px solid #ff85c0; outline-offset: 2px; }
+#hide:hover, #end:hover { background: rgba(255, 255, 255, .06); }
+#hide:focus-visible, #end:focus-visible { outline: 2px solid #ff85c0; outline-offset: 2px; }
+#end {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: .84rem;
+  cursor: pointer;
+}
+#end:hover { color: #ff85c0; }
+/* Drag the panel's left edge to make it wider or narrower. */
+#grip { position: fixed; left: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; z-index: 5; }
+#grip:hover, #grip.held { background: rgba(195, 166, 255, .25); }
 main { position: relative; flex: 1; min-height: 0; background: var(--tint); }
 .girl { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .3; pointer-events: none; }
 .girl[hidden] { display: none; }
@@ -62,7 +76,9 @@ main { position: relative; flex: 1; min-height: 0; background: var(--tint); }
   <span id="dot"></span>
   <span id="name">Claude</span>
   <button id="hide" type="button" title="Claude keeps running; its mat on the desk brings it back">Hide</button>
+  <button id="end" type="button" title="Stop Claude and close this terminal">End</button>
 </header>
+<div id="grip" title="Drag to resize"></div>
 <main id="main"><img class="girl" id="girl" alt="" hidden></main>
 <script src="vendor/xterm.js"></script>
 <script src="vendor/addon-fit.js"></script>
