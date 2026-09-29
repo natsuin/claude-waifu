@@ -1,21 +1,36 @@
 # Tatami Room
 
-**Every Claude Code window gets its own anime girl and its own color, and a desk where your agents team up.**
+**A desk for your AI coding agents.** Run several Claude Code agents side by side, see them all in one place, and drag them together into teams that talk to each other. Every window gets its own anime girl and its own color, so you can tell your agents apart at a glance.
 
-Tatami Room is a small add-on for [Claude Code](https://code.claude.com) on Windows Terminal + WSL. The name comes from tatami, the woven mats that fit side by side to make a Japanese room: each agent window is a mat, and laying them together makes a room for a project.
+The name comes from tatami, the woven mats that fit side by side to make a Japanese room. Each agent is a mat. Lay mats together and you've made a room: a team working on the same thing.
 
-It has two parts:
+> **Work in progress.** Everything below works today with Claude Code on Windows Terminal and WSL. Next up: agents from other companies, like Gemini CLI and Codex, joining the same rooms. The plan and the reasoning behind it are in [DESK.md](DESK.md).
 
-- **Window looks (ready to use).** Open a window from the **Claude Waifu** shortcut and Claude starts right away, with a girl from Genshin Impact, Honkai: Star Rail or Zenless Zone Zero drawn behind your text as faint braille dots. The window also gets a background color no other open window has, so you can tell your sessions apart at a glance. Windows that are already open never change. Only new windows get the next girl.
-- **The desk (work in progress).** A board that shows every running agent as a mat, and a team channel so agents on the same project can talk to each other. Drag mats together to team agents up. See [The desk](#the-desk-work-in-progress) below, and [DESK.md](DESK.md) for the plan.
+## Why
+
+One agent in one terminal is easy. Five agents in five identical terminals is a mess: which one is doing what, which one is waiting for you, and how do they share what they've found? Tatami Room turns them into a team you can see.
+
+- **See every agent at once.** The desk shows each running agent as a mat, with its folder and whether it's busy, done, or waiting for your OK.
+- **Team up by dragging.** Drop one mat onto another and those agents share a room. In a room they post updates, hand off tasks and ask each other questions.
+- **Tell them apart at a glance.** Every window has its own girl and background color, and the windows of a team share a tab color.
 
 ## What you get
 
-- **A Claude Waifu shortcut** on your desktop and in the Start menu. It opens a new window and starts Claude immediately. When you exit Claude you're left in a normal shell.
-- **A different girl in every window.** Only official art is used, pulled from Danbooru's `official_art` tag. Pieces must be wide, safe-rated and girls only: no male characters, and no event posters covered in text.
-- **Art that stays in the background.** Each wallpaper is redrawn as negative braille dots: only the line art and dark areas get dots, so your code stays easy to read. Prefer the real picture? `waifu style image`.
+### The desk
+
+- **A Tatami Room window** that opens with your first Claude window after WSL starts, or any time from its own shortcut. It's your board: every running agent is a mat.
+- **Rooms you make by dragging.** New agents wait on their own in a strip along the top. Drop one mat onto another and the two get a new room, named the way a Japanese inn names its rooms: after a flower in the room's color (sakura is pink, fuji is lavender, momiji is peach). Drag a mat into a room to join that team, or back to the strip to take it off. Agents started in the same project folder share that project's room automatically.
+- **A team channel.** Each agent gets three tools: `room_post` for an update, a hand-off or a question, `room_read` for what the others said, and `room_members` for who's on the team. An agent is told when you move it.
+- **Matching tab colors.** Windows on the same team get the same tab color, the one the desk shows for their room. No two teams share a color.
+- **Who needs you** (optional). Turn it on with `tatami hooks on` and each mat says *working*, *your turn* or *needs your OK*. A mat waiting on a permission prompt pulses pink, and the desk's title counts them.
+- **Your usage.** The desk's header shows your 5-hour and weekly Claude usage, with reset times.
+
+### Window looks
+
+- **A Claude Waifu shortcut** on your desktop and in the Start menu. It opens a new window and starts Claude right away. When you exit Claude you're left in a normal shell.
+- **A different girl in every window**, from Genshin Impact, Honkai: Star Rail or Zenless Zone Zero, redrawn as faint negative braille dots: only the line art and dark areas get dots, so your code stays easy to read. Only official art is used, pulled from Danbooru's `official_art` tag. Pieces must be wide, safe-rated and girls only: no male characters, and no event posters covered in text. Prefer the real picture? `waifu style image`.
 - **A different color per window.** Twelve dark hues are dealt like a shuffled deck, so every color is used before any repeats, and no two open windows share one.
-- **Fresh wallpapers every day**, downloaded quietly in the background.
+- **Windows that stay as they are.** Open windows never change; only new windows get the next girl. Fresh wallpapers download quietly every day.
 
 ## Requirements
 
@@ -23,7 +38,8 @@ It has two parts:
 - WSL 2 (tested on Ubuntu)
 - Claude Code installed inside WSL, so `claude` runs in your shell
 - Python 3, plus Pillow for the dot art. Either install [uv](https://docs.astral.sh/uv/) (recommended) or run `sudo apt install python3-pil`
-- Optional: the Claude desktop app. If it's installed, setup uses its icon for the shortcut and tabs
+- For the desk in a window of its own: Brave, Chrome or Edge as your default browser. With another browser, the desk opens in a tab.
+- Optional: the Claude desktop app. If it's installed, setup uses its icon for the Claude Waifu shortcut and tabs
 
 ## Install
 
@@ -35,23 +51,40 @@ cd tatami-room
 ./install.sh
 ```
 
-Setup does four things:
+The installer:
 
-1. Finds your Windows folders and Windows Terminal's settings.
-2. Downloads 20 wallpapers into `%USERPROFILE%\TerminalGirls`.
-3. Adds ten hidden profiles to Windows Terminal.
-4. Puts a **Claude Waifu** shortcut on your desktop and in the Start menu. Right-click it and choose **Pin to taskbar** to keep it handy.
+1. Links the `waifu` and `tatami` commands into `~/.local/bin`.
+2. Gives Claude Code the team channel, so every new session has the room tools.
+3. Finds your Windows folders and Windows Terminal's settings, and downloads 20 wallpapers into `%USERPROFILE%\TerminalGirls`.
+4. Adds ten hidden profiles to Windows Terminal, one per window.
+5. Puts two shortcuts on your desktop and in the Start menu: **Claude Waifu** (a new Claude window) and **Tatami Room** (the desk). Right-click either one and choose **Pin to taskbar** to keep it handy.
 
 Options:
 
 - `./install.sh --pool /mnt/d/Wallpapers` keeps the wallpapers somewhere else. The folder must be on a Windows drive.
-- `./install.sh --no-claude` opens a plain shell instead of starting Claude.
+- `./install.sh --no-claude` opens a plain shell in new windows instead of starting Claude.
 
-To update later, run `git pull` in the folder. `waifu` is linked, not copied, so there's nothing else to do.
+To update later, run `git pull` in the folder. Everything is linked, not copied, so there's nothing else to do.
 
-## Everyday commands
+## Everyday use
 
-Run these inside a Claude Waifu window. From inside Claude Code, put `!` in front, like `! waifu next`.
+1. Open **Claude Waifu**. Claude starts in a new window, and the first window since WSL started opens the desk beside it.
+2. Open more windows for more agents. Each one appears on the desk, on its own.
+3. When agents should work together, drag one mat onto another. They're a team now: their tabs turn their room's color, and they can talk in their room.
+4. Glance at the desk to see who's busy and who's waiting for you.
+
+From inside Claude Code, put `!` in front of a command, like `! waifu next`.
+
+### The desk
+
+| Command | What it does |
+| --- | --- |
+| `tatami` | Open the desk, or bring it to the front |
+| `tatami hooks on` | Show which agents are working, done, or waiting for your OK (`tatami hooks off` removes it) |
+| `tatami autostart off` | Don't open the desk with your first Claude window (`tatami autostart on` brings it back) |
+| `tatami stop` | Stop the desk's server; your agents keep running and don't need it |
+
+### Window looks
 
 | Command | What it does |
 | --- | --- |
@@ -62,47 +95,40 @@ Run these inside a Claude Waifu window. From inside Claude Code, put `!` in fron
 | `waifu fetch 12` | Download 12 more wallpapers right now |
 | `waifu style image` | Show full-color pictures instead of dots (`waifu style dots` to go back) |
 | `waifu opacity 25` | Make the art fainter or bolder (percent) |
-| `waifu off` / `waifu on` | Hide every girl, for screen sharing, and bring them back |
+| `waifu off` / `waifu on` | Hide every girl (on the desk too), for screen sharing, and bring them back |
 | `waifu open` | Open the wallpaper folder in Explorer |
 | `waifu launch` | Open a new Claude Waifu window from inside WSL |
-| `waifu uninstall` | Remove the profiles, shortcut and launcher |
+| `waifu uninstall` | Remove the profiles, shortcuts and launchers |
 
 You can also drop your own `.png` or `.jpg` wallpapers into the folder. They join the rotation.
 
-## The desk (work in progress)
+## How it works
 
-Two pieces work today:
+### The desk
 
-- **The team channel**, an MCP server that gives agents three tools: `room_post`, `room_read` and `room_members`. Agents working in the same project folder share a room automatically.
-- **The board**, a local page that shows each running agent as a mat, grouped by room. Drag a mat into another room to team agents up, or make an empty room with **+ Room**.
+- **The team channel** is a small MCP server, plain Python with no dependencies, that every Claude Code session starts for itself. The agents share a folder of plain files in `~/.local/state/tatami`: the messages of each room, and a note per agent saying which room it's in. There's no daemon, no network, and nothing that runs commands.
+- **An agent's room** is its project's room if you started it in a project folder, or none (on its own) if you started it in your home folder, which is where Claude Waifu windows start. The desk records the rooms you drag agents into.
+- **The desk** is a local web page served from your own PC. It listens on this machine only and needs a secret token, so other devices and websites can't use it. It shows your agents and changes which room each one is in, and nothing else: it can't run commands or reach your terminals.
+- **Tab colors** are set by each agent's own channel, on its own window only, through `waifu`, which owns Windows Terminal's settings.
+- **Who needs you** comes from Claude Code hooks: small commands Claude Code runs when you send a prompt, when it uses a tool, when it finishes, and when it's waiting for your OK. They note each agent's state in a file for the desk, print nothing, and never change what Claude does.
+- **WSL shuts itself down** soon after its last terminal closes, and the desk's server with it. So while a desk window is open, it quietly holds WSL up, and it lets go a few minutes after you close the desk.
 
-`install.sh` doesn't set these up yet. To try them, run this inside the repo folder:
-
-```bash
-claude mcp add --scope user tatami -- python3 "$PWD/tatami/tatami_mcp.py"
-ln -sf "$PWD/tatami/tatami" ~/.local/bin/tatami
-```
-
-New Claude sessions pick up the channel. Run `tatami` to open the board in your browser, and `tatami stop` to close it; your agents keep running without it. The board listens on your PC only, needs a secret token, and can't run commands or touch your terminals. It only arranges agents into rooms.
-
-Next up: a matching tab color for windows in the same room, then Gemini CLI and Codex joining rooms alongside Claude.
-
-## How the window looks work
+### Window looks
 
 Windows Terminal can only give a background image to a *profile*, and every tab using that profile shares it. So setup adds ten hidden profiles, called slots, and each slot holds its own girl and color.
 
 - The shortcut opens a new window on the slot that's already loaded and starts Claude. Then `waifu advance` loads the next slot, ready for your next window. Because the picture is loaded ahead of time, it's there the moment the window opens.
-- Each window knows its own slot, because Windows Terminal tells the shell through `WT_PROFILE_ID`. So `waifu next` only changes the window you run it in.
+- Each window knows its own slot, because Windows Terminal tells the shell through `WT_PROFILE_ID`. So `waifu next` only changes the window you run it in, and a team's tab color only goes on its own members' windows.
 - With ten slots, your 11th window reuses the first slot. Keep ten or fewer Claude Waifu windows open and every open window stays exactly as it is.
-- Windows opened the normal way, for example from the Ubuntu icon, share one default profile, so they all show the same girl.
+- Windows opened the normal way, for example from the Ubuntu icon, share one default profile, so they all show the same girl and don't get tab colors. Their agents still show up on the desk.
 
 Your settings live in `~/.config/waifu/config.json`, and waifu's memory of what's been shown in `~/.local/state/waifu/`.
 
 ## Extras for Claude Code
 
-The `extras/` folder has three optional add-ons that go well with the wallpapers.
+The `extras/` folder has three optional add-ons that go well with Tatami Room.
 
-**Usage bar** (`statusline.py`) puts your 5-hour and weekly Claude usage on the bar under the prompt, with reset times and how full your context is:
+**Usage bar** (`statusline.py`) puts your 5-hour and weekly Claude usage on the bar under the prompt, with reset times and how full your context is. It's also what feeds the usage on the desk.
 
 ```
 5h ████░░░░░░ 38% resets 9:38pm   week ████████░░ 83% resets Thu 7:38pm   context 12%
@@ -121,10 +147,12 @@ Copy it to `~/.claude/statusline.py` and add this to `~/.claude/settings.json`:
 ## Uninstall
 
 ```bash
+tatami hooks off     # only if you turned them on
 waifu uninstall
+claude mcp remove tatami --scope user
 ```
 
-This removes the hidden profiles, the shortcut and the launcher. Your wallpapers stay in their folder in case you want them. Delete that folder, this repo and `~/.local/bin/waifu` to remove everything. If you set up the desk, also run `claude mcp remove tatami -s user` and delete `~/.local/bin/tatami` and `~/.local/state/tatami`.
+This removes the hidden profiles, both shortcuts, the launchers, the hooks and the team channel. Your wallpapers stay in their folder in case you want them. To remove everything, also delete that folder, this repo, `~/.local/bin/waifu`, `~/.local/bin/tatami` and `~/.local/state/tatami`.
 
 ## Art and credits
 
