@@ -8,14 +8,16 @@
 #   tatami hooks on        let the board show which agents need you (adds Claude Code hooks;
 #                          `tatami hooks off` takes them out)
 #
-# The shortcuts and Claude Code also run `tatami start`, `tatami hold`, `tatami hook` and
-# `tatami mcp`. The board listens on this PC only. TATAMI_PORT picks another port (default 7373).
+# The shortcuts and Claude Code also run `tatami start`, `tatami hold`, `tatami window`,
+# `tatami hook` and `tatami mcp`. The board listens on this PC only. TATAMI_PORT picks another
+# port (default 7373).
 set -euo pipefail
 here="$(dirname "$(readlink -f "$0")")"
 case "${1:-}" in
   mcp) exec python3 "$here/tatami_mcp.py" ;;    # the team channel, which Claude Code starts
   hook) exec python3 "$here/hooks.py" event ;;  # what the hooks run; see hooks.py
   hooks) exec python3 "$here/hooks.py" "${2:-}" ;;
+  window) exec python3 "$here/window.py" "${2:-}" ;;  # bring up an agent's window; see window.py
 esac
 port="${TATAMI_PORT:-7373}"
 state="${TATAMI_HOME:-$HOME/.local/state/tatami}"

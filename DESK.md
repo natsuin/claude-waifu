@@ -1,6 +1,6 @@
 # Tatami Room: design goal
 
-> **Status: work in progress.** The team channel, the board and group looks (steps 1 to 3 of the build order below) work today. Other companies and the rest aren't built yet.
+> **Status: work in progress.** The team channel, the board and group looks (steps 1 to 3 of the build order below) work today, and the desk has its own window, a **+ Claude** button and click-to-open. Next: the agents' terminals inside the desk. Other companies come after that.
 
 Tatami Room's window looks give each Claude Code window a girl and a color. **The desk** is the bigger picture: **a desktop for a whole host of AI agents**, from any company, that you can drag together to work on the same project.
 
@@ -28,7 +28,7 @@ Something anyone can pick up without learning it. No menus to memorize, no sessi
 - **Drag to decide.** Grouping, joining a project and teaming up are all done by dragging, not by forms or settings.
 - **Tell them apart at a glance.** Every window keeps a distinct color and girl, carried over from the window looks.
 - **Nothing gets lost.** Your agents live in their own windows. Closing the board never touches them.
-- **Local and safe.** Everything runs on your own PC. The board can't reach any terminal or run commands; it only arranges agents into rooms. It listens on this machine only and needs a secret token.
+- **Local and safe.** Everything runs on your own PC. The board's server can't reach any terminal or run commands; it only arranges agents into rooms. It listens on this machine only and needs a secret token. The desk's buttons (**+ Claude**, and clicking a mat to bring up its window) are `tatami-room:` links that Windows hands to a small script, which can do those two things and nothing else.
 
 ## How it works
 
@@ -45,10 +45,14 @@ Each step is usable on its own.
 3. **Group looks.** *(done)* The windows of a team get a matching tab color, the same color the board gives their room, so teams stand out at a glance. No two rooms share a color while they're around, and every color is light enough for Terminal to write the tab title in black. Each agent's channel keeps its own window's tab in step through `waifu`, which owns Terminal's settings; the board still never touches a terminal.
 4. **More companies.** Gemini and Codex joining rooms alongside Claude, using the same channel. *(next)*
 
-Later: wrap the desk as a proper installed app, and bring in other companies' agents (step 4).
+Next: **the agents' terminals inside the app.** Click a mat and its live terminal opens in the app, so you can talk to that agent without leaving it. The plan: sessions run inside tmux, so the same session shows both in its Terminal window and in the desk. This changes the board's safety rule on purpose (its server would be able to type into sessions), so it needs the same care as the rest: this PC only, token-locked.
+
+Later: bring in other companies' agents (step 4), and give the app its own icon inside the .exe.
 
 Started early:
 
+- **The desk is a Windows app.** Tatami Room runs as its own app ([app/](app/)): Electron's runtime around the desk page, so the page stays one piece that also works in a browser. The app starts the desk's server inside WSL and holds WSL up while it runs, opens and brings up windows for the desk's buttons without any browser prompt, runs as a single copy with its own taskbar identity, keeps running in the tray when closed, and pops up a Windows notification when an agent needs your OK (with the hooks on). The installer downloads a pinned Electron release, at least a week old, and checks it against Electron's published checksum.
+- **+ Claude and click-to-open.** The desk's **+ Claude** button opens a new Claude Waifu window, and clicking a mat (or Enter on it) brings that agent's window to the front. The desk finds an agent's window from inside the agent's own WSL session: a small script started through that session shares its console, and the console belongs to the window the agent lives in. So it works for every window, however it was opened, and gives it the focus too.
 - **The desk is an app.** A **Tatami Room** shortcut (desktop and Start menu, with the mark as its icon) starts the board if needed and opens it in a window of its own: Brave, Chrome or Edge without tabs or an address bar. Clicking it again brings up the open desk instead of a second one. The first Claude Waifu window after WSL starts opens the desk too (`tatami autostart off` stops that), and while a desk window is open it holds WSL up, since WSL otherwise stops soon after its last terminal closes.
 - **Your usage on the desk.** The board's header shows your 5-hour and weekly Claude usage, with reset times, from the Tatami Room status line ([extras/statusline.py](extras/statusline.py)), which leaves the numbers in `~/.local/state/tatami/usage.json` whenever they change.
 - **The board shows which agents need you.** Run `tatami hooks on` once and Claude Code tells the board what each agent is doing ([tatami/hooks.py](tatami/hooks.py)). A mat reads *working*, *your turn* or *needs your OK*, and one waiting on a permission prompt pulses pink, with a count in the board's tab title. `tatami hooks off` takes the hooks out again.

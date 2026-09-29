@@ -1,0 +1,9 @@
+{
+  "name": "tatami-room",
+  "productName": "Tatami Room",
+  "version": "0.1.0",
+  "description": "The desk where your Claude agents team up",
+  "main": "main.js",
+  "private": true,
+  "license": "MIT"
+}

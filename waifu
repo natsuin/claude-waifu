@@ -28,6 +28,7 @@ slot that already holds the next girl and colour, starts Claude in it, and runs
 Drop your own .png/.jpg wallpapers into the wallpaper folder and they join the rotation.
 """
 import fcntl
+import hashlib
 import json
 import os
 import random
@@ -124,16 +125,26 @@ sh.Run "wsl.exe -d {distro} -- {waifu} advance", 0, False
 {desk}'''
 # With Tatami Room's desk set up, the first window after WSL starts opens the desk too.
 DESK_AUTOSTART = '''' The first window since WSL started also opens the Tatami Room desk (tatami autostart off
-' stops that).
+' stops that), behind this window.
 If sh.Run("wsl.exe -d {distro} -- {tatami} start --auto", 0, True) = 3 Then
-  sh.Run "wscript.exe """ & dir & "desk.vbs""", 1, False
+  sh.Run "wscript.exe """ & dir & "desk.vbs"" --background", 1, False
 End If
 '''
-DESK_VBS = '''' Tatami Room: start the board inside WSL if it isn't running, then open the desk in a
-' window of its own. If a desk window is already open, bring that one up instead.
+DESK_VBS = '''' Tatami Room: open the desk. With the Tatami Room app installed, that's the app (which
+' starts the board itself, and brings up its window if it's already running). Otherwise start the
+' board inside WSL and open it in a browser window of its own, or bring up the one that's open.
 Set sh = CreateObject("WScript.Shell")
 Set fs = CreateObject("Scripting.FileSystemObject")
 dir = sh.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\\waifu\\"
+app = "{app}"
+If fs.FileExists(app) Then
+  flag = ""
+  If WScript.Arguments.Count > 0 Then
+    If WScript.Arguments(0) = "--background" Then flag = " --background"
+  End If
+  sh.Run """" & app & """" & flag, 1, False
+  WScript.Quit
+End If
 rc = sh.Run("wsl.exe -d {distro} -- {tatami} start", 0, True)
 url = ""
 On Error Resume Next
@@ -196,8 +207,92 @@ foreach ($w in [TatamiWindows]::All()) {
 }
 exit 1
 '''
+OPEN_VBS = '''' Tatami Room's links, which the desk's buttons use: tatami-room:new opens a new Claude
+' window, and tatami-room:focus/<agent id> brings that agent's window to the front. Windows runs
+' this for the browser; anything that isn't exactly one of those two is ignored.
+Set sh = CreateObject("WScript.Shell")
+Set fs = CreateObject("Scripting.FileSystemObject")
+dir = sh.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\\waifu\\"
+link = ""
+If WScript.Arguments.Count > 0 Then link = WScript.Arguments(0)
+Set re = New RegExp
+re.IgnoreCase = True
+re.Pattern = "^tatami-room:(//)?(new|focus/([a-z0-9._-]{{1,60}}))/?$"
+If re.Test(link) Then
+  Set m = re.Execute(link)(0)
+  If LCase(m.SubMatches(1)) = "new" Then
+    sh.Run "wscript.exe """ & dir & "launch.vbs""", 1, False
+  Else
+    ' tatami window finds the agent's window from inside its own WSL session. 1 means Windows
+    ' kept the focus where it was: this script may hand it over, since the click started it.
+    rc = sh.Run("wsl.exe -d {distro} -- {tatami} window " & m.SubMatches(2), 0, True)
+    If rc = 1 Then
+      title = ""
+      On Error Resume Next
+      title = fs.OpenTextFile(dir & "window-title.txt", 1, False, -1).ReadLine
+      On Error GoTo 0
+      If title <> "" Then sh.AppActivate title
+    ElseIf rc <> 0 Then
+      sh.Popup "This agent has no window of its own to bring up.", 4, "Tatami Room", 64
+    End If
+  End If
+End If
+'''
+FOCUS_PS1 = r'''# Tatami Room: bring up the window of the WSL session this runs in. `tatami window` starts it
+# inside an agent's session, so its parent is that session's wsl.exe, whose console the agent
+# shares. The console belongs to the agent's window (Windows Terminal's, or any other), however
+# that window was opened. Exit 0: in front. 1: shown, but Windows kept the focus elsewhere (the
+# title goes to the file given, for open.vbs). 2: this session has no window of its own.
+param([string]$TitleFile)
+Add-Type @"
+using System; using System.Text; using System.Runtime.InteropServices;
+public class TatamiWindow {
+  [DllImport("kernel32.dll")] static extern bool AttachConsole(uint pid);
+  [DllImport("kernel32.dll")] static extern bool FreeConsole();
+  [DllImport("kernel32.dll")] static extern IntPtr GetConsoleWindow();
+  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, uint f);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int n);
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr pid);
+  [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
+  [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  public static string Title = "";
+  public static int Focus() {
+    FreeConsole();
+    if (!AttachConsole(0xFFFFFFFF)) return 2;   // the parent's console, which is the agent's
+    IntPtr console = GetConsoleWindow();
+    FreeConsole();
+    IntPtr w = GetAncestor(console, 3);         // its root owner: the window the agent lives in
+    if (w == IntPtr.Zero || !IsWindowVisible(w)) return 2;
+    var s = new StringBuilder(512);
+    GetWindowText(w, s, 512);
+    Title = s.ToString();
+    if (IsIconic(w)) ShowWindow(w, 9);          // restore it if it's minimized
+    uint front = GetWindowThreadProcessId(GetForegroundWindow(), IntPtr.Zero), me = GetCurrentThreadId();
+    AttachThreadInput(front, me, true);         // sharing input with the window in front lets
+    BringWindowToTop(w);                        // us hand the focus over
+    SetForegroundWindow(w);
+    AttachThreadInput(front, me, false);
+    return GetForegroundWindow() == w ? 0 : 1;
+  }
+}
+"@
+$rc = [TatamiWindow]::Focus()
+if ($TitleFile -and [TatamiWindow]::Title) { Set-Content -Path $TitleFile -Value ([TatamiWindow]::Title) -Encoding Unicode }
+exit $rc
+'''
 # Browsers that can open a page as an app window of its own (--app), without tabs or an address bar.
 APP_BROWSERS = ("brave.exe", "chrome.exe", "msedge.exe", "vivaldi.exe", "chromium.exe")
+# The Tatami Room app runs on Electron's runtime: this release, at least 7 days old when it was
+# picked, and checked against the checksum Electron published for it (SHASUMS256.txt).
+ELECTRON = ("v44.4.3", "790a355b684d5c7cc8dc3cdd8c4cca7c4b2d054685427c7554a956879a82e70b")
+APP_EXE = "Tatami Room.exe"
+APP_FILES = ("package.json", "main.js", "preload.js")  # the app's own code, in this repo's app/ folder
 
 
 def waifu_path():
@@ -220,8 +315,11 @@ def write_launcher():
     desk = DESK_AUTOSTART.format(distro=DISTRO, tatami=tatami) if tatami else ""
     scripts = {"launch.vbs": LAUNCH_VBS.format(distro=DISTRO, waifu=waifu_path(), desk=desk)}
     if tatami:
-        scripts["desk.vbs"] = DESK_VBS.format(distro=DISTRO, tatami=tatami, browser=CONF.get("browser", ""))
+        scripts["desk.vbs"] = DESK_VBS.format(distro=DISTRO, tatami=tatami, browser=CONF.get("browser", ""),
+                                              app=win_path(os.path.join(app_dir(), APP_EXE)))
         scripts["desk-open.ps1"] = DESK_OPEN_PS1
+        scripts["open.vbs"] = OPEN_VBS.format(distro=DISTRO, tatami=tatami)
+        scripts["focus-window.ps1"] = FOCUS_PS1
     for name, text in scripts.items():
         path = os.path.join(LAUNCHER_DIR, name)
         try:
@@ -233,6 +331,75 @@ def write_launcher():
         # PowerShell reads a script without a byte order mark as the old ANSI code page
         with open(path, "w", newline="\r\n", encoding="utf-8-sig" if name.endswith(".ps1") else None) as f:
             f.write(text)
+    if tatami:
+        sync_app()
+
+
+def app_dir():
+    """Where the Tatami Room app lives: %LOCALAPPDATA%\\TatamiRoom, next to waifu's launchers."""
+    return os.path.join(os.path.dirname(LAUNCHER_DIR), "TatamiRoom")
+
+
+def install_app():
+    """Tatami Room as a Windows app: Electron's runtime around the desk, with the app's own code
+    from this repo. The runtime is downloaded once and checked against Electron's checksum."""
+    base = app_dir()
+    if not os.path.exists(os.path.join(base, APP_EXE)):
+        version, digest = ELECTRON
+        name = f"electron-{version}-win32-x64.zip"
+        part = os.path.join(LAUNCHER_DIR, name)
+        print(f"app: downloading Electron {version}, the app's runtime (about 160 MB)...")
+        sha = hashlib.sha256()
+        req = urllib.request.Request(f"https://github.com/electron/electron/releases/download/{version}/{name}",
+                                     headers={"User-Agent": "tatami-room/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r, open(part, "wb") as f:
+                for chunk in iter(lambda: r.read(1 << 20), b""):
+                    sha.update(chunk)
+                    f.write(chunk)
+        except OSError as e:
+            print(f"app: download failed ({e}); the desk opens in your browser instead")
+            return
+        if sha.hexdigest() != digest:
+            os.remove(part)
+            print("app: the download didn't match Electron's published checksum, so it wasn't installed")
+            return
+        os.makedirs(base, exist_ok=True)
+        windows("tar.exe", "-xf", win_path(part), "-C", win_path(base))  # Windows' own unzip is quick
+        os.remove(part)
+        os.replace(os.path.join(base, "electron.exe"), os.path.join(base, APP_EXE))
+        default = os.path.join(base, "resources", "default_app.asar")  # Electron's demo app
+        if os.path.exists(default):
+            os.remove(default)
+    sync_app()
+
+
+def sync_app():
+    """Put the app's code from this repo into the installed app, when it changed. waifu hello runs
+    this, so `git pull` updates the app like everything else (it applies when the app restarts)."""
+    if not os.path.exists(os.path.join(app_dir(), APP_EXE)):
+        return
+    dst = os.path.join(app_dir(), "resources", "app")
+    os.makedirs(dst, exist_ok=True)
+    files = {}
+    for name in APP_FILES:
+        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "app", name), "rb") as f:
+            files[name] = f.read()
+    files["config.json"] = json.dumps({"distro": DISTRO, "tatami": tatami_path(),
+                                       "launcher": win_path(LAUNCHER_DIR)}, indent=2).encode()
+    if os.path.exists(os.path.join(LAUNCHER_DIR, "tatami.ico")):
+        with open(os.path.join(LAUNCHER_DIR, "tatami.ico"), "rb") as f:
+            files["tatami.ico"] = f.read()
+    for name, data in files.items():
+        path = os.path.join(dst, name)
+        try:
+            with open(path, "rb") as f:
+                if f.read() == data:
+                    continue
+        except OSError:
+            pass
+        with open(path, "wb") as f:
+            f.write(data)
 
 
 def win_path(p):
@@ -369,8 +536,15 @@ def prepare_next(wt, state):
     slot_profiles(wt)[nxt].pop("tabColor", None)  # a new window isn't on anyone's team yet
     save_wt(wt)
     state["slot"] = nxt
+    write_next(state)
+
+
+def write_next(state):
+    """Tell the shortcut which slot holds the next window."""
+    state.pop("windows", None)  # window names, from a way of finding windows that isn't needed now
+    state.pop("launches", None)
     with open(os.path.join(LAUNCHER_DIR, "next.txt"), "w") as f:
-        f.write(SLOT_GUIDS[nxt] + "\r\n")
+        f.write(SLOT_GUIDS[state["slot"]] + "\r\n")
 
 
 def tab_color(slot, color, only_if=None, wait=0.0):
@@ -609,13 +783,17 @@ def ps_quote(s):
 
 
 def shortcut(name, script, icon, description):
-    """A shortcut on the desktop and in the Start menu that runs one of our launcher scripts."""
+    """A shortcut on the desktop and in the Start menu that runs one of our launcher scripts, or
+    (script = a path ending in .exe) a program."""
+    exe = script.lower().endswith(".exe")
+    target = ps_quote(win_path(script)) if exe else "(Join-Path $env:WINDIR 'System32\\wscript.exe')"
+    args = "''" if exe else "'\"' + " + ps_quote(win_path(os.path.join(LAUNCHER_DIR, script))) + " + '\"'"
     return powershell(f"""$ws = New-Object -ComObject WScript.Shell
 $dirs = @([Environment]::GetFolderPath('Desktop'), (Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs'))
 foreach ($d in $dirs) {{
   $s = $ws.CreateShortcut((Join-Path $d {ps_quote(name)}))
-  $s.TargetPath = (Join-Path $env:WINDIR 'System32\\wscript.exe')
-  $s.Arguments = '"' + {ps_quote(win_path(os.path.join(LAUNCHER_DIR, script)))} + '"'
+  $s.TargetPath = {target}
+  $s.Arguments = {args}
   if ({ps_quote(icon)}) {{ $s.IconLocation = {ps_quote(icon)} }}
   $s.Description = {ps_quote(description)}
   $s.Save()
@@ -642,12 +820,32 @@ def install_desk():
     CONF["browser"] = find_browser()
     save(CONFIG, CONF)
     write_launcher()
+    # tatami-room: links, for the desk's + Claude button and for bringing up an agent's window.
+    # Windows hands them to open.vbs, which only knows those two things.
+    print(powershell(f"""$k = 'HKCU:\\Software\\Classes\\tatami-room'
+New-Item -Path "$k\\shell\\open\\command" -Force | Out-Null
+Set-ItemProperty -Path $k -Name '(default)' -Value 'URL:Tatami Room'
+Set-ItemProperty -Path $k -Name 'URL Protocol' -Value ''
+$run = '"' + (Join-Path $env:WINDIR 'System32\\wscript.exe') + '" "' + {ps_quote(win_path(os.path.join(LAUNCHER_DIR, "open.vbs")))} + '" "%1"'
+Set-ItemProperty -Path "$k\\shell\\open\\command" -Name '(default)' -Value $run
+'links: tatami-room: opens with ' + $run"""))
+    with open(os.path.join(STATE_DIR, "lock"), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        state = load(STATE, {})
+        if state.get("slot") is not None:
+            write_next(state)
+            save(STATE, state)
     icon = os.path.join(LAUNCHER_DIR, "tatami.ico")
     with_pillow("_mark", icon)
-    print(shortcut(DESK_SHORTCUT, "desk.vbs", win_path(icon) if os.path.exists(icon) else "",
-                   "Tatami Room: the desk where your Claude agents team up"))
-    print("desk: " + ("opens in its own " + CONF["browser"].rsplit("\\", 1)[-1] + " window" if CONF["browser"]
-                      else "opens in your default browser"))
+    install_app()
+    exe = os.path.join(app_dir(), APP_EXE)
+    print(shortcut(DESK_SHORTCUT, exe if os.path.exists(exe) else "desk.vbs",
+                   win_path(icon) if os.path.exists(icon) else "", "Tatami Room: the desk where your Claude agents team up"))
+    if os.path.exists(exe):
+        print("desk: the Tatami Room app")
+    else:
+        print("desk: " + ("opens in its own " + CONF["browser"].rsplit("\\", 1)[-1] + " window" if CONF["browser"]
+                          else "opens in your default browser"))
 
 
 def setup(args):
@@ -711,8 +909,7 @@ if ($p) {{
     if state.get("slot") is None or not state.get("shown", {}).get(str(state["slot"])):
         prepare_next(wt, state)
     else:
-        with open(os.path.join(LAUNCHER_DIR, "next.txt"), "w") as f:
-            f.write(SLOT_GUIDS[state["slot"]] + "\r\n")
+        write_next(state)
     save(STATE, state)
     # The shortcuts, on the desktop and in the Start menu.
     print(shortcut(SHORTCUT, "launch.vbs", shortcut_icon, "Claude in a new window with its own background girl and colour"))
@@ -734,7 +931,14 @@ def uninstall():
     $f = Join-Path $d $n
     if (Test-Path $f) {{ Remove-Item $f; 'removed ' + $f }}
   }}
-}}"""))
+}}
+if (Test-Path 'HKCU:\\Software\\Classes\\tatami-room') {{
+  Remove-Item 'HKCU:\\Software\\Classes\\tatami-room' -Recurse -Force; 'removed the tatami-room: links'
+}}
+Stop-Process -Name 'Tatami Room' -ErrorAction SilentlyContinue
+$data = Join-Path $env:APPDATA 'Tatami Room'
+if (Test-Path $data) {{ Start-Sleep 1; Remove-Item $data -Recurse -Force -ErrorAction SilentlyContinue }}"""))
+    shutil.rmtree(app_dir(), ignore_errors=True)
     shutil.rmtree(LAUNCHER_DIR, ignore_errors=True)
     for path in (CONFIG, STATE, CANDIDATES):
         if os.path.exists(path):
