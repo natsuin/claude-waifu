@@ -122,6 +122,28 @@ sh.Run "wsl.exe -d {distro} -- {waifu} advance", 0, False
 '''
 
 
+def waifu_path():
+    """How Windows calls waifu: through the ~/.local/bin link when there is one, so moving the
+    repo folder (and re-linking) can't strand the shortcut."""
+    link, me = os.path.expanduser("~/.local/bin/waifu"), os.path.realpath(__file__)
+    return link if os.path.realpath(link) == me else me
+
+
+def write_launcher():
+    """The script the shortcut runs. Rewritten whenever it's out of date, e.g. after the repo
+    moved: a launcher that can't find waifu opens every window on the same slot."""
+    path = os.path.join(LAUNCHER_DIR, "launch.vbs")
+    text = LAUNCH_VBS.format(distro=DISTRO, waifu=waifu_path())
+    try:
+        with open(path, encoding="utf-8") as f:
+            if f.read() == text:
+                return
+    except (OSError, UnicodeDecodeError):
+        pass
+    with open(path, "w", newline="\r\n") as f:
+        f.write(text)
+
+
 def win_path(p):
     """/mnt/d/TerminalGirls/x.png -> D:\\TerminalGirls\\x.png"""
     if p.startswith("/mnt/") and len(p) > 6 and p[6] == "/":
@@ -501,9 +523,7 @@ if ($p) {{
     save(CONFIG, conf)
     print(f"config: {CONFIG}\nwallpapers: {win_path(POOL)}\nterminal settings: {win_path(WT_SETTINGS)}"
           + ("\nicon: from the Claude desktop app" if "copied" in found else ""))
-    # The launcher script the shortcut runs.
-    with open(os.path.join(LAUNCHER_DIR, "launch.vbs"), "w", newline="\r\n") as f:
-        f.write(LAUNCH_VBS.format(distro=DISTRO, waifu=os.path.realpath(__file__)))
+    write_launcher()  # the script the shortcut runs
     # Profiles, the first wallpapers, and the first prepared window.
     state = load(STATE, {})
     slot_profiles(wt)
@@ -579,6 +599,7 @@ def main():
             # launch: open a new window on the prepared slot from inside WSL. advance: what the
             # shortcut runs after opening that slot itself. Both then load the next slot.
             # hello (optional, e.g. from your shell) only does the daily top-up below.
+            write_launcher()
             if cmd != "hello":
                 wt = load_wt()
                 slot_profiles(wt)
