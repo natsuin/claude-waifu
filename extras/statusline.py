@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Claude Code status line: subscription usage (the rolling 5-hour window and the weekly
 one, each with a bar and its reset time) plus how full this session's context is.
-Claude Code pipes session JSON in on stdin; see https://code.claude.com/docs/en/statusline"""
+Claude Code pipes session JSON in on stdin; see https://code.claude.com/docs/en/statusline
+If you use Tatami Room's desk, it also leaves the usage numbers where the board can show them."""
 import json
+import os
 import sys
 import time
 
@@ -27,9 +29,30 @@ def reset_time(epoch, weekly):
     return clock if same_day or not weekly else time.strftime("%a ", t) + clock
 
 
+def share(limits):
+    """Tatami Room's board shows your usage too: keep the latest numbers where it reads them."""
+    desk = os.path.expanduser("~/.local/state/tatami")
+    path = os.path.join(desk, "usage.json")
+    if not limits or not os.path.isdir(desk):
+        return
+    try:
+        with open(path, encoding="utf-8") as f:
+            if json.load(f).get("rate_limits") == limits:
+                return
+    except (OSError, ValueError):
+        pass
+    try:
+        with open(f"{path}.{os.getpid()}", "w", encoding="utf-8") as f:
+            json.dump({"rate_limits": limits, "ts": time.time()}, f)
+        os.replace(f"{path}.{os.getpid()}", path)
+    except OSError:
+        pass
+
+
 data = json.load(sys.stdin)
 parts = []
 limits = data.get("rate_limits") or {}
+share(limits)
 for key, label, weekly in (("five_hour", "5h", False), ("seven_day", "week", True)):
     window = limits.get(key) or {}
     pct = window.get("used_percentage")

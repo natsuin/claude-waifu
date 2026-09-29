@@ -90,6 +90,20 @@ h1 { margin: 0; font: 600 1.45rem/1 var(--display); letter-spacing: .02em; }
   animation: blink 1.1s ease-in-out infinite;
 }
 .status[data-kind="wait"] i { background: var(--muted); box-shadow: none; }
+/* Your Claude usage, as the Tatami Room status line last saw it: a thin bar under each window. */
+.usage { display: inline-flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; color: var(--muted); font-size: .74rem; }
+.usage[hidden] { display: none; }
+.meter {
+  --lvl: var(--mint);
+  padding-bottom: 4px;
+  background:
+    linear-gradient(var(--lvl), var(--lvl)) left bottom / var(--pct, 0%) 2px no-repeat,
+    linear-gradient(rgba(245, 230, 240, .14), rgba(245, 230, 240, .14)) left bottom / 100% 2px no-repeat;
+}
+.meter b { color: var(--text); font-weight: 600; }
+.meter span { color: var(--lvl); font-weight: 600; }
+.meter[data-level="high"] { --lvl: #ffc38a; }
+.meter[data-level="full"] { --lvl: #ff6b8b; }
 @keyframes blink { 50% { opacity: .25; } }
 .newroom { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .newroom input {
@@ -444,6 +458,7 @@ footer {
   </div>
   <p class="summary" id="summary"></p>
   <p class="status" id="status" data-kind="wait"><i></i><span id="status-text">connecting</span></p>
+  <p class="usage" id="usage" aria-label="Claude usage" hidden></p>
   <form class="newroom" id="newroom" autocomplete="off">
     <input id="roomname" maxlength="60" spellcheck="false" placeholder="room name" aria-label="New room name" tabindex="-1">
     <button class="add" type="submit">+ Room</button>
@@ -624,7 +639,34 @@ function render(s) {
                                rooms && `${rooms} ${rooms === 1 ? "room" : "rooms"}`, needs].filter(Boolean).join(", ");
   document.title = n ? `Tatami Room (${n})${needs ? ` · ${needs}` : ""}` : "Tatami Room";
   $("#empty").hidden = rooms > 0 || n > 0;
+  showUsage(s.usage || {});
   firstPaint = false;
+}
+
+// The 5-hour and weekly windows, like the status line under each Claude window.
+function showUsage(u) {
+  const el = $("#usage");
+  const windows = [["five_hour", "5h", false], ["seven_day", "week", true]].filter(([k]) => u[k]);
+  el.hidden = !windows.length;
+  el.replaceChildren(...windows.map(([k, label, weekly]) => {
+    const pct = Math.round(u[k].used);
+    const meter = document.createElement("span");
+    meter.className = "meter";
+    meter.dataset.level = pct < 50 ? "ok" : pct < 80 ? "high" : "full";
+    meter.style.setProperty("--pct", `${Math.min(100, Math.max(0, pct))}%`);
+    const name = document.createElement("b"), value = document.createElement("span");
+    name.textContent = label;
+    value.textContent = `${pct}%`;
+    meter.append(name, " ", value, u[k].resets ? ` resets ${resetTime(u[k].resets, weekly)}` : "");
+    return meter;
+  }));
+}
+
+function resetTime(epoch, weekly) {
+  const d = new Date(epoch * 1000);
+  const clock = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s/g, "").toLowerCase();
+  return weekly && d.toDateString() !== new Date().toDateString()
+    ? `${d.toLocaleDateString([], { weekday: "short" })} ${clock}` : clock;
 }
 
 function newRoom(i) {

@@ -67,7 +67,20 @@ def state():
                       "members": [a for a in people if a["room"] == name],
                       "recent": [{"from": m["from"], "to": m.get("to"), "text": clip(m["text"]),
                                   "ts": m["ts"]} for m in msgs]})
-    return {"rooms": rooms, "alone": [a for a in people if not a["room"]], "now": time.time()}
+    return {"rooms": rooms, "alone": [a for a in people if not a["room"]], "now": time.time(), "usage": usage()}
+
+
+def usage():
+    """Your Claude usage (the 5-hour and weekly windows), as the Tatami Room status line last
+    saw it. A window whose reset time has passed has started over."""
+    limits = channel.load(os.path.join(channel.HOME, "usage.json"), {}).get("rate_limits") or {}
+    out = {}
+    for key in ("five_hour", "seven_day"):
+        w = limits.get(key) or {}
+        if isinstance(w.get("used_percentage"), (int, float)):
+            over = (w.get("resets_at") or 0) and w["resets_at"] < time.time()
+            out[key] = {"used": 0 if over else w["used_percentage"], "resets": None if over else w.get("resets_at")}
+    return out
 
 
 def clip(text, n=280):
