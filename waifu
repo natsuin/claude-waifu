@@ -221,7 +221,7 @@ def slot_profiles(wt):
             have[guid] = {"guid": guid}
             profiles.append(have[guid])
         p = have[guid]
-        for k in [k for k in p if k not in BG_KEYS and k not in ("guid", "background")]:
+        for k in [k for k in p if k not in BG_KEYS and k not in ("guid", "background", "tabColor")]:
             del p[k]
         p.update(tpl, name=f"Claude {i + 1}")
         out.append(p)
@@ -275,10 +275,39 @@ def prepare_next(wt, state):
     if not state.get("off"):
         paint(wt, state, nxt, choose(state))
     tint(wt, state, nxt)
+    slot_profiles(wt)[nxt].pop("tabColor", None)  # a new window isn't on anyone's team yet
     save_wt(wt)
     state["slot"] = nxt
     with open(os.path.join(LAUNCHER_DIR, "next.txt"), "w") as f:
         f.write(SLOT_GUIDS[nxt] + "\r\n")
+
+
+def tab_color(slot, color, only_if=None, wait=0.0):
+    """Set a slot window's tab colour, or clear it (color None; with only_if, only while it's
+    still that colour). Tatami Room's team channel calls this so the windows of a team match.
+    Returns False while another waifu command holds the lock (a download can take minutes),
+    so the caller can try again later instead of waiting."""
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(os.path.join(STATE_DIR, "lock"), "w") as lock:
+        give_up = time.time() + wait
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.time() >= give_up:
+                    return False
+                time.sleep(0.1)
+        wt = load_wt()
+        prof = next((p for p in wt["profiles"]["list"] if p.get("guid") == SLOT_GUIDS[slot]), None)
+        if prof is None or prof.get("tabColor") == color or (only_if and prof.get("tabColor") != only_if):
+            return True
+        if color:
+            prof["tabColor"] = color
+        else:
+            prof.pop("tabColor", None)
+        save_wt(wt)
+        return True
 
 
 def here(state):

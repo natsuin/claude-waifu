@@ -19,6 +19,7 @@
   --mint: #7ee8b5;
   --text: #f5e6f0;             /* the dot colour of the terminal girls */
   --muted: #a898b4;
+  --plain: #6f6180;            /* the edging of a mat that isn't on a team */
   --display: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", Georgia, serif;
   --ui: "Bahnschrift", "Segoe UI Variable Text", "Segoe UI", "Noto Sans", sans-serif;
   --mono: "Cascadia Mono", "Cascadia Code", Consolas, "DejaVu Sans Mono", monospace;
@@ -119,6 +120,24 @@ h1 { margin: 0; font: 600 1.45rem/1 var(--display); letter-spacing: .02em; }
 }
 .add:hover { background: #ff9fcd; }
 .add:active { transform: translateY(1px); }
+
+/* ---- on their own: agents that aren't on a team yet wait along the top ---- */
+.lobby {
+  --room: var(--muted);
+  margin: 20px var(--gutter) 0;
+  padding: 12px 16px 14px;
+  border: 1px dashed rgba(195, 166, 255, .24);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .015);
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.lobby[hidden] { display: none; }
+.lobby.is-target { border-style: solid; border-color: var(--muted); background: rgba(255, 255, 255, .045); }
+.lobby-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; margin: 0 2px 10px; }
+.lobby-head h2 { margin: 0; font: 600 1.05rem/1.2 var(--display); letter-spacing: .01em; }
+.lobby-hint { color: var(--muted); font-size: .76rem; }
+.lobby .floor { min-height: 0; padding: 0; background: none; box-shadow: none; }
+.lobby .floor:empty::before { content: "Drop a mat here to take it off its team"; width: 100%; height: 48px; }
 
 /* ---- rooms ---- */
 main {
@@ -291,6 +310,10 @@ body.stale main { opacity: .5; filter: saturate(.5); }
   text-overflow: ellipsis;
 }
 .mat:hover { transform: translateY(-2px); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12), 0 16px 22px -12px rgba(0, 0, 0, .9); }
+.mat.is-target {   /* another mat on its own, about to become a team with the one being carried */
+  transform: translateY(-3px);
+  box-shadow: 0 0 0 2px var(--pink), 0 0 28px -4px rgba(255, 133, 192, .65), 0 16px 22px -12px rgba(0, 0, 0, .9);
+}
 .mat.lifted { opacity: .25; transform: none; }
 .mat.carried {
   transform: translateY(-4px) rotate(-1.5deg);
@@ -415,19 +438,27 @@ footer {
   </form>
 </header>
 
+<section class="lobby" id="lobby" aria-labelledby="lobby-title" hidden>
+  <header class="lobby-head">
+    <h2 id="lobby-title">On their own</h2>
+    <span class="room-count" id="lobby-count"></span>
+    <span class="lobby-hint">Drop one mat onto another to make a team</span>
+  </header>
+  <div class="floor" id="lobby-floor" role="list"></div>
+</section>
 <main id="rooms" aria-label="Rooms"></main>
 <section class="empty" id="empty" hidden>
   <svg aria-hidden="true"><use href="#mark"/></svg>
   <h2>No agents on the mats yet</h2>
-  <p>Open a Claude Waifu window. Every agent with the Tatami Room channel shows up here as a mat,
-     in the room for its project folder.</p>
+  <p>Open a Claude Waifu window. Every agent with the Tatami Room channel shows up here as a mat:
+     on its own at first, or in its project's room if you started it in a project folder.</p>
 </section>
 <footer>Only on this PC. The board changes which room an agent is in and nothing else:
   it can't run commands or reach your terminals.</footer>
 
 <p class="toast" id="toast" role="status" hidden></p>
 <p class="sr-only" id="live" aria-live="polite"></p>
-<p class="sr-only" id="how">Space picks up this mat. Arrow keys choose a room, Space lays it down there, Escape cancels.</p>
+<p class="sr-only" id="how">Space picks up this mat. Arrow keys choose a room, or another mat to make a team with, Space lays it down there, Escape cancels.</p>
 
 <template id="tpl-room">
   <section class="room">
@@ -464,6 +495,8 @@ const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const roomsEl = $("#rooms");
+const lobbyEl = $("#lobby"), lobbyFloor = $("#lobby-floor");   // the mats that are on their own
+const PLAIN = "var(--plain)";   // their edging: no team, no colour
 const tpl = (id) => $(id).content.firstElementChild;
 const roomEls = new Map();   // room name -> its <section>, kept between polls
 const matEls = new Map();    // agent id -> its mat, kept between polls (and moved, never rebuilt)
@@ -547,7 +580,9 @@ function setStatus(kind) {
 // ---- drawing ----
 
 function render(s) {
+  const alone = s.alone || [];
   const hues = new Map();
+  for (const a of alone) hues.set(a.id, lightHue(a.tint));
   for (const r of s.rooms) for (const a of r.members) hues.set(a.id, lightHue(a.tint));
   const names = new Set(s.rooms.map((r) => r.name));
   for (const [name, el] of roomEls) if (!names.has(name)) { el.remove(); roomEls.delete(name); }
@@ -558,13 +593,22 @@ function render(s) {
     if (roomsEl.children[i] !== el) roomsEl.insertBefore(el, roomsEl.children[i] || null);
     fillRoom(el, r, s.now, hues, live);
   });
+  alone.forEach((a, i) => {
+    live.add(a.id);
+    let mat = matEls.get(a.id);
+    if (!mat) { mat = newMat(a.id); matEls.set(a.id, mat); }
+    fillMat(mat, a, PLAIN, s.now);
+    if (lobbyFloor.children[i] !== mat) lobbyFloor.insertBefore(mat, lobbyFloor.children[i] || null);
+  });
   for (const [id, el] of matEls) if (!live.has(id)) { el.remove(); matEls.delete(id); }
 
   const n = live.size, rooms = s.rooms.length;
-  $("#summary").textContent = rooms
-    ? `${n} ${n === 1 ? "agent" : "agents"} in ${rooms} ${rooms === 1 ? "room" : "rooms"}` : "";
+  lobbyEl.hidden = n === 0;
+  $("#lobby-count").textContent = alone.length ? `${alone.length} ${alone.length === 1 ? "mat" : "mats"}` : "";
+  $("#summary").textContent = [n && `${n} ${n === 1 ? "agent" : "agents"}`,
+                               rooms && `${rooms} ${rooms === 1 ? "room" : "rooms"}`].filter(Boolean).join(", ");
   document.title = n ? `Tatami Room (${n})` : "Tatami Room";
-  $("#empty").hidden = rooms > 0;
+  $("#empty").hidden = rooms > 0 || n > 0;
   firstPaint = false;
 }
 
@@ -645,7 +689,7 @@ function newMat(id) {
 function fillMat(mat, a, heri, now) {
   const tint = HEX.test(a.tint) ? a.tint : "#2a2233";
   const company = COMPANIES[a.agent] || a.agent;
-  mat.dataset.room = a.room;
+  mat.dataset.room = a.room || "";
   mat.style.setProperty("--tint", tint);
   mat.style.setProperty("--hue", lightHue(tint));
   mat.style.setProperty("--heri", heri);
@@ -653,7 +697,8 @@ function fillMat(mat, a, heri, now) {
   $(".name", mat).textContent = a.id;
   $(".folder", mat).textContent = a.folder ? `${a.folder}/` : "";
   $(".seen", mat).textContent = ago(now - a.seen);
-  mat.setAttribute("aria-label", `${a.id}, ${company} agent, folder ${a.folder || "unknown"}, in room ${a.room}`);
+  mat.setAttribute("aria-label", `${a.id}, ${company} agent, folder ${a.folder || "unknown"}, `
+                                 + (a.room ? `in room ${a.room}` : "on its own"));
   const img = $(".girl", mat);
   const src = a.girl ? `/girl/${encodeURIComponent(a.id)}?token=${encodeURIComponent(TOKEN)}` : "";
   if (img.dataset.src !== src) {
@@ -684,37 +729,73 @@ function lightHue(hex) {
 
 // ---- moving mats ----
 
-// Lay a mat in a room right away; the board confirms, and the next redraw corrects it if not.
-function layInto(mat, room) {
-  $(".floor", room).append(mat);
-  mat.style.setProperty("--heri", room.style.getPropertyValue("--room"));
-  mat.dataset.room = room.dataset.name;
+// Where a mat can go: into a room (it joins that team), onto the strip along the top (it
+// leaves its team), or onto a mat that's on its own (the two of them become a new team).
+function act(mat, t) {
+  if (t.classList.contains("room")) {
+    if (t.dataset.name === mat.dataset.room) return false;
+    moveTo(mat, t);
+  } else if (t.classList.contains("mat")) {
+    teamUp(mat, t);
+  } else {
+    if (!mat.dataset.room) return false;
+    goAlone(mat);
+  }
+  return true;
 }
 
+// Lay a mat down right away; the board confirms, and the next redraw corrects it if not.
 function moveTo(mat, room) {
   const id = mat.dataset.id, to = room.dataset.name;
-  layInto(mat, room);
+  $(".floor", room).append(mat);
+  mat.style.setProperty("--heri", room.style.getPropertyValue("--room"));
+  mat.dataset.room = to;
   announce(`${id} moved to ${to}.`);
   change("/api/move", { agent: id, room: to });
 }
 
-let target = null;
-function aim(room, preview) {
-  if (target === room) return;
-  target?.classList.remove("is-target");
-  target = room;
-  room?.classList.add("is-target");
-  const over = room || roomEls.get(preview?.dataset.room);
-  if (preview && over) {   // the edging takes on the colour of the room it's over
-    preview.style.setProperty("--heri", over.style.getPropertyValue("--room"));
-  }
+function goAlone(mat) {
+  lobbyFloor.append(mat);
+  mat.style.setProperty("--heri", PLAIN);
+  mat.dataset.room = "";
+  announce(`${mat.dataset.id} is on its own now.`);
+  change("/api/move", { agent: mat.dataset.id, room: null });
 }
 
-// Mouse, pen and touch: press, drag past a few pixels, and let go over a room.
+async function teamUp(mat, other) {
+  const focused = document.activeElement === mat;
+  other.after(mat);   // side by side while the board names their room
+  mat.style.setProperty("--heri", PLAIN);
+  const s = await change("/api/team", { agent: mat.dataset.id, with: other.dataset.id });
+  const room = s?.rooms.find((r) => r.members.some((a) => a.id === mat.dataset.id));
+  if (!room) return;
+  announce(`${mat.dataset.id} and ${other.dataset.id} are a team now, in ${room.name}.`);
+  const el = roomEls.get(room.name);
+  el?.classList.add("flash");
+  el?.scrollIntoView({ block: "nearest", behavior: REDUCED ? "auto" : "smooth" });
+  if (focused) mat.focus();
+}
+
+// The colour a carried mat's edging takes: the room it's over, or its own; plain for no team.
+function edging(t, mat) {
+  const room = t ? t.closest(".room") : roomEls.get(mat.dataset.room);
+  return room ? room.style.getPropertyValue("--room") : PLAIN;
+}
+
+let target = null;
+function aim(t, preview) {
+  if (target === t) return;
+  target?.classList.remove("is-target");
+  target = t;
+  t?.classList.add("is-target");
+  if (preview) preview.style.setProperty("--heri", edging(t, preview));
+}
+
+// Mouse, pen and touch: press, drag past a few pixels, and let go over a room or a mat.
 let drag = null;
-roomsEl.addEventListener("pointerdown", (e) => {
-  const mat = e.target.closest(".mat");
-  if (!mat || e.button !== 0 || carry || drag) return;
+document.addEventListener("pointerdown", (e) => {
+  const mat = e.target.closest?.(".mat");
+  if (!mat || mat.classList.contains("ghost") || e.button !== 0 || carry || drag) return;
   drag = { mat, pid: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, ghost: null };
   mat.setPointerCapture(e.pointerId);
 });
@@ -730,7 +811,7 @@ document.addEventListener("pointermove", (e) => {
 });
 document.addEventListener("pointerup", (e) => { if (drag && e.pointerId === drag.pid) drop(true); });
 document.addEventListener("pointercancel", (e) => { if (drag && e.pointerId === drag.pid) drop(false); });
-roomsEl.addEventListener("lostpointercapture", (e) => { if (drag?.ghost && e.pointerId === drag.pid) drop(false); });
+document.addEventListener("lostpointercapture", (e) => { if (drag?.ghost && e.pointerId === drag.pid) drop(false); });
 addEventListener("scroll", () => { if (drag?.ghost) follow(); }, { passive: true });
 
 function lift() {
@@ -756,8 +837,9 @@ function lift() {
 function follow() {
   drag.ghost.style.transform =
     `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px) rotate(-2deg) scale(1.04)`;
-  const room = document.elementFromPoint(drag.x, drag.y)?.closest(".room") || null;
-  aim(room, drag.ghost);
+  const under = document.elementFromPoint(drag.x, drag.y);
+  const mat = under?.closest("#lobby .mat");
+  aim(mat && mat !== drag.mat ? mat : under?.closest(".room, #lobby") || null, drag.ghost);
 }
 
 // Near the top or bottom edge the page scrolls, to reach rooms further away.
@@ -773,11 +855,10 @@ function drop(ok) {
   const d = drag;
   drag = null;
   if (!d.ghost) return;   // just a click
-  const room = ok ? target : null;
+  const t = ok ? target : null;
   aim(null);
   document.body.classList.remove("dragging");
-  const moving = !!room && room.dataset.name !== d.mat.dataset.room;
-  if (moving) moveTo(d.mat, room);
+  const moving = !!t && act(d.mat, t);
   settle(d.ghost, d.mat);
   release(moving);
 }
@@ -799,9 +880,9 @@ function settle(ghost, mat) {
   setTimeout(finish, 400);
 }
 
-// Keyboard: Space picks a mat up, arrows choose the room, Space lays it down, Escape cancels.
+// Keyboard: Space picks a mat up, arrows choose where it goes, Space lays it down, Escape cancels.
 let carry = null;
-roomsEl.addEventListener("keydown", (e) => {
+document.addEventListener("keydown", (e) => {
   const mat = e.target.closest?.(".mat");
   if (!mat || drag) return;
   const k = e.key;
@@ -816,38 +897,36 @@ roomsEl.addEventListener("keydown", (e) => {
   else return;
   e.preventDefault();
 });
-roomsEl.addEventListener("focusout", (e) => { if (carry && e.target === carry.mat) putBack(); });
+document.addEventListener("focusout", (e) => { if (carry && e.target === carry.mat) putBack(); });
 
 function pickUp(mat) {
   held = true;
-  const rooms = [...roomsEl.children];
-  carry = { mat, rooms, i: Math.max(0, rooms.findIndex((r) => r.dataset.name === mat.dataset.room)) };
+  const spots = [...roomsEl.children, lobbyEl, ...[...lobbyFloor.children].filter((m) => m !== mat)];
+  const home = mat.dataset.room ? roomEls.get(mat.dataset.room) : lobbyEl;
+  carry = { mat, spots, i: Math.max(0, spots.indexOf(home)) };
   mat.classList.add("carried");
-  aim(rooms[carry.i], mat);
-  announce(`Picked up ${mat.dataset.id}. Arrow keys choose a room, Space lays it down, Escape cancels.`);
+  aim(spots[carry.i], mat);
+  announce(`Picked up ${mat.dataset.id}. Arrow keys choose where it goes, Space lays it down, Escape cancels.`);
 }
 
 function step(d) {
-  carry.i = (carry.i + d + carry.rooms.length) % carry.rooms.length;
-  const room = carry.rooms[carry.i];
-  aim(room, carry.mat);
-  room.scrollIntoView({ block: "nearest", behavior: REDUCED ? "auto" : "smooth" });
-  announce(`Room ${room.dataset.name}`);
+  carry.i = (carry.i + d + carry.spots.length) % carry.spots.length;
+  const t = carry.spots[carry.i];
+  aim(t, carry.mat);
+  t.scrollIntoView({ block: "nearest", behavior: REDUCED ? "auto" : "smooth" });
+  announce(t.classList.contains("room") ? `Room ${t.dataset.name}`
+    : t.classList.contains("mat") ? `Make a team with ${t.dataset.id}` : "On its own");
 }
 
 function layDown() {
   const c = carry;
   carry = null;
-  const room = c.rooms[c.i];
+  const t = c.spots[c.i];
   aim(null);
   c.mat.classList.remove("carried");
-  const moving = room.dataset.name !== c.mat.dataset.room;
-  if (moving) {
-    moveTo(c.mat, room);
-    c.mat.focus();
-  } else {
-    announce("Put back.");
-  }
+  const moving = act(c.mat, t);
+  if (moving) c.mat.focus();
+  else announce("Put back.");
   release(moving);
 }
 

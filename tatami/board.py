@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Tatami Room board: a web page that shows every running agent as a mat, grouped into
-rooms. Drag a mat into another room and that agent joins that room's team channel.
+"""Tatami Room board: a web page that shows every running agent as a mat. Agents on a team
+sit in their team's room; the rest wait on their own along the top. Drag a mat into a room
+and that agent joins the room's team channel; drop one mat onto another and the two of them
+get a new room.
 
 It only reads and writes the team channel's plain files in ~/.local/state/tatami. It
 can't run commands or reach any terminal. It listens on this PC only (127.0.0.1), and
@@ -9,13 +11,11 @@ other devices and other websites can't use it.
 
   python3 board.py [--port 7373]    (or run ./tatami, which also opens it in your browser)
 """
-import hashlib
 import hmac
 import json
 import os
 import secrets
 import sys
-import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -24,13 +24,10 @@ import tatami_mcp as channel  # same folder: shares the file layout and helpers
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOKEN_FILE = os.path.join(channel.HOME, "board.token")
-ROOMS_FILE = os.path.join(channel.HOME, "rooms.json")  # rooms made on the board, even when empty
 WAIFU_CONFIG = os.path.expanduser("~/.config/waifu/config.json")
 TINTS = {"red": "#411010", "amber": "#412910", "olive": "#414110", "lime": "#294110",
          "green": "#104110", "jade": "#104129", "teal": "#104141", "sky": "#102941",
          "blue": "#101041", "violet": "#291041", "magenta": "#411041", "rose": "#411029"}
-ROOM_COLORS = ["#ff85c0", "#c3a6ff", "#7ee8b5", "#8ecbff", "#ffc38a", "#ff9ed2", "#8ef0e6", "#ffe08a"]
-LOCK = threading.Lock()  # the board's own changes to members.json and rooms.json, one at a time
 
 
 def token():
@@ -43,42 +40,102 @@ def token():
         return f.read().strip()
 
 
-def room_color(name):
-    return ROOM_COLORS[int(hashlib.sha1(name.encode()).hexdigest(), 16) % len(ROOM_COLORS)]
-
-
 def girls_hidden():
     """`waifu off` hides every girl for screen sharing, so the board hides them too."""
     return bool(channel.load(channel.WAIFU_STATE, {}).get("off"))
 
 
 def agents():
-    out, members, hidden = [], channel.load(channel.MEMBERS, {}), girls_hidden()
-    for fn in sorted(os.listdir(channel.AGENTS)) if os.path.isdir(channel.AGENTS) else []:
-        rec = channel.load(os.path.join(channel.AGENTS, fn), {})
-        if rec.get("id") and channel.alive(rec):
-            out.append({"id": rec["id"], "agent": rec.get("agent", "claude"), "room": channel.room_of(rec, members),
-                        "color": rec.get("color"), "tint": TINTS.get(rec.get("color") or "", "#2a2233"),
-                        "folder": os.path.basename(rec.get("cwd", "")), "seen": rec.get("seen", 0),
-                        "girl": bool(rec.get("girl")) and not hidden})
-    return out
+    """The running agents, as the page shows them. A room of None means on its own."""
+    hidden, home = girls_hidden(), os.path.expanduser("~")
+    return [{"id": rec["id"], "agent": rec.get("agent", "claude"), "room": rec["room"],
+             "color": rec.get("color"), "tint": TINTS.get(rec.get("color") or "", "#2a2233"),
+             "folder": "~" if rec.get("cwd") == home else os.path.basename(rec.get("cwd", "")),
+             "seen": rec.get("seen", 0), "girl": bool(rec.get("girl")) and not hidden}
+            for rec in channel.live_agents()]
 
 
 def state():
     people = agents()
-    names = list(dict.fromkeys(channel.load(ROOMS_FILE, []) + [a["room"] for a in people]))
+    colors = channel.room_colors(channel.live_rooms(people))  # oldest room first, so rooms stay put
     rooms = []
-    for name in names:
+    for name in colors:
         msgs = channel.load_jsonl(os.path.join(channel.ROOMS, name + ".jsonl"))[-6:]
-        rooms.append({"name": name, "color": room_color(name),
+        rooms.append({"name": name, "color": channel.PALETTE[colors[name]],
                       "members": [a for a in people if a["room"] == name],
                       "recent": [{"from": m["from"], "to": m.get("to"), "text": clip(m["text"]),
                                   "ts": m["ts"]} for m in msgs]})
-    return {"rooms": rooms, "now": time.time()}
+    return {"rooms": rooms, "alone": [a for a in people if not a["room"]], "now": time.time()}
 
 
 def clip(text, n=280):
-    return text if len(text) <= n else text[:n - 1].rstrip() + "\u2026"
+    return text if len(text) <= n else text[:n - 1].rstrip() + "…"
+
+
+def room_name(raw):
+    raw = str(raw or "")
+    return channel.safe_name(raw) if any(c.isalnum() for c in raw) else None
+
+
+def known_agent(raw):
+    aid = channel.safe_name(str(raw or ""))
+    return aid if raw and os.path.isfile(os.path.join(channel.AGENTS, aid + ".json")) else None
+
+
+def fresh_room(live):
+    """A name for a new team, the way a ryokan names its rooms: a flower or plant, in the first
+    colour no live room has. A name used before starts over: its old messages move to rooms/old.
+    Call it holding the channel's lock."""
+    used = set(channel.assign_colors(live).values())
+    free = [c for c in channel.PALETTE if c not in used] or list(channel.PALETTE)
+    names = [n for c in free for n in channel.FLOWERS[c]]
+    name, n = next((x for x in names if x not in live), None), 2
+    while name is None:  # every name is taken: number them
+        name = next((f"{x}-{n}" for x in names if f"{x}-{n}" not in live), None)
+        n += 1
+    old = os.path.join(channel.ROOMS, name + ".jsonl")
+    if os.path.exists(old):
+        os.makedirs(os.path.join(channel.ROOMS, "old"), exist_ok=True)
+        os.replace(old, os.path.join(channel.ROOMS, "old", f"{name}-{int(time.time())}.jsonl"))
+    return name
+
+
+def change(path, body):
+    """Make one change to the channel's files. Returns (status, error) when it can't.
+    Call it holding the channel's lock."""
+    if path == "/api/room":
+        room = room_name(body.get("room"))
+        if not room:
+            return 400, "A room name needs at least one letter or number."
+        rooms = channel.load(channel.ROOMS_FILE, [])
+        if body.get("remove"):  # only empty rooms; their messages stay on disk
+            if any(a["room"] == room for a in channel.live_agents()):
+                return 409, "Move its mats out first."
+            channel.save(channel.ROOMS_FILE, [r for r in rooms if r != room])
+        elif room not in rooms:
+            channel.save(channel.ROOMS_FILE, rooms + [room])
+        return None
+    agent = known_agent(body.get("agent"))
+    if not agent:
+        return 404, "No agent with that id."
+    members = channel.load(channel.MEMBERS, {})
+    if path == "/api/move":  # into a room, or with no room: on its own
+        room = room_name(body.get("room"))
+        if body.get("room") and not room:
+            return 400, "A room name needs at least one letter or number."
+        members[agent] = room
+    else:  # /api/team: one mat dropped onto another
+        other = known_agent(body.get("with"))
+        if not other or other == agent:
+            return 404, "No agent with that id."
+        people = channel.live_agents()
+        room = next((a["room"] for a in people if a["id"] == other), None)
+        if not room:  # the other one was on its own too: a new room for the two of them
+            room = fresh_room(channel.live_rooms(people))
+            members[other] = room
+        members[agent] = room
+    channel.save(channel.MEMBERS, members)
+    return None
 
 
 def girl_file(agent_id):
@@ -92,7 +149,7 @@ def girl_file(agent_id):
 
 
 class Board(BaseHTTPRequestHandler):
-    server_version = "TatamiRoom/0.1"
+    server_version = "TatamiRoom/0.2"
 
     def log_message(self, *args):  # keep the terminal quiet
         pass
@@ -154,29 +211,13 @@ class Board(BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             return self.send(400, {"error": "bad json"})
         path = urlparse(self.path).path
-        raw = str(body.get("room") or "")
-        room = channel.safe_name(raw) if any(c.isalnum() for c in raw) else None
-        if path not in ("/api/room", "/api/move"):
+        if path not in ("/api/room", "/api/move", "/api/team"):
             return self.send(404, {"error": "not found"})
-        if not room:
-            return self.send(400, {"error": "A room name needs at least one letter or number."})
-        with LOCK:
-            rooms = channel.load(ROOMS_FILE, [])
-            if path == "/api/room" and body.get("remove"):  # only empty rooms; their messages stay on disk
-                if any(a["room"] == room for a in agents()):
-                    return self.send(409, {"error": "Move its mats out first."})
-                channel.save(ROOMS_FILE, [r for r in rooms if r != room])
-                return self.send(200, state())
-            if path == "/api/move":
-                agent = channel.safe_name(str(body.get("agent") or ""))
-                if not os.path.isfile(os.path.join(channel.AGENTS, agent + ".json")):
-                    return self.send(404, {"error": "No agent with that id."})
-                members = channel.load(channel.MEMBERS, {})
-                members[agent] = room
-                channel.save(channel.MEMBERS, members)
-            if room not in rooms:
-                channel.save(ROOMS_FILE, rooms + [room])
-            return self.send(200, state())
+        with channel.locked():  # the agents write these files too
+            failed = change(path, body)
+        if failed:
+            return self.send(failed[0], {"error": failed[1]})
+        return self.send(200, state())
 
 
 def main():
