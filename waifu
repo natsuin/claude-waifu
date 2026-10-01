@@ -15,7 +15,8 @@ drawn as faint braille dots so your text stays readable. Open windows never chan
   waifu opacity PCT  how strong the current style is behind your text
   waifu show FILE [PCT]  pin any image from the wallpaper folder in this window
   waifu off | on     hide them all (screen sharing) / bring them back
-  waifu launch       open a new Claude Waifu window from inside WSL
+  waifu launch       open a new Claude Waifu window from inside WSL (`waifu launch DIR CMD...`
+                     runs CMD in DIR there instead of Claude; Tatami Room's helpers use it)
   waifu open         open the wallpaper folder in Explorer
   waifu desk         (re)make the Tatami Room shortcut that opens the desk (setup does this)
   waifu uninstall    remove the profiles, shortcuts and launchers (wallpapers are kept)
@@ -1025,7 +1026,9 @@ def main():
                 wt = load_wt()
                 slot_profiles(wt)
                 if cmd == "launch":
-                    subprocess.Popen([WT_EXE, "-w", "new", "-p", SLOT_GUIDS[state.get("slot", 0) % SLOTS]],
+                    # The slot's own look; with DIR CMD..., its command line swapped for that one
+                    run = ["wsl.exe", "-d", DISTRO, "--cd", args[1], "--", *args[2:]] if len(args) > 2 else []
+                    subprocess.Popen([WT_EXE, "-w", "new", "-p", SLOT_GUIDS[state.get("slot", 0) % SLOTS], *run],
                                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                      stderr=subprocess.DEVNULL, start_new_session=True)
                 prepare_next(wt, state)

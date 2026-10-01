@@ -49,9 +49,19 @@ def girls_hidden():
 
 def agents():
     """The running agents, as the page shows them. A room of None means on its own. With the
-    hooks on, `status` says whether each one is working, done (your turn) or asking you."""
+    hooks on, `status` says whether each one is working, done (your turn) or asking you.
+    `unread` counts the room's messages it hasn't read: one waiting for you won't see them
+    until you talk to it."""
     hidden, home = girls_hidden(), os.path.expanduser("~")
+    rooms = {}
+    def unread(rec):
+        if not rec["room"]:
+            return 0
+        if rec["room"] not in rooms:
+            rooms[rec["room"]] = channel.load_jsonl(os.path.join(channel.ROOMS, rec["room"] + ".jsonl"))
+        return len(channel.unread(rec, rec["room"], rooms[rec["room"]]))
     return [{"id": rec["id"], "agent": rec.get("agent", "claude"), "room": rec["room"],
+             "unread": unread(rec), "helper_of": rec.get("invited_by"),
              "color": rec.get("color"), "tint": TINTS.get(rec.get("color") or "", "#2a2233"),
              "folder": "~" if rec.get("cwd") == home else os.path.basename(rec.get("cwd", "")),
              "seen": rec.get("seen", 0), "girl": bool(rec.get("girl")) and not hidden,
@@ -103,24 +113,6 @@ def known_agent(raw):
     return aid if raw and os.path.isfile(os.path.join(channel.AGENTS, aid + ".json")) else None
 
 
-def fresh_room(live):
-    """A name for a new team, the way a ryokan names its rooms: a flower or plant, in the first
-    colour no live room has. A name used before starts over: its old messages move to rooms/old.
-    Call it holding the channel's lock."""
-    used = set(channel.assign_colors(live).values())
-    free = [c for c in channel.PALETTE if c not in used] or list(channel.PALETTE)
-    names = [n for c in free for n in channel.FLOWERS[c]]
-    name, n = next((x for x in names if x not in live), None), 2
-    while name is None:  # every name is taken: number them
-        name = next((f"{x}-{n}" for x in names if f"{x}-{n}" not in live), None)
-        n += 1
-    old = os.path.join(channel.ROOMS, name + ".jsonl")
-    if os.path.exists(old):
-        os.makedirs(os.path.join(channel.ROOMS, "old"), exist_ok=True)
-        os.replace(old, os.path.join(channel.ROOMS, "old", f"{name}-{int(time.time())}.jsonl"))
-    return name
-
-
 def change(path, body):
     """Make one change to the channel's files. Returns (status, error) when it can't.
     Call it holding the channel's lock."""
@@ -152,7 +144,7 @@ def change(path, body):
         people = channel.live_agents()
         room = next((a["room"] for a in people if a["id"] == other), None)
         if not room:  # the other one was on its own too: a new room for the two of them
-            room = fresh_room(channel.live_rooms(people))
+            room = channel.fresh_room(channel.live_rooms(people))
             members[other] = room
         members[agent] = room
     channel.save(channel.MEMBERS, members)

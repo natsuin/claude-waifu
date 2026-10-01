@@ -381,8 +381,29 @@ body.stale main { opacity: .5; filter: saturate(.5); }
 }
 .mat > span, .mat > strong { position: relative; min-width: 0; }
 .mat > .cushion { position: relative; }
-.mat .kind { grid-area: kind; align-self: start; color: var(--hue); font-size: .74rem; font-weight: 600; }
+.mat .kind { grid-area: kind; align-self: start; color: var(--hue); font-size: .74rem; font-weight: 600;
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mat .seen { grid-area: seen; align-self: start; color: rgba(245, 230, 240, .6); font-size: .74rem; }
+.mat .mail {   /* a folded letter left on the cushion: room messages it hasn't read */
+  grid-area: cushion;
+  align-self: center;
+  justify-self: end;
+  min-width: 21px;
+  height: 18px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  transform: translate(11px, -31px) rotate(-7deg);
+  border-radius: 2px;
+  background: linear-gradient(225deg, rgba(42, 28, 34, .28) 0 5px, transparent 5px), var(--paper);
+  color: var(--ink);
+  font: 700 .7rem/1 var(--ui);
+  text-shadow: none;
+  box-shadow: 0 4px 7px -3px rgba(0, 0, 0, .8);
+}
+.mat .mail[hidden] { display: none; }
+/* Waiting for you with mail unread: it won't read it until you talk to it. */
+.mat[data-status="done"] .mail { box-shadow: 0 0 0 2px var(--pink), 0 4px 7px -3px rgba(0, 0, 0, .8); }
 .mat .open {   /* a click brings up the agent's own window */
   position: absolute;
   right: 10px;
@@ -565,6 +586,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 <template id="tpl-mat">
   <div class="mat" role="listitem" tabindex="0" aria-describedby="how">
     <span class="cushion"><img class="girl" alt="" draggable="false" hidden></span>
+    <span class="mail" hidden></span>
     <span class="kind"></span>
     <span class="seen"></span>
     <strong class="name"></strong>
@@ -842,21 +864,30 @@ function fillMat(mat, a, heri, now) {
   const tint = HEX.test(a.tint) ? a.tint : "#2a2233";
   const company = COMPANIES[a.agent] || a.agent;
   mat.dataset.room = a.room || "";
-  mat.title = "Click to bring up its window, drag to move it";
+  const unread = Number.isInteger(a.unread) ? a.unread : 0;
+  const mail = $(".mail", mat);
+  mail.hidden = !unread;
+  mail.textContent = unread > 99 ? "99+" : String(unread);
+  const letters = unread === 1 ? "1 room message it hasn't read" : `${unread} room messages it hasn't read`;
+  mat.title = "Click to bring up its window, drag to move it"
+    + (unread ? `\n${letters}` + (a.status === "done" ? ": it reads them when you next talk to it" : "") : "");
   mat.style.setProperty("--tint", tint);
   mat.style.setProperty("--hue", lightHue(tint));
   mat.style.setProperty("--cushion", cushionOf(tint));
   mat.style.setProperty("--heri", heri);
   // Which kind of agent, when it isn't plain Claude in a Terminal window.
-  $(".kind", mat).textContent = a.session ? (a.agent === "claude" ? "in the app" : `${company} in the app`)
+  const kind = a.session ? (a.agent === "claude" ? "in the app" : `${company} in the app`)
     : a.agent === "claude" ? "" : company;
+  // A helper another agent brought in with room_invite says whose it is.
+  $(".kind", mat).textContent = [kind, a.helper_of ? `helper of ${a.helper_of}` : ""].filter(Boolean).join(" · ");
   $(".name", mat).textContent = a.id;
   $(".folder", mat).textContent = a.folder ? `${a.folder}/` : "";
   const status = STATUS[a.status];
   mat.dataset.status = status ? a.status : "";
   $(".seen", mat).textContent = status || "";
   mat.setAttribute("aria-label", `${a.id}, ${company} agent, folder ${a.folder || "unknown"}, `
-                                 + (a.room ? `in room ${a.room}` : "on its own") + (status ? `, ${status}` : ""));
+                                 + (a.room ? `in room ${a.room}` : "on its own") + (status ? `, ${status}` : "")
+                                 + (a.helper_of ? `, helper of ${a.helper_of}` : "") + (unread ? `, ${letters}` : ""));
   const img = $(".girl", mat);
   const src = a.girl ? `/girl/${encodeURIComponent(a.id)}?token=${encodeURIComponent(TOKEN)}` : "";
   if (img.dataset.src !== src) {
