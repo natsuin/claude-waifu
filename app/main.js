@@ -192,7 +192,7 @@ function ensurePanel() {
 }
 
 // The panel takes the right side under the desk's header; the desk makes room for it. When it
-// opens, it slides in from the edge like a fusuma door.
+// opens, it slides in from the edge on a spring that settles without overshooting.
 let sliding = null;
 function layout(slide = false) {
   if (!panel || win.isDestroyed()) return;
@@ -207,10 +207,11 @@ function layout(slide = false) {
   const start = Date.now();
   place(w);
   sliding = setInterval(() => {
-    const t = Math.min(1, (Date.now() - start) / 190);
-    place(Math.round(w - width * (1 - Math.pow(1 - t, 3))));
-    if (t === 1) clearInterval(sliding);
-  }, 12);
+    const t = (Date.now() - start) / 1000, k = 17;   // critically damped: about 0.4 s to settle
+    const done = t >= 0.42;
+    place(Math.round(w - width * (done ? 1 : 1 - Math.exp(-k * t) * (1 + k * t))));
+    if (done) clearInterval(sliding);
+  }, 10);
 }
 
 function lookOf(key) {

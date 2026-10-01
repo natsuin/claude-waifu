@@ -2,7 +2,7 @@
 
 **A desk for your AI coding agents.** Run several Claude Code agents side by side, see them all in one place, jump to any of them in a click, and drag them together into teams that talk to each other.
 
-The name comes from tatami, the woven mats that fit side by side to make a Japanese room. Each agent is a mat. Lay mats together and you've made a room: a team working on the same thing.
+The name comes from tatami, the woven mats that fit side by side to make a Japanese room. Lay agents side by side and you've made a room: a team working on the same thing.
 
 > **Work in progress.** Everything below works today with Claude Code on Windows Terminal and WSL. Later: agents from other companies, like Gemini CLI and Codex, joining the same rooms. The plan and the reasoning behind it are in [DESK.md](DESK.md).
 
@@ -10,22 +10,22 @@ The name comes from tatami, the woven mats that fit side by side to make a Japan
 
 One agent in one terminal is easy. Five agents in five terminals is a mess: which one is doing what, which one is waiting for you, and how do they share what they've found? Tatami Room turns them into a team you can see.
 
-- **See every agent at once.** The desk shows each running agent as a mat, with its folder and whether it's busy, done, or waiting for your OK.
-- **Get to any of them.** **+ Claude** starts Claude in a terminal right inside the app, and clicking a mat brings that agent up.
-- **Team up by dragging.** Drop one mat onto another and those agents share a room. In a room they post updates, hand off tasks and ask each other questions.
+- **See every agent at once.** The desk shows each running agent as a card that looks like its window, with its folder and whether it's busy, done, or waiting for your OK.
+- **Get to any of them.** **+ Claude** starts Claude in a terminal right inside the app, and clicking a card brings that agent up.
+- **Team up by dragging.** Drop one card onto another and those agents share a room. In a room they post updates, hand off tasks and ask each other questions.
 - **Tell them apart at a glance.** Every window has its own color, and the windows of a team share a tab color.
 
 ## What you get
 
 - **The Tatami Room app.** The desk runs as a Windows app of its own, with a shortcut on your desktop and in the Start menu, and its header as the title bar. It opens with your first Claude window after WSL starts, and every running agent is a mat on it. It pops up a Windows notification when an agent needs your OK. Closing it quits, unless Claude is running in its terminals: then it asks, and they can keep running in the tray.
-- **Claude inside the app.** **+ Claude** starts Claude in a terminal of the app's own, in a panel beside the desk, drawn over its own girl and color like a Claude Waifu window. Click its mat to bring it back, **Hide** it while Claude keeps working, **End** it when you're done, and drag the panel's edge to resize it. **Ctrl+`** switches between the desk and the last terminal.
-- **Click-to-open for your other windows.** Agents in Windows Terminal windows (the **Claude Waifu** shortcut, or **+ Claude in a Terminal window** in the tray menu) are on the desk too: click a mat, or press Enter on it, and that window comes to the front.
-- **Rooms you make by dragging.** New agents wait on their own in a strip along the top. Drop one mat onto another and the two get a new room, named the way a Japanese inn names its rooms: after a flower in the room's color (sakura is pink, fuji is lavender, momiji is peach). Drag a mat into a room to join that team, or back to the strip to take it off. Agents started in the same project folder share that project's room automatically.
+- **Claude inside the app.** **+ Claude** starts Claude in a terminal of the app's own, in a panel beside the desk, drawn over its own girl and color like a Claude Waifu window. Click its card to bring it back, **Hide** it while Claude keeps working, **End** it when you're done, and drag the panel's edge to resize it. **Ctrl+`** switches between the desk and the last terminal.
+- **Click-to-open for your other windows.** Agents in Windows Terminal windows (the **Claude Waifu** shortcut, or **+ Claude in a Terminal window** in the tray menu) are on the desk too: click a card, or press Enter on it, and that window comes to the front.
+- **Rooms you make by dragging.** New agents wait on their own in a strip along the top. Drop one card onto another and the two get a new room, named the way a Japanese inn names its rooms: after a flower in the room's color (sakura is pink, fuji is lavender, momiji is peach). Drag a mat into a room to join that team, or back to the strip to take it off. Agents started in the same project folder share that project's room automatically.
 - **A team channel.** Each agent gets four tools: `room_post` for an update, a hand-off or a question, `room_read` for what the others said, `room_members` for who's on the team, and `room_invite` to bring in a helper. An agent is told when you move it. Agents see who has read their messages, so silence isn't taken for a yes, and their instructions cover the basics of working together: offer a concrete piece, hand work to whoever offers, and say which files you'll touch.
 - **Helpers.** Ask an agent to get help and it can bring a helper into its room: a new Claude window, with its own girl and color, that starts in the same folder with the piece of work it was handed and reports back in the room. Unlike a hidden subagent, you see the helper on the desk (marked *helper of* its agent) and can talk to it. Each agent can have two at a time, and helpers can't bring in more.
 - **Matching tab colors.** Windows on the same team get the same tab color, the one the desk shows for their room. No two teams share a color.
-- **Who needs you** (optional). Turn it on with `tatami hooks on` and each mat says *working*, *your turn* or *needs your OK*. A mat waiting on a permission prompt pulses pink, and the desk's title counts them. The hooks also tell a busy agent when room messages arrive, so it doesn't miss its team while it works.
-- **Mail on the mat.** A folded letter on an agent's cushion counts the room messages it hasn't read. An agent waiting for you can't read anything until you talk to it, so with the hooks on its letter is ringed in pink.
+- **Who needs you** (optional). Turn it on with `tatami hooks on` and each card says *working*, *your turn* or *needs your OK*. A card waiting on a permission prompt pulses pink, and the desk's title counts them. The hooks also tell a busy agent when room messages arrive, so it doesn't miss its team while it works.
+- **Unread badges.** A badge on an agent's card counts the room messages it hasn't read. An agent waiting for you can't read anything until you talk to it, so with the hooks on its badge glows pink.
 - **Your usage.** The desk's header shows your 5-hour and weekly Claude usage, with reset times.
 - **Windows you can tell apart.** Every Claude window gets a background color no other open window has, and, as a design touch, an anime girl drawn behind the text as faint dots. See [Window looks](LOOKS.md).
 
@@ -61,8 +61,8 @@ To update later, run `git pull` in the folder. Everything is linked, not copied,
 
 1. Open **Tatami Room**, or **Claude Waifu**: the desk opens with your first Claude window.
 2. Press **+ Claude** for each agent you want. Every one appears on the desk, on its own, and its terminal opens beside the desk. The first time, Claude asks whether you trust `~/desk`, the folder the app's terminals start in: say yes once, and Claude Code remembers it for that folder.
-3. When agents should work together, drag one mat onto another. They're a team now: their tabs turn their room's color, and they can talk in their room.
-4. Click a mat to jump to that agent. Glance at the desk to see who's busy and who's waiting for you.
+3. When agents should work together, drag one card onto another. They're a team now: their tabs turn their room's color, and they can talk in their room.
+4. Click a card to jump to that agent. Glance at the desk to see who's busy and who's waiting for you.
 
 | Command | What it does |
 | --- | --- |

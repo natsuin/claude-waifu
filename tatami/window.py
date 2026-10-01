@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bring up an agent's own window: what clicking its mat on the desk does (through open.vbs).
+"""Bring up an agent's own window: what clicking its card on the desk does (through open.vbs).
 
 It works for any window, however it was opened. WSL starts a Windows program through the
 session it's started from, so this runs a small PowerShell script (focus-window.ps1, next to

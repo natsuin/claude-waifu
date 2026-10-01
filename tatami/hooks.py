@@ -18,7 +18,7 @@ messages it hasn't read have arrived, once per message:
 
 So an agent busy with its work still hears its team, without checking the room every few
 minutes. One that's waiting for you can't hear anything until you talk to it; the board
-puts a letter on its mat.
+puts a badge on its card.
 
   tatami hooks on     add the hooks to ~/.claude/settings.json (the first time, a backup
                       is kept next to it as settings.json.before-tatami-hooks)

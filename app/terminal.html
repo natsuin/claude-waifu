@@ -6,84 +6,81 @@
 <title>Tatami Room terminal</title>
 <link rel="stylesheet" href="vendor/xterm.css">
 <style>
-/* The terminal panel beside the desk: Claude over its girl and its color, like a Claude Waifu window. */
+/* The terminal panel beside the desk: Claude over its girl and its color, like a Claude Waifu
+   window, under a bar of frosted glass that matches the desk. */
 :root {
-  --plum: #1f1726;
+  --bg: #120d17;
   --tint: #2a2233;
   --text: #f5e6f0;
-  --muted: #a898b4;
-  --line: rgba(195, 166, 255, .14);
+  --muted: #a59cb0;
+  --hairline: rgba(255, 255, 255, .08);
+  --pink: #ff85c0;
+  --bounce: linear(0, 0.022, 0.079, 0.161, 0.258, 0.363, 0.47, 0.573, 0.67, 0.757, 0.834, 0.9, 0.954, 0.997, 1.03, 1.054, 1.07, 1.079, 1.083, 1.083, 1.079, 1.073, 1.065, 1.056, 1.047, 1.039, 1.03, 1.023, 1.016, 1.01, 1.005, 1.001, 0.998, 0.996, 1);
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; overflow: hidden; }
 body {
   display: flex;
   flex-direction: column;
-  background: var(--plum);
+  background: var(--bg);
   color: var(--text);
-  font: 14px/1.4 "Bahnschrift", "Segoe UI Variable Text", "Segoe UI", sans-serif;
-  box-shadow: inset 8px 0 0 #33242a, inset 9px 0 0 rgba(255, 255, 255, .06);   /* the door's wooden stile */
+  font: 14px/1.4 "Segoe UI Variable Text", "Segoe UI Variable", system-ui, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  box-shadow: inset 1px 0 0 var(--hairline);   /* where the panel meets the desk */
 }
 header {
+  position: relative;
+  z-index: 2;
   flex: none;
   display: flex;
   align-items: center;
   gap: 10px;
   height: 46px;
-  padding: 0 12px 0 22px;
-  border-bottom: 1px solid var(--line);
-  background:   /* the upper panel of a fusuma: paper over a light lattice */
-    repeating-linear-gradient(90deg, rgba(245, 230, 240, .04) 0 1px, transparent 1px 56px),
-    repeating-linear-gradient(0deg, rgba(245, 230, 240, .04) 0 1px, transparent 1px 21px);
+  padding: 0 10px 0 18px;
+  background: color-mix(in oklab, var(--tint), black 25%);
+  border-bottom: 1px solid var(--hairline);
 }
-#dot {   /* the agent's cushion, small */
-  width: 16px;
-  height: 16px;
+#dot {   /* the agent's colour, as a small swatch of its card */
+  width: 14px;
+  height: 14px;
   border-radius: 5px;
-  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .25), transparent 62%), var(--cushion, #5a4870);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, .5);
+  background: linear-gradient(155deg, color-mix(in oklab, var(--tint), white 30%), var(--tint));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2);
 }
-#name { font: 600 1.05rem/1 "Yu Mincho", "YuMincho", Georgia, serif; }
-#hide {
-  margin-left: auto;
+#name { font: 650 1rem/1 "Segoe UI Variable Display", "Segoe UI Variable", system-ui, "Segoe UI", sans-serif; letter-spacing: -.015em; }
+#hide, #end {
   padding: 6px 14px;
   border: 0;
   border-radius: 999px;
-  background: transparent;
+  background: rgba(255, 255, 255, .08);
   color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--line);
   font: inherit;
-  font-size: .84rem;
+  font-size: .82rem;
+  font-weight: 600;
   cursor: pointer;
+  transition: background .2s ease, color .2s ease, scale .5s var(--bounce);
 }
-#hide:hover, #end:hover { background: rgba(255, 255, 255, .06); }
-#hide:focus-visible, #end:focus-visible { outline: 2px solid #ff85c0; outline-offset: 2px; }
-#end {
-  padding: 6px 14px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: .84rem;
-  cursor: pointer;
-}
-#end:hover { color: #ff85c0; }
-/* Drag the panel's left edge to make it wider or narrower. */
-#grip { position: fixed; left: 0; top: 0; bottom: 0; width: 9px; cursor: ew-resize; z-index: 5; }
-#grip::after {   /* the hikite: the recessed pull of a sliding door */
+#hide { margin-left: auto; }
+#end { background: transparent; color: var(--muted); }
+#hide:hover { background: rgba(255, 255, 255, .13); }
+#end:hover { background: rgba(255, 107, 139, .14); color: var(--text); }
+#hide:active, #end:active { scale: .94; transition-duration: .12s; }
+#hide:focus-visible, #end:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+/* Drag the panel's left edge to make it wider or narrower: a slim handle, like a split view's. */
+#grip { position: fixed; left: 0; top: 0; bottom: 0; width: 12px; cursor: ew-resize; z-index: 5; }
+#grip::after {
   content: "";
   position: absolute;
-  left: 1px;
-  top: calc(50% - 18px);
-  width: 7px;
-  height: 36px;
-  border-radius: 4px;
-  background: #1f1519;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .8), 0 0 0 1px rgba(255, 255, 255, .08);
-  transition: box-shadow .15s ease;
+  left: 4px;
+  top: calc(50% - 22px);
+  width: 4px;
+  height: 44px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .22);
+  transition: background .2s ease, scale .5s var(--bounce);
 }
-#grip:hover::after, #grip.held::after { box-shadow: inset 0 1px 3px rgba(0, 0, 0, .8), 0 0 0 1px #ff85c0; }
+#grip:hover::after { background: rgba(255, 255, 255, .45); scale: 1 1.15; }
+#grip.held::after { background: var(--pink); scale: 1.25 1.3; }
 main { position: relative; flex: 1; min-height: 0; background: var(--tint); }
 .girl { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .22; pointer-events: none; }
 .girl[hidden] { display: none; }
@@ -92,16 +89,19 @@ main { position: relative; flex: 1; min-height: 0; background: var(--tint); }
 .xterm .xterm-viewport { background-color: transparent !important; }
 .xterm-viewport::-webkit-scrollbar { width: 10px; }
 .xterm-viewport::-webkit-scrollbar-track { background: transparent; }
-.xterm-viewport::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 8px; background: rgba(195, 166, 255, .28) padding-box; }
-.xterm-viewport::-webkit-scrollbar-thumb:hover { background-color: rgba(195, 166, 255, .45); }
+.xterm-viewport::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 8px; background: rgba(255, 255, 255, .2) padding-box; }
+.xterm-viewport::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, .34); }
 .xterm-viewport::-webkit-scrollbar-button { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; }
+}
 </style>
 </head>
 <body>
 <header>
   <span id="dot"></span>
   <span id="name">Claude</span>
-  <button id="hide" type="button" title="Claude keeps running; its mat on the desk brings it back">Hide</button>
+  <button id="hide" type="button" title="Claude keeps running; its card on the desk brings it back">Hide</button>
   <button id="end" type="button" title="Stop Claude and close this terminal">End</button>
 </header>
 <div id="grip" title="Drag to resize"></div>

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Tatami Room board: a web page that shows every running agent as a mat. Agents on a team
-sit in their team's room; the rest wait on their own along the top. Drag a mat into a room
-and that agent joins the room's team channel; drop one mat onto another and the two of them
+"""Tatami Room board: a web page that shows every running agent as a card. Agents on a team
+sit in their team's room; the rest wait on their own along the top. Drag a card into a room
+and that agent joins the room's team channel; drop one card onto another and the two of them
 get a new room.
 
 It only reads and writes the team channel's plain files in ~/.local/state/tatami. It
@@ -123,7 +123,7 @@ def change(path, body):
         rooms = channel.load(channel.ROOMS_FILE, [])
         if body.get("remove"):  # only empty rooms; their messages stay on disk
             if any(a["room"] == room for a in channel.live_agents()):
-                return 409, "Move its mats out first."
+                return 409, "Move its agents out first."
             channel.save(channel.ROOMS_FILE, [r for r in rooms if r != room])
         elif room not in rooms:
             channel.save(channel.ROOMS_FILE, rooms + [room])
@@ -137,7 +137,7 @@ def change(path, body):
         if body.get("room") and not room:
             return 400, "A room name needs at least one letter or number."
         members[agent] = room
-    else:  # /api/team: one mat dropped onto another
+    else:  # /api/team: one card dropped onto another
         other = known_agent(body.get("with"))
         if not other or other == agent:
             return 404, "No agent with that id."

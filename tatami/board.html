@@ -7,54 +7,46 @@
 <title>Tatami Room</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3E%3Crect x='.6' y='.6' width='18.8' height='8.8' rx='1.2' fill='%23ff85c0'/%3E%3Crect x='20.6' y='.6' width='8.8' height='18.8' rx='1.2' fill='%23c3a6ff'/%3E%3Crect x='10.6' y='20.6' width='18.8' height='8.8' rx='1.2' fill='%237ee8b5'/%3E%3Crect x='.6' y='10.6' width='8.8' height='18.8' rx='1.2' fill='%238ecbff'/%3E%3Crect x='10.6' y='10.6' width='8.8' height='8.8' rx='1.2' fill='%23f5e6f0' fill-opacity='.35'/%3E%3C/svg%3E">
 <style nonce="__NONCE__">
-/* Tatami Room board. The window looks' palette: the Sakura Night plum, pink, lavender and mint,
-   and each agent's own window colour with its dot-art girl behind. */
+/* Tatami Room desk. Every agent is a card that looks like its own window: the window's colour
+   with its girl drawn in dots, as Terminal shows her. A team's cards sit together on a stage of
+   frosted glass in the room's colour. Things move on springs: whatever changes glides to its
+   new place instead of jumping. */
 :root {
-  --plum: #1f1726;
-  --plum-2: #261c2f;
-  --plum-3: #33273e;
-  --line: rgba(195, 166, 255, .14);
+  --bg: #120d17;               /* night, a shade of the terminals' Sakura Night plum */
+  --text: #f5e6f0;             /* the dot colour of the terminal girls */
+  --muted: #a59cb0;
+  --hairline: rgba(255, 255, 255, .08);
   --pink: #ff85c0;
   --lavender: #c3a6ff;
   --mint: #7ee8b5;
-  --text: #f5e6f0;             /* the dot colour of the terminal girls */
-  --muted: #a898b4;
-  --plain: #6f6180;            /* the edging of a mat that isn't on a team */
-  --wood: #33242a;             /* the room's frame and the alcove, dark cedar at night */
-  --wood-2: #45313a;
-  --straw: #45432e;            /* tatami rush by lamplight */
-  --straw-2: #4f4d35;
-  --paper: #eadfca;            /* washi, for the hanging scrolls */
-  --ink: #2a1c22;
-  --stone: #241e29;            /* the entrance floor */
-  --display: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", Georgia, serif;
-  --ui: "Bahnschrift", "Segoe UI Variable Text", "Segoe UI", "Noto Sans", sans-serif;
-  --mono: "Cascadia Mono", "Cascadia Code", Consolas, "DejaVu Sans Mono", monospace;
-  --mat-w: 244px;
-  --mat-h: 122px;               /* a real tatami is twice as long as it is wide */
-  --gutter: clamp(16px, 3vw, 36px);
-  scrollbar-color: #4a3a58 transparent;
+  --amber: #ffc38a;
+  --red: #ff6b8b;
+  --ui: "Segoe UI Variable Text", "Segoe UI Variable", -apple-system, "SF Pro Text", system-ui, "Segoe UI", sans-serif;
+  --display: "Segoe UI Variable Display", "Segoe UI Variable", -apple-system, "SF Pro Display", system-ui, "Segoe UI", sans-serif;
+  --card-w: 296px;
+  --card-h: 182px;
+  --gutter: clamp(16px, 3vw, 40px);
+  /* Springs, sampled into easing curves. glide: settles without overshoot (things changing
+     place). bounce: overshoots a little (things answering your hand). */
+  --glide: linear(0, 0.011, 0.041, 0.085, 0.138, 0.197, 0.26, 0.323, 0.387, 0.448, 0.507, 0.563, 0.615, 0.662, 0.706, 0.746, 0.782, 0.814, 0.843, 0.868, 0.89, 0.909, 0.926, 0.94, 0.952, 0.962, 0.971, 0.978, 0.984, 0.989, 0.993, 0.997, 0.999, 1.001, 1);
+  --bounce: linear(0, 0.022, 0.079, 0.161, 0.258, 0.363, 0.47, 0.573, 0.67, 0.757, 0.834, 0.9, 0.954, 0.997, 1.03, 1.054, 1.07, 1.079, 1.083, 1.083, 1.079, 1.073, 1.065, 1.056, 1.047, 1.039, 1.03, 1.023, 1.016, 1.01, 1.005, 1.001, 0.998, 0.996, 1);
+  scrollbar-color: rgba(255, 255, 255, .16) transparent;
 }
 * { box-sizing: border-box; }
-html { background: var(--plum); }
+html { background: var(--bg); }
 body {
   margin: 0;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--plum);
+  background:   /* the room's light: soft and still, in the colours of the window looks */
+    radial-gradient(1100px 640px at 8% -12%, rgba(255, 133, 192, .11), transparent 62%),
+    radial-gradient(900px 620px at 100% 6%, rgba(149, 211, 255, .07), transparent 60%),
+    radial-gradient(1200px 820px at 50% 118%, rgba(195, 166, 255, .08), transparent 62%),
+    var(--bg) fixed;
   color: var(--text);
-  font: 15px/1.5 var(--ui);
+  font: 15px/1.45 var(--ui);
   -webkit-font-smoothing: antialiased;
-}
-/* A faint grid of braille dots, like the girls behind the terminal text. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: radial-gradient(rgba(245, 230, 240, .045) 1px, transparent 1.6px) 0 0 / 14px 14px;
 }
 button, input { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--pink); outline-offset: 3px; }
@@ -64,74 +56,77 @@ button, input { font: inherit; color: inherit; }
 }
 .defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 
-/* ---- header ---- */
+/* ---- the bar along the top: frosted glass over whatever scrolls beneath ---- */
 .bar {
   position: sticky;
   top: 0;
   z-index: 10;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 20px;
-  padding: 14px var(--gutter);
-  background:   /* a shoji: paper over a fine wooden lattice */
-    repeating-linear-gradient(90deg, rgba(245, 230, 240, .04) 0 1px, transparent 1px 56px),
-    repeating-linear-gradient(0deg, rgba(245, 230, 240, .04) 0 1px, transparent 1px 21px),
-    color-mix(in srgb, var(--plum) 88%, transparent);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--line);
+  gap: 10px 22px;
+  padding: 12px var(--gutter);
+  background: rgba(18, 13, 23, .6);
+  backdrop-filter: saturate(170%) blur(22px);
+  border-bottom: 1px solid var(--hairline);
 }
-/* In the Tatami Room app the header is the title bar: drag it to move the window, and leave room
-   for the window buttons Windows draws over its right end. */
-.app .bar { min-height: 64px; padding-right: 150px; -webkit-app-region: drag; }
+/* In the Tatami Room app the bar is the title bar (64px: the app lays the terminal panel out
+   under it): drag it to move the window, and leave room for the window buttons on its right. */
+.app .bar { height: 64px; padding-right: 150px; -webkit-app-region: drag; }
 .app .bar a, .app .bar button, .app .bar input { -webkit-app-region: no-drag; }
-/* ...and the app's terminal panel takes the right side under the header: the desk makes room. */
+/* ...and the panel takes the right side under the bar: the desk makes room. */
 .app main, .app .lobby, .app .empty { margin-right: var(--panel, 0px); }
-.brand { display: flex; align-items: center; gap: 12px; }
-.brand svg { width: 30px; height: 30px; flex: none; }
-h1 { margin: 0; font: 600 1.45rem/1 var(--display); letter-spacing: .02em; }
-.summary { margin: 0; color: var(--muted); font-size: .82rem; }
-.status { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: .74rem; }
-.status i {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--mint);
-  box-shadow: 0 0 0 3px rgba(126, 232, 181, .16);
+.brand { display: flex; align-items: center; gap: 11px; flex: none; }
+.brand svg { width: 26px; height: 26px; }
+h1 { margin: 0; font: 650 1.2rem/1 var(--display); letter-spacing: -.02em; white-space: nowrap; }
+.summary { margin: 0; color: var(--muted); font-size: .84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.status {
+  display: inline-flex; align-items: center; gap: 7px; margin: 0;
+  padding: 4px 11px 4px 9px; border-radius: 999px;
+  background: rgba(255, 107, 139, .12); color: var(--text); font-size: .76rem; white-space: nowrap;
 }
-.status[data-kind="offline"] i, .status[data-kind="denied"] i {
-  background: var(--pink);
-  box-shadow: 0 0 0 3px rgba(255, 133, 192, .18);
-  animation: blink 1.1s ease-in-out infinite;
-}
-.status[data-kind="wait"] i { background: var(--muted); box-shadow: none; }
+.status i { width: 7px; height: 7px; border-radius: 50%; background: var(--red); animation: breathe 1.6s ease-in-out infinite; }
+.status[data-kind="wait"] { background: rgba(255, 255, 255, .06); color: var(--muted); }
+.status[data-kind="wait"] i { background: var(--muted); animation: none; }
 .status[data-kind="live"] { display: none; }   /* only speak up when something is wrong */
-/* Your Claude usage, as the Tatami Room status line last saw it: a thin bar under each window. */
-.usage { display: inline-flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; color: var(--muted); font-size: .74rem; }
+@keyframes breathe { 50% { opacity: .35; transform: scale(.8); } }
+
+/* Your Claude usage, like Activity rings: the outer ring is the 5-hour window, the inner one the week. */
+.usage { display: flex; align-items: center; gap: 9px; flex: none; }
 .usage[hidden] { display: none; }
-.meter {
+.rings { width: 34px; height: 34px; flex: none; transform: rotate(-90deg); }
+.rings circle { fill: none; stroke-width: 4.2; }
+.rings .track { stroke: rgba(255, 255, 255, .09); }
+.rings .ring {
   --lvl: var(--mint);
-  padding-bottom: 4px;
-  background:
-    linear-gradient(var(--lvl), var(--lvl)) left bottom / var(--pct, 0%) 2px no-repeat,
-    linear-gradient(rgba(245, 230, 240, .14), rgba(245, 230, 240, .14)) left bottom / 100% 2px no-repeat;
+  stroke: var(--lvl);
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  transition: stroke-dashoffset .9s var(--glide), stroke .3s ease;
 }
-.meter b { color: var(--text); font-weight: 600; }
-.meter span { color: var(--lvl); font-weight: 600; }
-.meter[data-level="high"] { --lvl: #ffc38a; }
-.meter[data-level="full"] { --lvl: #ff6b8b; }
-@keyframes blink { 50% { opacity: .25; } }
-.newroom { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.rings .ring[data-level="high"] { --lvl: var(--amber); }
+.rings .ring[data-level="full"] { --lvl: var(--red); }
+.rings .ring[hidden], .rings .track[hidden] { display: none; }
+.usage-text { display: grid; color: var(--muted); font-size: .72rem; line-height: 1.3; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.usage-text b { color: var(--text); font-weight: 600; }
+.usage-text span[data-level="ok"] em { color: var(--mint); }
+.usage-text span[data-level="high"] em { color: var(--amber); }
+.usage-text span[data-level="full"] em { color: var(--red); }
+.usage-text em { font-style: normal; font-weight: 600; }
+
+.newroom { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
 .newroom input {
   width: 0;
-  padding: 7px 0;
+  padding: 8px 0;
   opacity: 0;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 999px;
-  background: var(--plum-3);
-  font: .84rem var(--ui);
-  transition: width .2s ease, padding .2s ease, opacity .2s ease;
+  background: rgba(255, 255, 255, .08);
+  font-size: .86rem;
+  transition: width .5s var(--bounce), padding .5s var(--glide), opacity .2s ease;
 }
 .newroom input::placeholder { color: var(--muted); }
-.newroom.open input { width: min(200px, 44vw); padding: 7px 14px; opacity: 1; border-color: var(--line); }
+.newroom.open input { width: min(190px, 40vw); padding: 8px 15px; opacity: 1; }
 .add {
   flex: none;
   padding: 8px 17px;
@@ -139,320 +134,235 @@ h1 { margin: 0; font: 600 1.45rem/1 var(--display); letter-spacing: .02em; }
   border-radius: 999px;
   background: var(--pink);
   color: #2b1321;
-  font-weight: 600;
+  font-weight: 650;
   font-size: .86rem;
-  letter-spacing: .02em;
+  letter-spacing: -.005em;
+  text-decoration: none;
   cursor: pointer;
-  box-shadow: 0 8px 20px -10px rgba(255, 133, 192, .9);
-  transition: background .15s ease, transform .15s ease;
+  box-shadow: 0 10px 24px -12px rgba(255, 133, 192, .95), inset 0 1px 0 rgba(255, 255, 255, .35);
+  transition: scale .5s var(--bounce), background .2s ease, filter .2s ease;
 }
-.add:hover { background: #ff9fcd; }
-.add:active { transform: translateY(1px); }
-a.add { display: inline-block; text-decoration: none; }
-/* + Claude is pressed like a seal: natsuin, the stamp that says yes. */
-#new-claude {
-  border-radius: 8px;
-  font-family: var(--display);
-  font-weight: 700;
-  transform: rotate(-1.5deg);
-  box-shadow: inset 0 0 0 2px rgba(43, 19, 33, .3), 0 8px 20px -10px rgba(255, 133, 192, .9);
-}
-#new-claude:hover { transform: rotate(0); }
-.add.quiet { background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
-.add.quiet:hover { background: rgba(255, 255, 255, .06); }
+.add:hover { filter: brightness(1.07); }
+.add:active { scale: .94; transition-duration: .12s; }
+.add.quiet { background: rgba(255, 255, 255, .08); color: var(--text); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
+.add.quiet:hover { background: rgba(255, 255, 255, .12); filter: none; }
 
-/* ---- on their own: agents that aren't on a team yet wait along the top ---- */
-.lobby {
-  --room: var(--muted);
-  padding: 20px var(--gutter) 4px;
-}
+/* ---- sections: agents on their own along the top, then a stage per room ---- */
+.section-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; margin: 0 4px 12px; min-width: 0; }
+.section-head h2 { margin: 0; min-width: 0; font: 650 1.3rem/1.2 var(--display); letter-spacing: -.02em; overflow-wrap: anywhere; }
+.count { flex: none; color: var(--muted); font-size: .84rem; }
+.hint { color: var(--muted); font-size: .84rem; }
+.cards { display: flex; flex-wrap: wrap; gap: 14px; min-height: var(--card-h); }
+
+.lobby { padding: 24px var(--gutter) 6px; }
 .lobby[hidden] { display: none; }
-.lobby.is-target .floor { box-shadow: inset 0 1px 3px rgba(0, 0, 0, .5), 0 0 0 2px var(--muted); }
-.lobby-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; margin: 0 2px 10px; }
-.lobby-head h2 { margin: 0; font: 600 1.1rem/1.2 var(--display); }
-.lobby-hint { order: 2; color: var(--muted); font-size: .82rem; }
-.lobby .floor {
-  min-height: calc(var(--mat-h) + 24px);
-  gap: 12px;
-  padding: 12px;
-  border-radius: 8px;
-  background:
-    radial-gradient(rgba(255, 255, 255, .035) 1px, transparent 1.6px) 0 0 / 7px 7px,
-    linear-gradient(180deg, #2a2330, var(--stone));
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .5);
-  transition: box-shadow .15s ease;
+.lobby .cards {
+  padding: 14px;
+  border-radius: 30px;
+  background: rgba(255, 255, 255, .025);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+  transition: box-shadow .35s var(--glide), background .35s var(--glide);
 }
-.lobby .mat { box-shadow: 0 12px 18px -12px rgba(0, 0, 0, .9); }
-.lobby .floor:empty { min-height: 0; }
-.lobby .floor:empty::before {
-  content: "Drop a mat here to take it off its team";
-  width: 100%;
-  height: 40px;
-  border-color: transparent;
-}
-body.dragging .lobby .floor:empty::before { border-color: color-mix(in srgb, var(--muted) 60%, transparent); }
-body.dragging .lobby .floor:empty::before { border-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+.lobby.is-target .cards { background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .22); }
+.lobby .cards:empty { min-height: 0; }
+.lobby .cards:empty::before { content: "Drop one here to take it off its team"; width: 100%; height: 44px; }
 
-/* ---- rooms ---- */
-main {
+main {   /* rooms sized to their cards, side by side as they fit */
   flex: 1;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 480px), 1fr));
-  align-items: start;
-  gap: 30px 40px;
-  padding: 22px var(--gutter) 40px;
-  transition: opacity .3s ease, filter .3s ease;
-}
-body.stale main { opacity: .5; filter: saturate(.5); }
-.room {
-  --room: var(--lavender);
-  position: relative;
-}
-.room.is-target .floor {
-  box-shadow: 0 0 0 2px var(--room), 0 0 34px -6px color-mix(in srgb, var(--room) 60%, transparent);
-}
-.room.flash .floor { animation: flash 1.2s ease-out; }
-@keyframes flash { from { box-shadow: 0 0 0 3px var(--room), 0 0 44px color-mix(in srgb, var(--room) 70%, transparent); } }
-.room-head { display: flex; align-items: baseline; gap: 12px; margin: 0 2px 10px; min-width: 0; }
-.room-body { display: flex; align-items: flex-start; gap: 14px; }
-.room .floor {   /* a whole tatami floor in a frame of dark wood; the agents sit on some of its mats */
-  --empty-heri: color-mix(in srgb, var(--room) 38%, #2b2320);
-  flex: none;
-  min-width: calc(var(--mat-w) + 14px);
-  max-width: 100%;
-  gap: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   align-content: flex-start;
-  min-height: calc(var(--mat-h) + 14px);
-  padding: 0;
-  border: 7px solid var(--wood);
-  border-radius: 5px;
-  background:   /* the mats nobody sits on: edging, seams, rush, straw */
-    repeating-linear-gradient(180deg, var(--empty-heri) 0 4px, transparent 4px calc(var(--mat-h) - 4px),
-                              var(--empty-heri) calc(var(--mat-h) - 4px) var(--mat-h)),
-    repeating-linear-gradient(90deg, transparent 0 calc(var(--mat-w) - 1px), rgba(0, 0, 0, .35) calc(var(--mat-w) - 1px) var(--mat-w)),
-    repeating-linear-gradient(90deg, rgba(255, 244, 200, .03) 0 1px, transparent 1px 3px),
-    #39372a;
-  background-clip: padding-box;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04), 0 18px 30px -18px rgba(0, 0, 0, .9);
-  transition: box-shadow .15s ease;
+  gap: 34px 30px;
+  padding: 22px var(--gutter) 48px;
+  transition: opacity .4s ease, filter .4s ease;
 }
-.room .floor .mat { border-radius: 0; }
-/* The tokonoma: the alcove where a Japanese room hangs its scroll. */
-.tokonoma { flex: none; width: 52px; display: grid; justify-items: center; padding-top: 10px; }
-.scroll {
-  position: relative;
-  width: 36px;
-  min-height: 112px;
-  padding: 14px 0 26px;
-  display: grid;
-  justify-items: center;
-  border-radius: 2px;
-  background:
-    radial-gradient(rgba(120, 90, 60, .08) 1px, transparent 1.5px) 0 0 / 5px 5px,
-    linear-gradient(180deg, #f1e7d4, var(--paper));
-  box-shadow: 0 12px 18px -10px rgba(0, 0, 0, .85);
-}
-.scroll::before, .scroll::after {   /* the wooden rods at each end */
+body.stale main { opacity: .5; filter: saturate(.4); }
+.room { --room: var(--lavender); position: relative; flex: 0 1 auto; min-width: min(100%, 340px); max-width: 100%; }
+.room .section-head h2::before {   /* the room's colour, as on its windows' tabs */
   content: "";
-  position: absolute;
-  left: -5px;
-  right: -5px;
-  height: 5px;
-  border-radius: 3px;
-  background: linear-gradient(180deg, #6b4b43, #3d2a27);
-}
-.scroll::before { top: -3px; }
-.scroll::after { bottom: -3px; }
-.scroll-text {
-  writing-mode: vertical-rl;
-  color: var(--ink);
-  font: 700 1.3rem/1 var(--display);
-  letter-spacing: .1em;
-  text-shadow: none;
-}
-.scroll-text.latin { font-size: .82rem; letter-spacing: .06em; }
-.seal {   /* the room's own stamp */
-  position: absolute;
-  bottom: 9px;
-  width: 11px;
-  height: 11px;
-  border-radius: 2px;
+  display: inline-block;
+  width: .52em;
+  height: .52em;
+  margin: 0 .42em .08em 0;
+  border-radius: 50%;
   background: var(--room);
-  box-shadow: inset 0 0 0 1.5px rgba(42, 28, 34, .3);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--room) 70%, transparent);
 }
-.room-head h2 { margin: 0; min-width: 0; font: 700 1.45rem/1.2 var(--display); overflow-wrap: anywhere; }
-.room-count { flex: none; color: var(--muted); font-size: .82rem; }
+.stage {
+  position: relative;
+  padding: 16px;
+  border-radius: 32px;
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--room) 13%, transparent), transparent 60%),
+    rgba(34, 27, 42, .55);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--room) 20%, rgba(255, 255, 255, .05)),
+    inset 0 1px 0 rgba(255, 255, 255, .06),
+    0 40px 70px -40px rgba(0, 0, 0, .9);
+  transition: box-shadow .45s var(--glide), scale .55s var(--bounce);
+}
+.room.is-target .stage {
+  scale: 1.01;
+  box-shadow:
+    inset 0 0 0 2px var(--room),
+    0 0 50px -12px color-mix(in srgb, var(--room) 65%, transparent),
+    0 40px 70px -40px rgba(0, 0, 0, .9);
+}
+.room.flash .stage { animation: flash 1.4s var(--glide); }
+@keyframes flash { from { box-shadow: inset 0 0 0 2px var(--room), 0 0 70px -6px color-mix(in srgb, var(--room) 80%, transparent); } }
 .room-remove {
   margin-left: auto;
   flex: none;
-  padding: 2px 4px;
+  width: 28px;
+  height: 28px;
   border: 0;
-  background: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .06);
   color: var(--muted);
-  font-size: 1.15rem;
+  font-size: 1rem;
   line-height: 1;
   cursor: pointer;
+  transition: background .2s ease, color .2s ease, scale .5s var(--bounce);
 }
-.room-remove:hover { color: var(--pink); }
-.floor { display: flex; flex-wrap: wrap; gap: 12px; min-height: var(--mat-h); }
-.floor:empty::before {   /* an outline where the first mat will go */
-  content: "Drop a mat here to start a team";
+.room-remove:hover { background: rgba(255, 107, 139, .16); color: var(--text); }
+.room-remove:active { scale: .9; }
+.room-remove[hidden] { display: none; }
+.cards:empty::before {   /* where the first card will go */
+  content: "Drop an agent here to start a team";
   display: grid;
   place-items: center;
-  width: var(--mat-w);
+  width: var(--card-w);
   max-width: 100%;
-  height: var(--mat-h);
-  padding: 0 18px;
-  border: 1.5px dashed color-mix(in srgb, var(--room) 45%, transparent);
-  border-radius: 4px;
+  height: var(--card-h);
+  padding: 0 22px;
+  border-radius: 22px;
+  border: 1.5px dashed color-mix(in srgb, var(--room, var(--muted)) 40%, transparent);
   color: var(--muted);
-  font-size: .8rem;
+  font-size: .82rem;
   text-align: center;
 }
 
-/* ---- mats ---- */
-.mat {
+/* ---- an agent: a small copy of its window ---- */
+.agent {
   --tint: #2a2233;
-  --cushion: #5a4870;
   --hue: var(--lavender);
-  --heri: var(--room, var(--pink));
+  --accent: transparent;       /* a ring in the colour of the team it's about to join */
   position: relative;
   flex: none;
-  width: var(--mat-w);
-  height: var(--mat-h);
-  display: grid;
-  grid-template: "cushion kind seen" auto "cushion name name" 1fr "cushion folder folder" auto / 64px 1fr auto;
-  align-items: end;
-  gap: 1px 12px;
-  padding: 16px 14px 15px 15px;
+  width: var(--card-w);
+  max-width: 100%;
+  height: var(--card-h);
   overflow: hidden;
-  border-radius: 3px;
-  background: var(--straw);
+  border-radius: 22px;
+  background: linear-gradient(155deg, color-mix(in oklab, var(--tint), white 9%), var(--tint) 70%);
   color: var(--text);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, .65);
   cursor: grab;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-  box-shadow: inset -1px 0 0 rgba(0, 0, 0, .35);   /* the seam against the next mat */
-  transition: box-shadow .15s ease, opacity .15s ease, filter .15s ease, transform .15s ease;
+  box-shadow:
+    0 0 0 2px var(--accent),
+    inset 0 0 0 1px rgba(255, 255, 255, .09),
+    0 2px 6px rgba(0, 0, 0, .3),
+    0 22px 38px -22px rgba(0, 0, 0, .9);
+  transition: translate .6s var(--bounce), scale .6s var(--bounce), box-shadow .35s var(--glide), opacity .3s ease;
 }
-.mat:nth-child(even) { background: var(--straw-2); }   /* rush catches the lamplight differently mat to mat */
-.mat::before {   /* woven rush: stalks laid side by side along the mat */
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    repeating-linear-gradient(90deg, rgba(255, 244, 200, .05) 0 1px, transparent 1px 3px),
-    repeating-linear-gradient(90deg, transparent 0 35px, rgba(0, 0, 0, .1) 35px 36px),
-    linear-gradient(180deg, rgba(255, 240, 200, .07), transparent 55%, rgba(0, 0, 0, .25));
-}
-.mat::after {    /* the heri: cloth edging on both long sides, in the room's colour */
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(var(--heri) 0 5px, rgba(0, 0, 0, .35) 5px 6px, transparent 6px) top / 100% 6px no-repeat,
-    linear-gradient(transparent 0, rgba(0, 0, 0, .35) 0 1px, var(--heri) 1px) bottom / 100% 6px no-repeat;
-  transition: background .15s ease;
-}
-.mat .cushion {   /* the zabuton the agent sits on: its window's color, its girl printed on it */
-  grid-area: cushion;
-  align-self: center;
-  position: relative;
-  width: 64px;
-  height: 64px;
-  overflow: hidden;
-  border-radius: 12px;
-  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .2), transparent 62%), var(--cushion);
-  box-shadow: 0 7px 10px -5px rgba(0, 0, 0, .7), inset 0 0 0 1px rgba(255, 255, 255, .14), inset 0 -7px 12px rgba(0, 0, 0, .22);
-}
-.mat .girl {
+.agent .girl {   /* drawn bigger than the window draws her, so the dots read as dots */
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 50% 22%;
-  opacity: .9;
+  object-position: 50% 30%;
+  scale: 1.7;
+  transform-origin: 50% 30%;
+  opacity: .62;
   pointer-events: none;
 }
-.mat > span, .mat > strong { position: relative; min-width: 0; }
-.mat > .cushion { position: relative; }
-.mat .kind { grid-area: kind; align-self: start; color: var(--hue); font-size: .74rem; font-weight: 600;
-             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mat .seen { grid-area: seen; align-self: start; color: rgba(245, 230, 240, .6); font-size: .74rem; }
-.mat .mail {   /* a folded letter left on the cushion: room messages it hasn't read */
-  grid-area: cushion;
-  align-self: center;
-  justify-self: end;
-  min-width: 21px;
-  height: 18px;
-  padding: 0 5px;
+.agent .girl[hidden] { display: none; }
+.agent::after {   /* shade under the name, so it reads over any girl */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to top, color-mix(in oklab, var(--tint), black 35%) 0%, transparent 58%);
+}
+.agent > span, .agent > strong { position: absolute; z-index: 1; }
+.chips { top: 12px; left: 12px; right: 52px; display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(14, 10, 18, .5);
+  backdrop-filter: blur(10px);
+  color: var(--text);
+  font-size: .72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chip:empty { display: none; }
+.chip.kind { color: var(--hue); }
+.agent[data-status="working"] .state::before,
+.agent[data-status="done"] .state::before,
+.agent[data-status="asking"] .state::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lavender);
+}
+.agent[data-status="working"] .state::before { animation: breathe 1.8s ease-in-out infinite; }
+.agent[data-status="done"] .state { color: var(--mint); }
+.agent[data-status="done"] .state::before { background: var(--mint); }
+.agent[data-status="asking"] .state { background: var(--pink); color: #2b1321; }
+.agent[data-status="asking"] .state::before { background: #2b1321; }
+.agent[data-status="asking"] { --accent: var(--pink); animation: asking 2s ease-in-out infinite; }
+@keyframes asking { 50% { box-shadow: 0 0 0 2px rgba(255, 133, 192, .35), inset 0 0 0 1px rgba(255, 255, 255, .09), 0 0 30px -6px rgba(255, 133, 192, .6), 0 22px 38px -22px rgba(0, 0, 0, .9); } }
+/* Room messages it hasn't read, like an app's badge. Waiting for you, it can't read them until
+   you talk to it: then the badge glows. */
+.badge {
+  top: 10px;
+  right: 10px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
   display: grid;
   place-items: center;
-  transform: translate(11px, -31px) rotate(-7deg);
-  border-radius: 2px;
-  background: linear-gradient(225deg, rgba(42, 28, 34, .28) 0 5px, transparent 5px), var(--paper);
-  color: var(--ink);
-  font: 700 .7rem/1 var(--ui);
-  text-shadow: none;
-  box-shadow: 0 4px 7px -3px rgba(0, 0, 0, .8);
-}
-.mat .mail[hidden] { display: none; }
-/* Waiting for you with mail unread: it won't read it until you talk to it. */
-.mat[data-status="done"] .mail { box-shadow: 0 0 0 2px var(--pink), 0 4px 7px -3px rgba(0, 0, 0, .8); }
-.mat .open {   /* a click brings up the agent's own window */
-  position: absolute;
-  right: 10px;
-  bottom: 12px;
-  padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(20, 12, 26, .78);
-  color: var(--text);
-  font-size: .62rem;
+  background: var(--pink);
+  color: #2b1321;
+  font: 700 .74rem/1 var(--ui);
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 10px -3px rgba(0, 0, 0, .6);
+}
+.badge[hidden] { display: none; }
+.agent[data-status="done"] .badge { box-shadow: 0 0 0 3px rgba(255, 133, 192, .3), 0 0 18px rgba(255, 133, 192, .7); }
+.label { left: 16px; right: 16px; bottom: 13px; display: grid; gap: 1px; }
+.name { font: 650 1.06rem/1.2 var(--display); letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 8px rgba(0, 0, 0, .5); }
+.folder { color: rgba(245, 230, 240, .7); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.open {   /* a click brings up the agent's own window */
+  right: 12px;
+  bottom: 13px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .16);
+  backdrop-filter: blur(10px);
+  font-size: .72rem;
   font-weight: 600;
-  letter-spacing: .06em;
-  text-shadow: none;
   opacity: 0;
-  pointer-events: none;
-  transition: opacity .15s ease;
+  translate: 0 4px;
+  transition: opacity .2s ease, translate .45s var(--bounce);
 }
-.mat:hover .open, .mat:focus-visible .open { opacity: 1; }
-.ghost .open { display: none; }
-/* With the hooks on (tatami hooks on), what each agent is doing. */
-.mat[data-status="working"] .seen { color: var(--lavender); }
-.mat[data-status="done"] .seen { color: var(--mint); font-weight: 600; }
-.mat[data-status="asking"] .seen { color: var(--pink); font-weight: 700; }
-.mat[data-status="asking"] {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07), 0 0 0 2px var(--pink), 0 0 26px -4px rgba(255, 133, 192, .75);
-  animation: asking 1.8s ease-in-out infinite;
-}
-@keyframes asking {
-  0%, 100% { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07), 0 0 0 2px var(--pink), 0 0 26px -4px rgba(255, 133, 192, .75); }
-  50% { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07), 0 0 0 2px rgba(255, 133, 192, .35), 0 0 12px -6px rgba(255, 133, 192, .4); }
-}
-.mat .name { grid-area: name; font: 600 1.02rem/1.2 var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mat .folder {
-  grid-area: folder;
-  color: rgba(245, 230, 240, .66);
-  font: .78rem var(--ui);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.mat:hover { filter: brightness(1.12); }
-.mat.is-target {   /* another mat on its own, about to become a team with the one being carried */
-  transform: translateY(-3px);
-  box-shadow: 0 0 0 2px var(--pink), 0 0 28px -4px rgba(255, 133, 192, .65), 0 16px 22px -12px rgba(0, 0, 0, .9);
-}
-.mat.lifted { opacity: .25; transform: none; }
-.mat.carried {
-  transform: translateY(-4px) rotate(-1.5deg);
-  box-shadow: 0 0 0 2px var(--pink), 0 20px 30px -12px rgba(0, 0, 0, .95);
-}
+.agent:hover { translate: 0 -3px; scale: 1.015; }
+.agent:hover .open, .agent:focus-visible .open { opacity: 1; translate: 0 0; }
+.agent:active { scale: .975; transition-duration: .15s; }
+.agent:focus-visible { outline-offset: 4px; }
+.agent.is-target { --accent: var(--pink); scale: 1.035; }   /* on its own, about to team up with the one carried */
+.agent.lifted { opacity: .28; scale: .94; }   /* the gap the carried one left */
+.agent.carried { --accent: var(--pink); translate: 0 -5px; scale: 1.035; }
 .ghost {
   position: fixed;
   left: 0;
@@ -461,22 +371,31 @@ body.stale main { opacity: .5; filter: saturate(.5); }
   margin: 0;
   pointer-events: none;
   cursor: grabbing;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14), 0 28px 40px -14px rgba(0, 0, 0, .95);
-  transition: none;
+  transition: scale .6s var(--bounce), box-shadow .35s var(--glide);
+  box-shadow:
+    0 0 0 2px var(--accent),
+    inset 0 0 0 1px rgba(255, 255, 255, .12),
+    0 44px 70px -24px rgba(0, 0, 0, .95);
 }
-.ghost.settling { transition: transform .22s cubic-bezier(.2, .8, .2, 1), box-shadow .22s ease; }
+.ghost.up { scale: 1.07; }
+.ghost .open { display: none; }
 body.dragging, body.dragging * { cursor: grabbing !important; }
 
-/* ---- recent messages ---- */
-.talk { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
-.talk li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font: .86rem/1.45 var(--ui); }
-.talk .who { min-width: 0; color: var(--who, var(--lavender)); font-weight: 700; overflow-wrap: anywhere; }
-.talk .to { color: var(--muted); font-weight: 400; }
-.talk time { color: var(--muted); font: .7rem var(--ui); white-space: nowrap; padding-top: .15em; }
+/* ---- what the team said, as message bubbles in each speaker's colour ---- */
+.talk { list-style: none; margin: 18px 2px 2px; padding: 0; display: grid; gap: 10px; contain: inline-size; }   /* as wide as the cards, never wider */
+.talk li { --who: var(--lavender); display: grid; justify-items: start; gap: 3px; max-width: 72ch; }
+.talk .who { display: flex; align-items: baseline; gap: 8px; padding: 0 12px; font-size: .74rem; }
+.talk .who b { color: var(--who); font-weight: 650; }
+.talk .to { color: var(--muted); }
+.talk time { color: var(--muted); font-variant-numeric: tabular-nums; }
 .talk .text {
-  grid-column: 1 / -1;
   margin: 0;
-  color: rgba(245, 230, 240, .9);
+  padding: 9px 14px;
+  border-radius: 20px 20px 20px 7px;
+  background: color-mix(in srgb, var(--who) 13%, rgba(255, 255, 255, .045));
+  color: rgba(245, 230, 240, .94);
+  font-size: .88rem;
+  line-height: 1.45;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   display: -webkit-box;
@@ -486,9 +405,9 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   cursor: pointer;
 }
 .talk li.open .text { display: block; }
-.talk li.quiet { display: block; color: var(--muted); font: italic .76rem var(--ui); animation: none; }
+.talk li.quiet { padding: 0 12px; color: var(--muted); font-size: .8rem; }
 
-/* ---- empty board, footer, toast ---- */
+/* ---- empty desk, toast ---- */
 .empty {
   flex: 1;
   display: grid;
@@ -499,24 +418,30 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   text-align: center;
 }
 .empty[hidden] { display: none; }
-.empty svg { width: 76px; height: 76px; margin-bottom: 8px; opacity: .9; }
-.empty h2 { margin: 0; font: 600 1.5rem var(--display); }
-.empty p { margin: 0; max-width: 34em; color: var(--muted); }
+.empty svg { width: 64px; height: 64px; margin-bottom: 10px; }
+.empty h2 { margin: 0; font: 650 1.6rem var(--display); letter-spacing: -.02em; }
+.empty p { margin: 0; max-width: 32em; color: var(--muted); }
 .toast {
   position: fixed;
   left: 50%;
-  bottom: 22px;
+  bottom: 24px;
   z-index: 60;
   max-width: min(520px, calc(100vw - 32px));
-  padding: 10px 16px;
-  border: 1px solid rgba(255, 133, 192, .45);
-  border-radius: 12px;
-  background: var(--plum-3);
-  box-shadow: 0 18px 40px -16px rgba(0, 0, 0, .9);
-  font-size: .84rem;
-  transform: translateX(-50%);
+  margin: 0;
+  padding: 11px 18px;
+  border-radius: 18px;
+  background: rgba(44, 35, 54, .78);
+  backdrop-filter: saturate(170%) blur(22px);
+  box-shadow: inset 0 0 0 1px var(--hairline), 0 24px 50px -20px rgba(0, 0, 0, .9);
+  font-size: .86rem;
+  translate: -50% 0;
 }
 .toast[hidden] { display: none; }
+@media (max-width: 720px) {
+  :root { --card-w: 100%; }
+  .summary, .usage-text { display: none; }
+  .bar:not(.app .bar) { flex-wrap: wrap; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
@@ -524,7 +449,6 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 </head>
 <body>
 <svg class="defs" aria-hidden="true" focusable="false">
-  <!-- A four-and-a-half-mat room: four mats turning around a half mat. -->
   <symbol id="mark" viewBox="0 0 30 30">
     <rect x=".6" y=".6" width="18.8" height="8.8" rx="1.2" fill="#ff85c0"/>
     <rect x="20.6" y=".6" width="8.8" height="18.8" rx="1.2" fill="#c3a6ff"/>
@@ -540,62 +464,65 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
     <h1>Tatami Room</h1>
   </div>
   <p class="summary" id="summary"></p>
-  <p class="status" id="status" data-kind="wait"><i></i><span id="status-text">connecting</span></p>
-  <p class="usage" id="usage" aria-label="Claude usage" hidden></p>
+  <p class="status" id="status" data-kind="wait"><i></i><span id="status-text">Connecting</span></p>
+  <div class="usage" id="usage" aria-label="Claude usage" hidden>
+    <svg class="rings" viewBox="0 0 36 36" aria-hidden="true">
+      <circle class="track" cx="18" cy="18" r="15"/><circle class="ring" cx="18" cy="18" r="15" pathLength="100"/>
+      <circle class="track" cx="18" cy="18" r="9.6"/><circle class="ring" cx="18" cy="18" r="9.6" pathLength="100"/>
+    </svg>
+    <span class="usage-text"><span></span><span></span></span>
+  </div>
   <form class="newroom" id="newroom" autocomplete="off">
-    <input id="roomname" maxlength="60" spellcheck="false" placeholder="room name" aria-label="New room name" tabindex="-1">
+    <input id="roomname" maxlength="60" spellcheck="false" placeholder="Room name" aria-label="New room name" tabindex="-1">
     <button class="add quiet" type="submit">+ Room</button>
     <a class="add" id="new-claude" href="tatami-room:new" title="Open a new Claude window">+ Claude</a>
   </form>
 </header>
 
 <section class="lobby" id="lobby" aria-labelledby="lobby-title" hidden>
-  <header class="lobby-head">
+  <header class="section-head">
     <h2 id="lobby-title">On their own</h2>
-    <span class="room-count" id="lobby-count"></span>
-    <span class="lobby-hint">Drop one mat onto another to make a team</span>
+    <span class="count" id="lobby-count"></span>
+    <span class="hint">Drag one onto another to make a team</span>
   </header>
-  <div class="floor" id="lobby-floor" role="list"></div>
+  <div class="cards" id="lobby-cards" role="list"></div>
 </section>
 <main id="rooms" aria-label="Rooms"></main>
 <section class="empty" id="empty" hidden>
   <svg aria-hidden="true"><use href="#mark"/></svg>
   <h2>No agents yet</h2>
-  <p>Press + Claude to start one. Every Claude window shows up here as a mat, on its own until you
-     drop it onto another.</p>
+  <p>Press + Claude to start one. Every Claude window shows up here, on its own until you drag it
+     onto another.</p>
 </section>
 
 <p class="toast" id="toast" role="status" hidden></p>
 <p class="sr-only" id="live" aria-live="polite"></p>
-<p class="sr-only" id="how">Enter brings up this agent's window. Space picks up this mat: arrow keys choose a room, or another mat to make a team with, Space lays it down there, Escape cancels.</p>
+<p class="sr-only" id="how">Enter brings up this agent's window. Space picks it up: arrow keys choose a room, or another agent to team up with, Space puts it down there, Escape cancels.</p>
 
 <template id="tpl-room">
   <section class="room">
-    <header class="room-head">
+    <header class="section-head">
       <h2></h2>
-      <span class="room-count"></span>
+      <span class="count"></span>
       <button class="room-remove" type="button" aria-label="Remove this empty room" title="Remove this empty room">&times;</button>
     </header>
-    <div class="room-body">
-      <div class="floor" role="list"></div>
-      <aside class="tokonoma" aria-hidden="true"><div class="scroll"><span class="scroll-text"></span><i class="seal"></i></div></aside>
+    <div class="stage">
+      <div class="cards" role="list"></div>
+      <ol class="talk"></ol>
     </div>
-    <ol class="talk"></ol>
   </section>
 </template>
-<template id="tpl-mat">
-  <div class="mat" role="listitem" tabindex="0" aria-describedby="how">
-    <span class="cushion"><img class="girl" alt="" draggable="false" hidden></span>
-    <span class="mail" hidden></span>
-    <span class="kind"></span>
-    <span class="seen"></span>
-    <strong class="name"></strong>
-    <span class="folder"></span>
+<template id="tpl-agent">
+  <div class="agent" role="listitem" tabindex="0" aria-describedby="how">
+    <img class="girl" alt="" draggable="false" hidden>
+    <span class="chips"><span class="chip state"></span><span class="chip kind"></span></span>
+    <span class="badge" hidden></span>
+    <span class="label"><strong class="name"></strong><span class="folder"></span></span>
     <span class="open" aria-hidden="true">Open</span>
   </div>
 </template>
 <template id="tpl-line">
-  <li><span class="who"><b></b><span class="to"></span></span><time></time><p class="text"></p></li>
+  <li><span class="who"><b></b><span class="to"></span><time></time></span><p class="text"></p></li>
 </template>
 
 <script nonce="__NONCE__">
@@ -604,33 +531,31 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 const TOKEN = "__TOKEN__";
 const APP = window.tatami;   // set inside the Tatami Room app (its preload.js); absent in a browser
 if (APP) document.documentElement.classList.add("app");
-APP?.onPanel?.((width) => document.documentElement.style.setProperty("--panel", `${width}px`));
+APP?.onPanel?.((width) => {   // the desk makes room for the terminal panel, and its cards glide over
+  const at = snapshot();
+  document.documentElement.style.setProperty("--panel", `${width}px`);
+  glide(at);
+});
 if (APP) document.getElementById("new-claude").title = "Start Claude in a terminal beside the desk";
 const COMPANIES = { claude: "Claude", gemini: "Gemini", codex: "Codex" };
-const STATUS = { working: "working", done: "your turn", asking: "needs your OK" };   // from the hooks
-// The flowers the desk names new teams after, as they'd be written on a hanging scroll.
-const KANJI = {
-  sakura: "\u685c", momo: "\u6843", nadeshiko: "\u64ab\u5b50", ajisai: "\u7d2b\u967d\u82b1",
-  asagao: "\u671d\u9854", kikyo: "\u6854\u6897", kiku: "\u83ca", nanohana: "\u83dc\u306e\u82b1",
-  yuzu: "\u67da\u5b50", take: "\u7af9", wakaba: "\u82e5\u8449", hakka: "\u8584\u8377",
-  fuji: "\u85e4", sumire: "\u83eb", ayame: "\u83d6\u84b2", momiji: "\u7d05\u8449",
-  mikan: "\u871c\u67d1", kaki: "\u67ff",
-};
+const STATUS = { working: "Working", done: "Your turn", asking: "Needs your OK" };   // from the hooks
 const HEX = /^#[0-9a-f]{6}$/i;
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const css = getComputedStyle(document.documentElement);
+const GLIDE = css.getPropertyValue("--glide").trim() || "ease-out";
+const BOUNCE = css.getPropertyValue("--bounce").trim() || "ease-out";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const roomsEl = $("#rooms");
-const lobbyEl = $("#lobby"), lobbyFloor = $("#lobby-floor");   // the mats that are on their own
-const PLAIN = "var(--plain)";   // their edging: no team, no colour
+const lobbyEl = $("#lobby"), lobbyCards = $("#lobby-cards");   // the agents on their own
 const tpl = (id) => $(id).content.firstElementChild;
-const roomEls = new Map();   // room name -> its <section>, kept between polls
-const matEls = new Map();    // agent id -> its mat, kept between polls (and moved, never rebuilt)
-const opened = new Set();    // messages clicked open
+const roomEls = new Map();    // room name -> its <section>, kept between updates
+const agentEls = new Map();   // agent id -> its card, kept between updates (moved, never rebuilt)
+const opened = new Set();     // messages clicked open
 
 let state = null;            // the latest answer from /api/state
-let held = false;            // a mat is in the air: redraw once it's down
-let epoch = 0;               // bumped by our own changes, so an older poll can't undo them on screen
+let held = false;            // a card is in the air: redraw once it's down
+let epoch = 0;               // bumped by our own changes, so an older update can't undo them on screen
 let firstPaint = true;
 
 // ---- talking to the board ----
@@ -681,7 +606,7 @@ async function change(path, body) {
     return s;
   } catch (e) {
     epoch++;
-    toast(e.status ? e.message : "The board isn't answering. Is it still running?");
+    toast(e.status ? e.message : "The board isn't answering. Start it again with tatami.");
     poll();
     return null;
   }
@@ -702,69 +627,126 @@ function setStatus(kind) {
   if (el.dataset.kind === kind) return;
   el.dataset.kind = kind;
   $("#status-text").textContent = {
-    live: "live",
-    offline: "board offline, retrying",
-    denied: "token refused: reopen the board with tatami",
+    live: "Live",
+    offline: "Board offline, retrying",
+    denied: "Token refused: reopen the desk with tatami",
   }[kind];
   document.body.classList.toggle("stale", kind !== "live");
+}
+
+// ---- motion ----
+
+// Whatever changes place glides there (FLIP): note where everything is, change the page, then
+// start each moved thing from where it was and let a spring carry it home. New things grow in;
+// gone ones fade where they stood.
+function snapshot() {
+  const at = new Map();
+  if (REDUCED || firstPaint) return at;
+  for (const el of [...roomEls.values(), ...agentEls.values()]) {
+    if (el.isConnected) at.set(el, el.getBoundingClientRect());
+  }
+  return at;
+}
+
+function glide(at, skip = null) {
+  if (REDUCED || firstPaint) return;
+  const els = [...roomEls.values(), ...agentEls.values()].filter((el) => el !== skip && el.isConnected);
+  const now = new Map(els.map((el) => [el, el.getBoundingClientRect()]));   // all of them before anything moves
+  const shift = (el) => {
+    const was = at.get(el), r = now.get(el);
+    return was && r ? [was.left - r.left, was.top - r.top] : null;
+  };
+  for (const el of els) {
+    const room = el.classList.contains("room");
+    const d = shift(el);
+    if (!d) {   // new here
+      el.animate(room ? [{ opacity: 0, transform: "translateY(14px)" }, { opacity: 1, transform: "none" }]
+                      : [{ opacity: 0, transform: "scale(.86)" }, { opacity: 1, transform: "none" }],
+                 { duration: 620, easing: room ? GLIDE : BOUNCE });
+      continue;
+    }
+    const carried = room ? null : shift(el.closest(".room"));   // a card rides along with its room
+    const dx = d[0] - (carried?.[0] || 0), dy = d[1] - (carried?.[1] || 0);
+    if (Math.abs(dx) + Math.abs(dy) < 1) continue;
+    el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
+               { duration: 560, easing: GLIDE, composite: "add" });
+  }
+}
+
+function vanish(el) {
+  if (REDUCED || !el.isConnected) return el.remove();
+  const r = el.getBoundingClientRect();
+  const ghost = el.cloneNode(true);
+  Object.assign(ghost.style, { position: "fixed", left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`,
+                               height: `${r.height}px`, margin: "0", pointerEvents: "none", zIndex: 40 });
+  el.remove();
+  document.body.append(ghost);
+  ghost.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(.88)" }],
+                { duration: 260, easing: "ease-in", fill: "forwards" }).onfinish = () => ghost.remove();
 }
 
 // ---- drawing ----
 
 function render(s) {
+  const at = snapshot();
   const alone = s.alone || [];
   const hues = new Map();
   for (const a of alone) hues.set(a.id, lightHue(a.tint));
   for (const r of s.rooms) for (const a of r.members) hues.set(a.id, lightHue(a.tint));
   const names = new Set(s.rooms.map((r) => r.name));
-  for (const [name, el] of roomEls) if (!names.has(name)) { el.remove(); roomEls.delete(name); }
-  const live = new Set();
+  const live = new Set([...alone.map((a) => a.id), ...s.rooms.flatMap((r) => r.members.map((a) => a.id))]);
+  for (const [id, el] of agentEls) if (!live.has(id)) { vanish(el); agentEls.delete(id); }
+  const gone = [...roomEls].filter(([name]) => !names.has(name));
+  for (const [name] of gone) roomEls.delete(name);
   s.rooms.forEach((r, i) => {
     let el = roomEls.get(r.name);
-    if (!el) { el = newRoom(i); roomEls.set(r.name, el); }
+    if (!el) { el = newRoom(); roomEls.set(r.name, el); }
     if (roomsEl.children[i] !== el) roomsEl.insertBefore(el, roomsEl.children[i] || null);
-    fillRoom(el, r, s.now, hues, live);
+    fillRoom(el, r, hues);
   });
   alone.forEach((a, i) => {
-    live.add(a.id);
-    let mat = matEls.get(a.id);
-    if (!mat) { mat = newMat(a.id); matEls.set(a.id, mat); }
-    fillMat(mat, a, PLAIN, s.now);
-    if (lobbyFloor.children[i] !== mat) lobbyFloor.insertBefore(mat, lobbyFloor.children[i] || null);
+    const card = cardFor(a);
+    fillCard(card, a);
+    if (lobbyCards.children[i] !== card) lobbyCards.insertBefore(card, lobbyCards.children[i] || null);
   });
-  for (const [id, el] of matEls) if (!live.has(id)) { el.remove(); matEls.delete(id); }
-  fitFloors();
+  for (const [, el] of gone) vanish(el);   // only now: their cards have moved out
 
   const n = live.size, rooms = s.rooms.length;
   const asking = alone.concat(...s.rooms.map((r) => r.members)).filter((a) => a.status === "asking").length;
   const needs = asking && `${asking} ${asking === 1 ? "needs" : "need"} you`;
   lobbyEl.hidden = n === 0;
-  $("#lobby-count").textContent = alone.length ? `${alone.length} ${alone.length === 1 ? "mat" : "mats"}` : "";
+  $("#lobby-count").textContent = alone.length ? String(alone.length) : "";
   $("#summary").textContent = [n && `${n} ${n === 1 ? "agent" : "agents"}`,
                                rooms && `${rooms} ${rooms === 1 ? "room" : "rooms"}`, needs].filter(Boolean).join(", ");
   document.title = n ? `Tatami Room (${n})${needs ? `: ${needs}` : ""}` : "Tatami Room";
   $("#empty").hidden = rooms > 0 || n > 0;
   showUsage(s.usage || {});
+  glide(at);
   firstPaint = false;
 }
 
-// The 5-hour and weekly windows, like the status line under each Claude window.
+// The 5-hour and weekly windows, as rings and as words.
 function showUsage(u) {
   const el = $("#usage");
-  const windows = [["five_hour", "5h", false], ["seven_day", "week", true]].filter(([k]) => u[k]);
-  el.hidden = !windows.length;
-  el.replaceChildren(...windows.map(([k, label, weekly]) => {
-    const pct = Math.round(u[k].used);
-    const meter = document.createElement("span");
-    meter.className = "meter";
-    meter.dataset.level = pct < 50 ? "ok" : pct < 80 ? "high" : "full";
-    meter.style.setProperty("--pct", `${Math.min(100, Math.max(0, pct))}%`);
-    const name = document.createElement("b"), value = document.createElement("span");
+  const windows = [["five_hour", "5h", false], ["seven_day", "Week", true]];
+  el.hidden = !windows.some(([k]) => u[k]);
+  const rings = el.querySelectorAll(".ring"), tracks = el.querySelectorAll(".track");
+  const lines = el.querySelectorAll(".usage-text > span");
+  windows.forEach(([k, label, weekly], i) => {
+    const w = u[k];
+    rings[i].toggleAttribute("hidden", !w);   // SVG has no .hidden
+    tracks[i].toggleAttribute("hidden", !w);
+    lines[i].hidden = !w;
+    if (!w) return;
+    const pct = Math.min(100, Math.max(0, Math.round(w.used)));
+    const level = pct < 50 ? "ok" : pct < 80 ? "high" : "full";
+    rings[i].dataset.level = lines[i].dataset.level = level;
+    rings[i].style.strokeDashoffset = String(100 - pct);
+    const name = document.createElement("b"), value = document.createElement("em");
     name.textContent = label;
     value.textContent = `${pct}%`;
-    meter.append(name, " ", value, u[k].resets ? ` resets ${resetTime(u[k].resets, weekly)}` : "");
-    return meter;
-  }));
+    lines[i].replaceChildren(name, " ", value, w.resets ? `, resets ${resetTime(w.resets, weekly)}` : "");
+  });
 }
 
 function resetTime(epoch, weekly) {
@@ -774,54 +756,47 @@ function resetTime(epoch, weekly) {
     ? `${d.toLocaleDateString([], { weekday: "short" })} ${clock}` : clock;
 }
 
-// A room's floor is a whole number of mats wide, as much as fits beside its alcove.
-function fitFloors() {
-  const matW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--mat-w")) || 244;
-  for (const el of roomEls.values()) {
-    const body = $(".room-body", el), floor = $(".floor", el);
-    const room = body.clientWidth - $(".tokonoma", el).offsetWidth - 14 - 14;   // the alcove, the gap, the frame
-    floor.style.width = `${Math.max(1, Math.floor(room / matW)) * matW + 14}px`;
-  }
-}
-new ResizeObserver(fitFloors).observe(roomsEl);
-
-function newRoom(i) {
+function newRoom() {
   const el = tpl("#tpl-room").cloneNode(true);
-  el.addEventListener("animationend", (e) => { if (e.target === el) el.classList.remove("flash"); });
+  el.addEventListener("animationend", (e) => { if (e.target.classList.contains("stage")) el.classList.remove("flash"); });
   $(".room-remove", el).addEventListener("click", () => {
     change("/api/room", { room: el.dataset.name, remove: true });
   });
   return el;
 }
 
-function fillRoom(el, r, now, hues, live) {
+function fillRoom(el, r, hues) {
   const color = HEX.test(r.color) ? r.color : "#c3a6ff";
   const n = r.members.length;
   el.dataset.name = r.name;
   el.style.setProperty("--room", color);
   el.setAttribute("aria-label", `Room ${r.name}`);
   $("h2", el).textContent = r.name;
-  const scroll = $(".scroll-text", el), kanji = KANJI[r.name.replace(/-\d+$/, "")];
-  scroll.textContent = kanji || r.name;
-  scroll.classList.toggle("latin", !kanji);
-  $(".room-count", el).textContent = n ? `${n} ${n === 1 ? "mat" : "mats"}` : "empty";
+  $(".count", el).textContent = n ? `${n} ${n === 1 ? "agent" : "agents"}` : "Empty";
   $(".room-remove", el).hidden = n > 0;
 
-  const floor = $(".floor", el);
+  const cards = $(".cards", el);
   r.members.forEach((a, i) => {
-    live.add(a.id);
-    let mat = matEls.get(a.id);
-    if (!mat) { mat = newMat(a.id); matEls.set(a.id, mat); }
-    fillMat(mat, a, color, now);
-    if (floor.children[i] !== mat) floor.insertBefore(mat, floor.children[i] || null);
+    const card = cardFor(a);
+    fillCard(card, a);
+    if (cards.children[i] !== card) cards.insertBefore(card, cards.children[i] || null);
   });
 
   const talk = $(".talk", el);
   const sig = JSON.stringify(r.recent);
   if (talk.dataset.sig !== sig) {
+    const fresh = talk.dataset.sig !== undefined;   // not the room's first drawing
     talk.dataset.sig = sig;
-    const had = new Set([...talk.children].map((li) => li.dataset.key));   // only new lines fade in
-    talk.replaceChildren(...(r.recent.length ? r.recent.map((m) => line(m, had)) : [quiet()]));
+    const had = new Set([...talk.children].map((li) => li.dataset.key));
+    talk.replaceChildren(...(r.recent.length ? r.recent.map(line) : [quiet()]));
+    if (fresh && !REDUCED) {   // a new message rises into place
+      for (const li of talk.children) {
+        if (li.dataset.key && !had.has(li.dataset.key)) {
+          li.animate([{ opacity: 0, transform: "translateY(10px) scale(.97)" }, { opacity: 1, transform: "none" }],
+                     { duration: 560, easing: BOUNCE });
+        }
+      }
+    }
   }
   for (const li of talk.children) {
     const hue = hues.get(li.dataset.from);
@@ -829,15 +804,14 @@ function fillRoom(el, r, now, hues, live) {
   }
 }
 
-function line(m, had) {
+function line(m) {
   const li = tpl("#tpl-line").cloneNode(true);
   const when = new Date(m.ts * 1000);
   li.dataset.from = m.from;
   li.dataset.key = `${m.ts}|${m.from}`;
   li.classList.toggle("open", opened.has(li.dataset.key));
-  li.classList.toggle("still", had.has(li.dataset.key));
   $("b", li).textContent = m.from;
-  $(".to", li).textContent = m.to ? ` → ${m.to}` : "";
+  $(".to", li).textContent = m.to ? `to ${m.to}` : "";
   $("time", li).textContent = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   $("time", li).dateTime = when.toISOString();
   $(".text", li).textContent = m.text;
@@ -851,65 +825,50 @@ function quiet() {
   return li;
 }
 
-function newMat(id) {
-  const mat = tpl("#tpl-mat").cloneNode(true);
-  mat.dataset.id = id;
-  const img = $(".girl", mat);
+function cardFor(a) {
+  let card = agentEls.get(a.id);
+  if (card) return card;
+  card = tpl("#tpl-agent").cloneNode(true);
+  card.dataset.id = a.id;
+  const img = $(".girl", card);
   img.addEventListener("load", () => { img.hidden = false; });
   img.addEventListener("error", () => { img.hidden = true; });
-  return mat;
+  agentEls.set(a.id, card);
+  return card;
 }
 
-function fillMat(mat, a, heri, now) {
+function fillCard(card, a) {
   const tint = HEX.test(a.tint) ? a.tint : "#2a2233";
   const company = COMPANIES[a.agent] || a.agent;
-  mat.dataset.room = a.room || "";
+  card.dataset.room = a.room || "";
+  card.style.setProperty("--tint", tint);
+  card.style.setProperty("--hue", lightHue(tint));
   const unread = Number.isInteger(a.unread) ? a.unread : 0;
-  const mail = $(".mail", mat);
-  mail.hidden = !unread;
-  mail.textContent = unread > 99 ? "99+" : String(unread);
+  const badge = $(".badge", card);
+  badge.hidden = !unread;
+  badge.textContent = unread > 99 ? "99+" : String(unread);
   const letters = unread === 1 ? "1 room message it hasn't read" : `${unread} room messages it hasn't read`;
-  mat.title = "Click to bring up its window, drag to move it"
+  card.title = "Click to bring up its window, drag to move it"
     + (unread ? `\n${letters}` + (a.status === "done" ? ": it reads them when you next talk to it" : "") : "");
-  mat.style.setProperty("--tint", tint);
-  mat.style.setProperty("--hue", lightHue(tint));
-  mat.style.setProperty("--cushion", cushionOf(tint));
-  mat.style.setProperty("--heri", heri);
-  // Which kind of agent, when it isn't plain Claude in a Terminal window.
-  const kind = a.session ? (a.agent === "claude" ? "in the app" : `${company} in the app`)
+  // Which kind of agent, when it isn't plain Claude in a Terminal window, and whose helper it is.
+  const kind = a.session ? (a.agent === "claude" ? "In the app" : `${company} in the app`)
     : a.agent === "claude" ? "" : company;
-  // A helper another agent brought in with room_invite says whose it is.
-  $(".kind", mat).textContent = [kind, a.helper_of ? `helper of ${a.helper_of}` : ""].filter(Boolean).join(" · ");
-  $(".name", mat).textContent = a.id;
-  $(".folder", mat).textContent = a.folder ? `${a.folder}/` : "";
+  $(".kind", card).textContent = a.helper_of ? `Helper of ${a.helper_of}` : kind;
+  $(".name", card).textContent = a.id;
+  $(".folder", card).textContent = a.folder ? `${a.folder}/` : "";
   const status = STATUS[a.status];
-  mat.dataset.status = status ? a.status : "";
-  $(".seen", mat).textContent = status || "";
-  mat.setAttribute("aria-label", `${a.id}, ${company} agent, folder ${a.folder || "unknown"}, `
-                                 + (a.room ? `in room ${a.room}` : "on its own") + (status ? `, ${status}` : "")
-                                 + (a.helper_of ? `, helper of ${a.helper_of}` : "") + (unread ? `, ${letters}` : ""));
-  const img = $(".girl", mat);
+  card.dataset.status = status ? a.status : "";
+  $(".state", card).textContent = status || "";
+  card.setAttribute("aria-label", `${a.id}, ${company} agent, folder ${a.folder || "unknown"}, `
+                                  + (a.room ? `in room ${a.room}` : "on its own") + (status ? `, ${status}` : "")
+                                  + (a.helper_of ? `, helper of ${a.helper_of}` : "") + (unread ? `, ${letters}` : ""));
+  const img = $(".girl", card);
   const src = a.girl ? `/girl/${encodeURIComponent(a.id)}?token=${encodeURIComponent(TOKEN)}` : "";
   if (img.dataset.src !== src) {
     img.dataset.src = src;
     img.hidden = true;               // shown again once it loads
     if (src) img.src = src; else img.removeAttribute("src");
   }
-}
-
-// The cushion: the agent's window color, bright enough to sit on a lamplit mat.
-function cushionOf(hex) {
-  const h = hueOf(hex);
-  return h === null ? "#5a4870" : `hsl(${h} 42% 36%)`;
-}
-
-function hueOf(hex) {
-  if (!HEX.test(hex || "")) return null;
-  const n = parseInt(hex.slice(1), 16);
-  const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
-  const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
-  if (!d) return null;
-  return Math.round((max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60);
 }
 
 // The window tints are very dark; the same hue, light, is the agent's text colour.
@@ -923,59 +882,65 @@ function lightHue(hex) {
   return `hsl(${Math.round(h * 60)} 75% 78%)`;
 }
 
-// ---- moving mats ----
+// ---- moving agents ----
 
-// Where a mat can go: into a room (it joins that team), onto the strip along the top (it
-// leaves its team), or onto a mat that's on its own (the two of them become a new team).
-function act(mat, t) {
+// Where a card can go: into a room (it joins that team), onto the strip along the top (it leaves
+// its team), or onto a card that's on its own (the two of them become a new team).
+function act(card, t) {
   if (t.classList.contains("room")) {
-    if (t.dataset.name === mat.dataset.room) return false;
-    moveTo(mat, t);
-  } else if (t.classList.contains("mat")) {
-    teamUp(mat, t);
+    if (t.dataset.name === card.dataset.room) return false;
+    moveTo(card, t);
+  } else if (t.classList.contains("agent")) {
+    teamUp(card, t);
   } else {
-    if (!mat.dataset.room) return false;
-    goAlone(mat);
+    if (!card.dataset.room) return false;
+    goAlone(card);
   }
   return true;
 }
 
-// Lay a mat down right away; the board confirms, and the next redraw corrects it if not.
-function moveTo(mat, room) {
-  const id = mat.dataset.id, to = room.dataset.name;
-  $(".floor", room).append(mat);
-  mat.style.setProperty("--heri", room.style.getPropertyValue("--room"));
-  mat.dataset.room = to;
+// Put a card down right away (the rest make room for it); the board confirms, and the next
+// update corrects it if not.
+function moveTo(card, room) {
+  const id = card.dataset.id, to = room.dataset.name;
+  const at = snapshot();
+  $(".cards", room).append(card);
+  glide(at, card);
+  card.dataset.room = to;
   announce(`${id} moved to ${to}.`);
   change("/api/move", { agent: id, room: to });
 }
 
-function goAlone(mat) {
-  lobbyFloor.append(mat);
-  mat.style.setProperty("--heri", PLAIN);
-  mat.dataset.room = "";
-  announce(`${mat.dataset.id} is on its own now.`);
-  change("/api/move", { agent: mat.dataset.id, room: null });
+function goAlone(card) {
+  const at = snapshot();
+  lobbyCards.append(card);
+  glide(at, card);
+  card.dataset.room = "";
+  announce(`${card.dataset.id} is on its own now.`);
+  change("/api/move", { agent: card.dataset.id, room: null });
 }
 
-async function teamUp(mat, other) {
-  const focused = document.activeElement === mat;
-  other.after(mat);   // side by side while the board names their room
-  mat.style.setProperty("--heri", PLAIN);
-  const s = await change("/api/team", { agent: mat.dataset.id, with: other.dataset.id });
-  const room = s?.rooms.find((r) => r.members.some((a) => a.id === mat.dataset.id));
+async function teamUp(card, other) {
+  const focused = document.activeElement === card;
+  const at = snapshot();
+  other.after(card);   // side by side while the board names their room
+  glide(at, card);
+  const s = await change("/api/team", { agent: card.dataset.id, with: other.dataset.id });
+  const room = s?.rooms.find((r) => r.members.some((a) => a.id === card.dataset.id));
   if (!room) return;
-  announce(`${mat.dataset.id} and ${other.dataset.id} are a team now, in ${room.name}.`);
+  announce(`${card.dataset.id} and ${other.dataset.id} are a team now, in ${room.name}.`);
   const el = roomEls.get(room.name);
   el?.classList.add("flash");
   el?.scrollIntoView({ block: "nearest", behavior: REDUCED ? "auto" : "smooth" });
-  if (focused) mat.focus();
+  if (focused) card.focus();
 }
 
-// The colour a carried mat's edging takes: the room it's over, or its own; plain for no team.
-function edging(t, mat) {
-  const room = t ? t.closest(".room") : roomEls.get(mat.dataset.room);
-  return room ? room.style.getPropertyValue("--room") : PLAIN;
+// The ring a carried card shows: the colour of the room it's over, pink over a card it would
+// team up with, none over the strip.
+function accentOf(t) {
+  if (!t) return "transparent";
+  if (t.classList.contains("agent")) return "var(--pink)";
+  return t.classList.contains("room") ? t.style.getPropertyValue("--room") : "rgba(255, 255, 255, .5)";
 }
 
 let target = null;
@@ -984,37 +949,32 @@ function aim(t, preview) {
   target?.classList.remove("is-target");
   target = t;
   t?.classList.add("is-target");
-  if (preview) preview.style.setProperty("--heri", edging(t, preview));
+  if (preview) preview.style.setProperty("--accent", accentOf(t));
 }
 
-// Mouse, pen and touch: press, drag past a few pixels, and let go over a room or a mat.
+// Mouse, pen and touch: press, drag past a few pixels, and let go over a room or a card. The
+// card lifts, follows your hand, and leans into the way it's moving.
 let drag = null;
 document.addEventListener("pointerdown", (e) => {
-  const mat = e.target.closest?.(".mat");
-  if (!mat || mat.classList.contains("ghost") || e.button !== 0 || carry || drag) return;
-  drag = { mat, pid: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, ghost: null };
-  mat.setPointerCapture(e.pointerId);
+  const card = e.target.closest?.(".agent");
+  if (!card || card.classList.contains("ghost") || e.button !== 0 || carry || drag) return;
+  drag = { card, pid: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, ghost: null };
+  card.setPointerCapture(e.pointerId);
 });
 document.addEventListener("pointermove", (e) => {
   if (!drag || e.pointerId !== drag.pid) return;
   drag.x = e.clientX;
   drag.y = e.clientY;
-  if (!drag.ghost) {
-    if (Math.hypot(drag.x - drag.x0, drag.y - drag.y0) < 5) return;
-    lift();
-  }
-  follow();
+  if (!drag.ghost && Math.hypot(drag.x - drag.x0, drag.y - drag.y0) >= 5) lift();
 });
 document.addEventListener("pointerup", (e) => { if (drag && e.pointerId === drag.pid) drop(true); });
 document.addEventListener("pointercancel", (e) => { if (drag && e.pointerId === drag.pid) drop(false); });
 document.addEventListener("lostpointercapture", (e) => { if (drag?.ghost && e.pointerId === drag.pid) drop(false); });
-addEventListener("scroll", () => { if (drag?.ghost) follow(); }, { passive: true });
 
 function lift() {
   held = true;
-  const r = drag.mat.getBoundingClientRect();
-  const ghost = drag.mat.cloneNode(true);
-  for (const p of ["--tint", "--hue", "--heri", "--cushion"]) ghost.style.setProperty(p, drag.mat.style.getPropertyValue(p));
+  const r = drag.card.getBoundingClientRect();
+  const ghost = drag.card.cloneNode(true);
   ghost.style.width = `${r.width}px`;
   ghost.style.height = `${r.height}px`;
   ghost.classList.add("ghost");
@@ -1022,111 +982,122 @@ function lift() {
   ghost.removeAttribute("role");
   ghost.setAttribute("aria-hidden", "true");
   document.body.append(ghost);
-  drag.ghost = ghost;
-  drag.dx = drag.x0 - r.left;
-  drag.dy = drag.y0 - r.top;
-  drag.mat.classList.add("lifted");
+  Object.assign(drag, { ghost, dx: drag.x0 - r.left, dy: drag.y0 - r.top, px: drag.x, tilt: 0 });
+  place();
+  requestAnimationFrame(() => ghost.classList.add("up"));   // the lift springs up from where it was
+  drag.card.classList.add("lifted");
   document.body.classList.add("dragging");
-  requestAnimationFrame(edgeScroll);
+  requestAnimationFrame(frame);
 }
 
-function follow() {
-  drag.ghost.style.transform =
-    `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px) rotate(-2deg) scale(1.04)`;
-  const under = document.elementFromPoint(drag.x, drag.y);
-  const mat = under?.closest("#lobby .mat");
-  aim(mat && mat !== drag.mat ? mat : under?.closest(".room, #lobby") || null, drag.ghost);
+function place() {
+  drag.ghost.style.transform = `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px) rotate(${drag.tilt}deg)`;
 }
 
-// Near the top or bottom edge the page scrolls, to reach rooms further away.
-function edgeScroll() {
+// Each frame while carrying: follow the pointer, lean with its speed (and straighten when it
+// stops), find what's underneath, and scroll near the top or bottom edge.
+function frame() {
   if (!drag?.ghost) return;
+  const lean = REDUCED ? 0 : Math.max(-9, Math.min(9, (drag.x - drag.px) * 0.45));
+  drag.tilt += (lean - drag.tilt) * 0.2;
+  drag.px = drag.x;
+  place();
+  const under = document.elementFromPoint(drag.x, drag.y);
+  const card = under?.closest("#lobby .agent");
+  aim(card && card !== drag.card ? card : under?.closest(".room, #lobby") || null, drag.ghost);
   const edge = 56, y = drag.y;
   const v = y < edge ? -(edge - y) / 3 : y > innerHeight - edge ? (y - innerHeight + edge) / 3 : 0;
   if (v) scrollBy(0, v);
-  requestAnimationFrame(edgeScroll);
+  requestAnimationFrame(frame);
 }
 
 function drop(ok) {
   const d = drag;
   drag = null;
   if (!d.ghost) {   // just a click: bring up the agent's window
-    if (ok) jump(d.mat);
+    if (ok) jump(d.card);
     return;
   }
   const t = ok ? target : null;
   aim(null);
   document.body.classList.remove("dragging");
-  const moving = !!t && act(d.mat, t);
-  settle(d.ghost, d.mat);
+  const moving = !!t && act(d.card, t);
+  settle(d.ghost, d.card, d.tilt);
   release(moving);
 }
 
-function settle(ghost, mat) {
+// The carried card springs down into its place, straightening as it lands.
+function settle(ghost, card, tilt) {
   let done = false;
   const finish = () => {
     if (done) return;
     done = true;
     ghost.remove();
-    mat.classList.remove("lifted");
+    card.classList.remove("lifted");
   };
   if (REDUCED) return finish();
-  const r = mat.getBoundingClientRect();
-  ghost.classList.add("settling");
-  ghost.style.setProperty("--heri", mat.style.getPropertyValue("--heri"));
-  ghost.style.transform = `translate(${r.left}px, ${r.top}px) rotate(0deg) scale(1)`;
-  ghost.addEventListener("transitionend", finish, { once: true });
-  setTimeout(finish, 400);
+  const r = card.getBoundingClientRect();
+  const from = ghost.style.transform;
+  ghost.style.setProperty("--accent", card.style.getPropertyValue("--accent") || "transparent");
+  ghost.style.transform = `translate(${r.left}px, ${r.top}px) rotate(0deg)`;
+  ghost.classList.remove("up");
+  card.classList.remove("lifted");
+  card.style.opacity = "0";   // the ghost stands in for it until it lands
+  const move = ghost.animate([{ transform: from }, { transform: ghost.style.transform }],
+                             { duration: 520, easing: GLIDE });
+  move.onfinish = () => { card.style.opacity = ""; finish(); };
+  setTimeout(() => { card.style.opacity = ""; finish(); }, 800);
 }
 
-// Keyboard: Enter brings up the agent's window. Space picks a mat up, arrows choose where it
-// goes, Space lays it down, Escape cancels.
+// Keyboard: Enter brings up the agent's window. Space picks a card up, arrows choose where it
+// goes, Space puts it down, Escape cancels.
 let carry = null;
 document.addEventListener("keydown", (e) => {
-  const mat = e.target.closest?.(".mat");
-  if (!mat || drag) return;
+  const card = e.target.closest?.(".agent");
+  if (!card || drag) return;
   const k = e.key;
   if (!carry) {
-    if (k === "Enter") { e.preventDefault(); jump(mat); }
-    else if (k === " ") { e.preventDefault(); pickUp(mat); }
+    if (k === "Enter") { e.preventDefault(); jump(card); }
+    else if (k === " ") { e.preventDefault(); pickUp(card); }
     return;
   }
   if (k === "ArrowRight" || k === "ArrowDown") step(1);
   else if (k === "ArrowLeft" || k === "ArrowUp") step(-1);
-  else if (k === " " || k === "Enter") layDown();
+  else if (k === " " || k === "Enter") putDown();
   else if (k === "Escape") putBack();
   else return;
   e.preventDefault();
 });
-document.addEventListener("focusout", (e) => { if (carry && e.target === carry.mat) putBack(); });
+document.addEventListener("focusout", (e) => { if (carry && e.target === carry.card) putBack(); });
 
-function pickUp(mat) {
+function pickUp(card) {
   held = true;
-  const spots = [...roomsEl.children, lobbyEl, ...[...lobbyFloor.children].filter((m) => m !== mat)];
-  const home = mat.dataset.room ? roomEls.get(mat.dataset.room) : lobbyEl;
-  carry = { mat, spots, i: Math.max(0, spots.indexOf(home)) };
-  mat.classList.add("carried");
-  aim(spots[carry.i], mat);
-  announce(`Picked up ${mat.dataset.id}. Arrow keys choose where it goes, Space lays it down, Escape cancels.`);
+  const spots = [...roomsEl.children, lobbyEl, ...[...lobbyCards.children].filter((c) => c !== card)];
+  const home = card.dataset.room ? roomEls.get(card.dataset.room) : lobbyEl;
+  carry = { card, spots, i: Math.max(0, spots.indexOf(home)) };
+  card.classList.add("carried");
+  aim(spots[carry.i], card);
+  announce(`Picked up ${card.dataset.id}. Arrow keys choose where it goes, Space puts it down, Escape cancels.`);
 }
 
 function step(d) {
   carry.i = (carry.i + d + carry.spots.length) % carry.spots.length;
   const t = carry.spots[carry.i];
-  aim(t, carry.mat);
+  aim(t, carry.card);
   t.scrollIntoView({ block: "nearest", behavior: REDUCED ? "auto" : "smooth" });
   announce(t.classList.contains("room") ? `Room ${t.dataset.name}`
-    : t.classList.contains("mat") ? `Make a team with ${t.dataset.id}` : "On its own");
+    : t.classList.contains("agent") ? `Make a team with ${t.dataset.id}` : "On its own");
 }
 
-function layDown() {
+function putDown() {
   const c = carry;
   carry = null;
   const t = c.spots[c.i];
-  aim(null);
-  c.mat.classList.remove("carried");
-  const moving = act(c.mat, t);
-  if (moving) c.mat.focus();
+  aim(null, c.card);
+  c.card.classList.remove("carried");
+  c.card.style.removeProperty("--accent");
+  const moving = act(c.card, t);
+  if (moving) c.card.focus();
   else announce("Put back.");
   release(moving);
 }
@@ -1134,8 +1105,9 @@ function layDown() {
 function putBack() {
   const c = carry;
   carry = null;
-  aim(null, c.mat);
-  c.mat.classList.remove("carried");
+  aim(null, c.card);
+  c.card.classList.remove("carried");
+  c.card.style.removeProperty("--accent");
   announce("Cancelled.");
   release(false);
 }
@@ -1157,10 +1129,10 @@ function go(link) {
   location.href = link;
 }
 
-async function jump(mat) {
-  announce(`Bringing up ${mat.dataset.id}'s window.`);
-  if (!APP) return go(`tatami-room:focus/${encodeURIComponent(mat.dataset.id)}`);
-  if (await APP.focus(mat.dataset.id) === 2) toast("This agent has no window of its own to bring up.");
+async function jump(card) {
+  announce(`Bringing up ${card.dataset.id}'s window.`);
+  if (!APP) return go(`tatami-room:focus/${encodeURIComponent(card.dataset.id)}`);
+  if (await APP.focus(card.dataset.id) === 2) toast("This agent has no window of its own to bring up.");
 }
 
 $("#new-claude").addEventListener("click", (e) => {
@@ -1213,10 +1185,19 @@ roomsEl.addEventListener("click", (e) => {
 let toastTimer = 0;
 function toast(msg) {
   const t = $("#toast");
+  const showing = !t.hidden;
   t.textContent = msg;
   t.hidden = false;
+  if (!showing && !REDUCED) {
+    t.animate([{ opacity: 0, transform: "translateY(16px) scale(.96)" }, { opacity: 1, transform: "none" }],
+              { duration: 560, easing: BOUNCE });
+  }
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 4500);
+  toastTimer = setTimeout(() => {
+    if (REDUCED) { t.hidden = true; return; }
+    t.animate([{ opacity: 1 }, { opacity: 0, transform: "translateY(8px)" }], { duration: 220, easing: "ease-in" })
+      .onfinish = () => { t.hidden = true; };
+  }, 4500);
 }
 
 function announce(msg) {
@@ -1225,7 +1206,7 @@ function announce(msg) {
 
 if (TOKEN.startsWith("__")) {
   setStatus("denied");
-  toast("Open the board with the tatami launcher, not as a file.");
+  toast("Open the desk with the tatami launcher, not as a file.");
 } else {
   listen();
 }

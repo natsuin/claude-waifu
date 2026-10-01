@@ -66,8 +66,6 @@ function apply(look) {
   const tint = /^#[0-9a-f]{6}$/i.test(look.tint) ? look.tint : "#2a2233";
   document.documentElement.style.setProperty("--tint", tint);
   document.documentElement.style.setProperty("--hue", lightHue(tint));
-  const hue = lightHue(tint).match(/^hsl\((\d+)/);
-  document.documentElement.style.setProperty("--cushion", hue ? `hsl(${hue[1]} 42% 36%)` : "#5a4870");
   const girl = document.getElementById("girl");
   if (look.girl && girl.dataset.src !== look.girl) {
     girl.dataset.src = look.girl;
