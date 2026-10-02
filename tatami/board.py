@@ -28,6 +28,7 @@ import tatami_mcp as channel  # same folder: shares the file layout and helpers
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOKEN_FILE = os.path.join(channel.HOME, "board.token")
 SEEN_FILE = os.path.join(channel.HOME, "board.seen")  # touched while a desk window is open (tatami hold)
+TALK = 40  # how many of a room's newest messages the desk's chat box scrolls through
 WAIFU_CONFIG = os.path.expanduser("~/.config/waifu/config.json")
 CLAUDE_DIR = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
 TINTS = {"cherry": "#4c112c", "rouge": "#491a1f", "wine": "#340417", "plum": "#360d30",
@@ -162,11 +163,11 @@ def state():
     colors = channel.room_colors(channel.live_rooms(people))  # oldest room first, so rooms stay put
     rooms = []
     for name in colors:
-        msgs = channel.load_jsonl(os.path.join(channel.ROOMS, name + ".jsonl"))[-6:]
+        msgs = channel.load_jsonl(os.path.join(channel.ROOMS, name + ".jsonl"))
         rooms.append({"name": name, "color": channel.PALETTE[colors[name]],
-                      "members": [a for a in people if a["room"] == name],
-                      "recent": [{"from": m["from"], "to": m.get("to"), "text": clip(m["text"]),
-                                  "ts": m["ts"]} for m in msgs]})
+                      "members": [a for a in people if a["room"] == name], "said": len(msgs),
+                      "recent": [{"from": m["from"], "to": m.get("to"), "text": m["text"][:channel.MAX_TEXT],
+                                  "ts": m["ts"]} for m in msgs[-TALK:]]})
     return {"rooms": rooms, "alone": [a for a in people if not a["room"]], "now": time.time(), "usage": usage(),
             "page": page_version()}
 

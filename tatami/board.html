@@ -632,7 +632,51 @@ body.stale main { opacity: .5; filter: saturate(.4); }
 body.dragging, body.dragging * { cursor: grabbing !important; }
 
 /* ---- what the team said, as message bubbles in each speaker's colour ---- */
-.talk { list-style: none; margin: 18px 2px 2px; padding: 0; display: grid; gap: 10px; contain: inline-size; }   /* as wide as the cards, never wider */
+/* Folded away under a "Room chat" row until you open it. Open, it's a short box that scrolls,
+   opened at the newest message; an edge fades while there's more beyond it. */
+.chat { margin: 14px 2px 0; contain: inline-size; }   /* as wide as the cards, never wider */
+.chat-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  font: 500 .78rem/1.2 var(--ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease;
+}
+.chat-toggle:hover { background: rgba(255, 255, 255, .05); color: var(--text); }
+.chat-toggle:disabled { cursor: default; background: none; color: var(--muted); }
+.chat-toggle .chev { flex: none; width: 10px; height: 10px; transition: rotate .4s var(--bounce); }
+.chat-toggle .chev path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.chat-toggle:disabled .chev { opacity: .35; }
+.chat.is-open .chev { rotate: 90deg; }
+.chat-name { flex: none; color: var(--text); font-weight: 650; }
+.chat-toggle:disabled .chat-name { color: var(--muted); }
+.chat-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .45s var(--glide); }
+.chat.is-open .chat-body { grid-template-rows: 1fr; }
+@property --fade-top { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --fade-bottom { syntax: "<length>"; inherits: false; initial-value: 0px; }
+.talk {
+  list-style: none; margin: 0; padding: 0; display: grid; gap: 10px;
+  min-height: 0;   /* folds all the way shut */
+  max-height: min(15rem, 40vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
+  transition: --fade-top .3s ease, --fade-bottom .3s ease, padding .45s var(--glide);
+}
+.chat.is-open .talk { padding: 8px 0 2px; }
+.talk.more-above { --fade-top: 2.5rem; }
+.talk.more-below { --fade-bottom: 1.5rem; }
 .talk li { --who: var(--fuji); display: grid; justify-items: start; gap: 3px; max-width: 72ch; }
 .talk .who { display: flex; align-items: baseline; gap: 8px; padding: 0 12px; font-size: .74rem; }
 .talk .who b { color: var(--who); font-weight: 650; }
@@ -649,16 +693,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   line-height: 1.45;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
-  cursor: pointer;
-  transition: background .2s ease;
 }
-.talk .text:hover { background: color-mix(in srgb, var(--who) 18%, rgba(255, 255, 255, .06)); }
-.talk li.is-open .text { display: block; }
-.talk li.quiet { padding: 0 12px; color: var(--muted); font-size: .8rem; }
 
 /* ---- empty desk, toast ---- */
 .empty {
@@ -798,7 +833,16 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
     <div class="stage">
       <div class="fx"></div>
       <div class="cards" role="list"></div>
-      <ol class="talk"></ol>
+      <div class="chat">
+        <button class="chat-toggle" type="button" aria-expanded="false">
+          <svg class="chev" viewBox="0 0 10 10" aria-hidden="true"><path d="M3.5 1.5 7 5 3.5 8.5"/></svg>
+          <span class="chat-name">Room chat</span>
+          <span class="chat-meta"></span>
+        </button>
+        <div class="chat-body" inert>
+          <ol class="talk"></ol>
+        </div>
+      </div>
     </div>
   </section>
 </template>
@@ -860,7 +904,9 @@ const lobbyEl = $("#lobby"), lobbyCards = $("#lobby-cards");   // the agents on 
 const tpl = (id) => $(id).content.firstElementChild;
 const roomEls = new Map();    // room name -> its <section>, kept between updates
 const agentEls = new Map();   // agent id -> its card, kept between updates (moved, never rebuilt)
-const opened = new Set();     // messages clicked open
+// Rooms whose chat you've opened, remembered by this desk. Chats start folded away.
+const chatOpen = new Set((() => { try { return JSON.parse(localStorage.getItem("tatami-chats")) || []; } catch { return []; } })());
+const keepChats = () => { try { localStorage.setItem("tatami-chats", JSON.stringify([...chatOpen])); } catch { /* private window */ } };
 const arrivals = new Set();   // cards of agents that just turned up
 
 let state = null;            // the latest answer from /api/state
@@ -2024,18 +2070,31 @@ function fillRoom(el, r, hues) {
     if (cards.children[i] !== card) cards.insertBefore(card, cards.children[i] || null);
   });
 
-  const talk = $(".talk", el);
+  const chat = $(".chat", el), talk = $(".talk", el), meta = $(".chat-meta", chat);
+  const last = r.recent.at(-1), said = r.said || r.recent.length;
+  const open = Boolean(last) && chatOpen.has(r.name);
+  $(".chat-toggle", chat).disabled = !last;
+  meta.textContent = last ? `${said} ${said === 1 ? "message" : "messages"} \u00b7 ${nameOf(last.from)} at ${clock(last.ts)}`
+    : "nothing said here yet";
+  showChat(chat, open);
   const sig = JSON.stringify(r.recent);
   if (talk.dataset.sig !== sig) {
     const fresh = talk.dataset.sig !== undefined;   // not the room's first drawing
     talk.dataset.sig = sig;
     const had = new Set([...talk.children].map((li) => li.dataset.key));
-    talk.replaceChildren(...(r.recent.length ? r.recent.map(line) : [quiet()]));
+    const at = fresh && open && !atEnd(talk) && readingAt(talk);   // reading back: stay with what you're reading
+    talk.replaceChildren(...r.recent.map(line));
+    if (fresh && !open && !REDUCED) meta.animate([{ color: "#ff85c0", offset: 0 }], { duration: 1800, easing: "ease-out" });   // news, folded away
+    const li = at && [...talk.children].find((x) => x.dataset.key === at.key);
+    if (li) talk.scrollTop += li.getBoundingClientRect().top - talk.getBoundingClientRect().top - at.y;
+    else talk.scrollTop = talk.scrollHeight;   // otherwise keep up with the newest
+    edges(talk);
     if (fresh && !REDUCED) {   // a new message rises into place
       for (const li of talk.children) {
         if (li.dataset.key && !had.has(li.dataset.key)) {
           li.animate([{ opacity: 0, transform: "translateY(10px) scale(.97)" }, { opacity: 1, transform: "none" }],
-                     { duration: 560, easing: BOUNCE });
+                     { duration: 560, easing: BOUNCE })
+            .onfinish = () => edges(talk);   // rising, it hangs below the end for a moment
         }
       }
     }
@@ -2046,24 +2105,35 @@ function fillRoom(el, r, hues) {
   }
 }
 
+function showChat(chat, open) {
+  chat.classList.toggle("is-open", open);
+  $(".chat-toggle", chat).setAttribute("aria-expanded", String(open));
+  $(".chat-body", chat).inert = !open;
+}
+function clock(ts) { return new Date(ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }
+
+// A room's messages scroll. These say where the reader is, and which edges have more beyond them.
+function atEnd(talk) { return talk.scrollHeight - talk.clientHeight - talk.scrollTop < 24; }
+function readingAt(talk) {
+  const top = talk.getBoundingClientRect().top;
+  const li = [...talk.children].find((x) => x.getBoundingClientRect().bottom > top);
+  return li?.dataset.key && { key: li.dataset.key, y: li.getBoundingClientRect().top - top };
+}
+function edges(talk) {
+  talk.classList.toggle("more-above", talk.scrollTop > 2);
+  talk.classList.toggle("more-below", talk.scrollHeight - talk.clientHeight - talk.scrollTop > 2);
+}
+
 function line(m) {
   const li = tpl("#tpl-line").cloneNode(true);
   const when = new Date(m.ts * 1000);
   li.dataset.from = m.from;
   li.dataset.key = `${m.ts}|${m.from}`;
-  li.classList.toggle("is-open", opened.has(li.dataset.key));
   $("b", li).textContent = nameOf(m.from);  // "user": typed in a window's /room pane
   $(".to", li).textContent = m.to ? `to ${nameOf(m.to)}` : "";
-  $("time", li).textContent = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  $("time", li).textContent = clock(m.ts);
   $("time", li).dateTime = when.toISOString();
   $(".text", li).textContent = m.text;
-  return li;
-}
-
-function quiet() {
-  const li = document.createElement("li");
-  li.className = "quiet";
-  li.textContent = "Nothing said here yet. Agents post to their room with room_post.";
   return li;
 }
 
@@ -2555,12 +2625,24 @@ function closeForm() {
   input.tabIndex = -1;
 }
 
-roomsEl.addEventListener("click", (e) => {
-  const li = e.target.closest(".talk li[data-key]");
-  if (!li || getSelection().toString()) return;   // selecting text isn't a click
-  li.classList.toggle("is-open");
-  if (li.classList.contains("is-open")) opened.add(li.dataset.key); else opened.delete(li.dataset.key);
+roomsEl.addEventListener("click", (e) => {   // the arrow: open or fold away a room's chat
+  const chat = e.target.closest(".chat-toggle")?.closest(".chat");
+  if (!chat) return;
+  const name = chat.closest(".room").dataset.name, talk = $(".talk", chat);
+  const open = !chat.classList.contains("is-open");
+  if (open) chatOpen.add(name); else chatOpen.delete(name);
+  keepChats();
+  if (open) talk.scrollTop = talk.scrollHeight;   // it opens at the newest
+  showChat(chat, open);
+  requestAnimationFrame(() => edges(talk));
 });
+roomsEl.addEventListener("transitionend", (e) => {
+  if (e.target.classList?.contains("chat-body")) edges($(".talk", e.target));
+});
+roomsEl.addEventListener("scroll", (e) => {   // scroll doesn't bubble, so listen on the way down
+  if (e.target.classList?.contains("talk")) edges(e.target);
+}, { capture: true, passive: true });
+addEventListener("resize", () => { for (const el of roomEls.values()) edges($(".talk", el)); });
 
 let toastTimer = 0;
 function toast(msg) {
