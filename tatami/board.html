@@ -42,14 +42,21 @@
 @property --glow { syntax: "<number>"; inherits: true; initial-value: 0; }
 * { box-sizing: border-box; }
 html {   /* the night sky: sakura glow from the top left, dusk at the right, wisteria at the floor */
+  --sky-a: rgba(255, 133, 192, .14);
+  --sky-b: rgba(142, 203, 255, .07);
+  --sky-c: rgba(195, 166, 255, .11);
   min-height: 100%;
   background:
-    radial-gradient(1100px 640px at 6% -14%, rgba(255, 133, 192, .14), transparent 62%),
-    radial-gradient(900px 620px at 100% 0%, rgba(142, 203, 255, .07), transparent 60%),
-    radial-gradient(1300px 820px at 50% 122%, rgba(195, 166, 255, .11), transparent 62%),
+    radial-gradient(1100px 640px at 6% -14%, var(--sky-a), transparent 62%),
+    radial-gradient(900px 620px at 100% 0%, var(--sky-b), transparent 60%),
+    radial-gradient(1300px 820px at 50% 122%, var(--sky-c), transparent 62%),
     linear-gradient(#130d1a, var(--bg) 40%) fixed;
   background-color: var(--bg);
 }
+/* Each season lights the sky a little differently: maple-red dusk, snow-blue, firefly-warm. */
+html[data-season="momiji"] { --sky-a: rgba(255, 128, 96, .13); --sky-b: rgba(255, 195, 138, .06); --sky-c: rgba(255, 107, 139, .09); }
+html[data-season="yuki"] { --sky-a: rgba(170, 205, 255, .12); --sky-b: rgba(220, 225, 255, .07); --sky-c: rgba(195, 166, 255, .1); }
+html[data-season="hotaru"] { --sky-a: rgba(255, 196, 120, .07); --sky-b: rgba(142, 203, 255, .05); --sky-c: rgba(130, 120, 255, .1); }
 body {
   margin: 0;
   min-height: 100vh;
@@ -67,28 +74,19 @@ button, input { font: inherit; color: inherit; }
 }
 .defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 
-/* A few petals drifting down behind everything, slow and faint. */
-.petals { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
-.petal {
-  position: absolute;
-  top: 0;
-  left: var(--x);
-  width: var(--s);
-  height: calc(var(--s) * .8);
-  border-radius: 0 72% 0 72%;
-  background: linear-gradient(135deg, #ffe1ef, #ff9fcd 70%);
-  opacity: var(--o);
-  filter: blur(var(--blur));
-  animation: fall var(--d) linear var(--delay) infinite, flutter calc(var(--d) / 5) linear var(--delay) infinite;
-}
-@keyframes fall {
-  0% { translate: 0 -5vh; }
-  25% { translate: var(--sway) 22vh; }
-  50% { translate: calc(var(--sway) * -.4) 50vh; }
-  75% { translate: var(--sway) 78vh; }
-  100% { translate: calc(var(--sway) * .3) 106vh; }
-}
-@keyframes flutter { from { rotate: var(--axis) 0deg; } to { rotate: var(--axis) 360deg; } }
+/* The sky behind the desk (see "the sky" in the script): stars and tonight's moon, a branch, and
+   whatever the season lets fall. The front layer holds what passes in front of the desk: close
+   petals, ones resting on a room, and the ones a card throws up. It sits under the bar. */
+.sky, .sky-front { position: fixed; inset: 0; pointer-events: none; }
+.sky { z-index: -1; overflow: hidden; }
+.sky-front { z-index: 9; width: 100%; height: 100%; }
+.sky canvas, .bough { position: absolute; inset: 0; width: 100%; height: 100%; }
+.bough { opacity: .78; transform-origin: 100% 10%; animation: sway 9s ease-in-out infinite alternate; }
+.sky.still .bough { animation: none; }
+#sky-branch { transform-origin: 100% 10%; }
+#sky-branch.shake { animation: bough-shake 1.4s ease-out; }
+@keyframes sway { from { rotate: -.4deg; } to { rotate: .5deg; } }
+@keyframes bough-shake { 12% { rotate: -1.4deg; } 30% { rotate: 1deg; } 48% { rotate: -.6deg; } 66% { rotate: .3deg; } 84% { rotate: -.12deg; } }
 
 /* ---- the bar along the top: frosted glass over whatever scrolls beneath ---- */
 .bar {
@@ -111,7 +109,8 @@ button, input { font: inherit; color: inherit; }
 /* ...and the panel takes the right side under the bar: the desk makes room. */
 .app main, .app .lobby, .app .empty { margin-right: var(--panel, 0px); }
 .brand { display: flex; align-items: center; gap: 11px; flex: none; }
-.brand svg { width: 26px; height: 26px; flex: none; }
+.brand svg { width: 26px; height: 26px; flex: none; transition: rotate .8s var(--bounce); }
+.brand:hover svg { rotate: 90deg; }   /* the mats turn like a pinwheel */
 h1 { margin: 0; font: 650 1.2rem/1 var(--display); letter-spacing: -.02em; white-space: nowrap; }
 .summary { flex: 0 100 auto; margin: 0; color: var(--muted); font-size: .84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .status {
@@ -162,7 +161,7 @@ h1 { margin: 0; font: 650 1.2rem/1 var(--display); letter-spacing: -.02em; white
 .usage-text span[data-level="high"] em { color: var(--kaki); }
 .usage-text span[data-level="full"] em { color: var(--beni); }
 
-.newroom { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
+.newroom { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
 .newroom input {
   flex: 0 1 auto;
   min-width: 0;
@@ -201,6 +200,68 @@ h1 { margin: 0; font: 650 1.2rem/1 var(--display); letter-spacing: -.02em; white
 .add:active { scale: .93; transition-duration: .1s; }
 .add.quiet { background: rgba(255, 228, 244, .08); color: var(--text); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
 .add.quiet:hover { background: rgba(255, 228, 244, .13); filter: none; }
+
+/* The sky's button: the season's character, opening a small panel to pick the season and how
+   much falls. The panel is nearly opaque: inside the bar's frosted glass it can't frost too. */
+.skyctl { position: relative; flex: none; margin: 0 -10px 0 auto; }
+.sky-button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 228, 244, .07);
+  box-shadow: inset 0 0 0 1px rgba(255, 228, 244, .08);
+  color: var(--sakura);
+  font: 600 .98rem/1 "Yu Gothic UI", "Yu Gothic", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  cursor: pointer;
+  transition: background .2s ease, box-shadow .2s ease, scale .5s var(--bounce);
+}
+.sky-button:hover { background: rgba(255, 228, 244, .12); }
+.sky-button:active { scale: .9; transition-duration: .1s; }
+.sky-button[aria-expanded="true"] { background: rgba(255, 133, 192, .16); box-shadow: inset 0 0 0 1.5px rgba(255, 133, 192, .5); }
+.sky-panel {
+  position: absolute;
+  top: calc(100% + 20px);   /* clear of the bar, which is the app's title bar */
+  right: 0;
+  z-index: 12;
+  width: 304px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(30, 22, 39, .97);
+  box-shadow: inset 0 0 0 1px rgba(255, 228, 244, .1), 0 30px 60px -24px rgba(0, 0, 0, .95);
+  -webkit-app-region: no-drag;
+}
+.sky-panel[hidden] { display: none; }
+.sky-moon { margin: 0; display: flex; align-items: baseline; gap: 9px; color: var(--muted); font-size: .8rem; }
+.sky-moon b { color: var(--text); font: 600 1.02rem/1 "Yu Gothic UI", "Yu Gothic", "Hiragino Sans", "Noto Sans JP", sans-serif; letter-spacing: .06em; }
+.sky-label { display: block; margin: 0 4px 6px; color: var(--muted); font-size: .7rem; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(255, 228, 244, .05); }
+.seg label { position: relative; display: grid; cursor: pointer; }
+.seg input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.seg span {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 7px 4px;
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 600;
+  transition: background .25s var(--glide), color .2s ease, box-shadow .25s var(--glide);
+}
+.seg b { color: var(--text); opacity: .7; font: 500 1.05rem/1.1 "Yu Gothic UI", "Yu Gothic", "Hiragino Sans", "Noto Sans JP", sans-serif; }
+.seg label:hover span { color: var(--text); }
+.seg input:checked + span { background: rgba(255, 228, 244, .1); color: var(--text); box-shadow: inset 0 0 0 1px rgba(255, 228, 244, .12); }
+.seg input:checked + span b { color: var(--sakura); opacity: 1; }
+.seg input:focus-visible + span { outline: 2px solid var(--sakura); outline-offset: 1px; }
+.sky-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sky-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: .84rem; cursor: pointer; }
+.sky-toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--sakura); }
 /* When the bar runs short, the usage words give way first (the rings stay), then the summary,
    the title, the rings and the mark, and last the name box narrows: the buttons never slide under
    the window's own. Naming a room needs more room, so it makes way sooner. */
@@ -214,6 +275,10 @@ h1 { margin: 0; font: 650 1.2rem/1 var(--display); letter-spacing: -.02em; white
 @container bar (max-width: 680px) {
   .bar:has(.newroom.is-open) h1 { display: none; }
 }
+@container bar (max-width: 600px) {   /* the sky's button gives way: the buttons keep to the right */
+  .bar:has(.newroom.is-open) .skyctl { display: none; }
+  .bar:has(.newroom.is-open) .newroom { margin-left: auto; }
+}
 @container bar (max-width: 520px) {
   .bar:has(.newroom.is-open) .usage { display: none; }
 }
@@ -221,7 +286,8 @@ h1 { margin: 0; font: 650 1.2rem/1 var(--display); letter-spacing: -.02em; white
   h1 { display: none; }
 }
 @container bar (max-width: 420px) {
-  .usage, .bar:has(.newroom.is-open) .brand { display: none; }
+  .usage, .skyctl, .bar:has(.newroom.is-open) .brand { display: none; }
+  .newroom { margin-left: auto; }
 }
 
 /* ---- sections: agents on their own along the top, then a stage per room ---- */
@@ -285,6 +351,7 @@ body.stale main { opacity: .5; filter: saturate(.4); }
     inset 0 1px 0 color-mix(in srgb, var(--room) 30%, rgba(255, 255, 255, .08)),
     0 40px 70px -40px rgba(0, 0, 0, .9);
   transition: box-shadow .45s var(--glide), scale .55s var(--bounce);
+  isolation: isolate;   /* so its effects can sit under its cards and messages */
 }
 .room.is-target .stage {
   scale: 1.012;
@@ -295,7 +362,20 @@ body.stale main { opacity: .5; filter: saturate(.4); }
 }
 .room.flash .stage { animation: flash 1.4s var(--glide); }
 @keyframes flash { from { box-shadow: inset 0 0 0 2px var(--room), 0 0 70px -6px color-mix(in srgb, var(--room) 80%, transparent); } }
-.fx { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.fx { position: absolute; inset: 0; z-index: -1; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.fx::before {   /* the room's crest (kamon), faint in its corner, as an inn marks a room's door */
+  content: "";
+  position: absolute;
+  right: -38px;
+  bottom: -38px;
+  width: 196px;
+  height: 196px;
+  background: var(--crest, none) center / contain no-repeat;
+  opacity: .1;
+  rotate: -10deg;
+}
+.room.flash .fx::before { animation: stamp .9s cubic-bezier(.25, 1.35, .4, 1) both; }   /* pressed on like a seal */
+@keyframes stamp { from { opacity: 0; scale: 1.7; rotate: -34deg; } 60% { opacity: .3; } to { opacity: .1; scale: 1; rotate: -10deg; } }
 .ripple {   /* where a card landed, spreading out over the stage */
   position: absolute;
   width: 60px;
@@ -509,16 +589,6 @@ body.stale main { opacity: .5; filter: saturate(.4); }
 .ghost .face { --rx: 0deg; --ry: 0deg; --lift: 0px; --grow: 1; transition: box-shadow .35s var(--glide); }
 .ghost .jump { display: none; }
 body.dragging, body.dragging * { cursor: grabbing !important; }
-.burst {   /* petals thrown up where a card lands in a room */
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 55;
-  width: 10px;
-  height: 8px;
-  border-radius: 0 72% 0 72%;
-  pointer-events: none;
-}
 
 /* ---- what the team said, as message bubbles in each speaker's colour ---- */
 .talk { list-style: none; margin: 18px 2px 2px; padding: 0; display: grid; gap: 10px; contain: inline-size; }   /* as wide as the cards, never wider */
@@ -585,7 +655,6 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
-  .petals { display: none; }
 }
 </style>
 </head>
@@ -599,7 +668,12 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
     <rect x="10.6" y="10.6" width="8.8" height="8.8" rx="1.2" fill="#f5e6f0" fill-opacity=".35"/>
   </symbol>
 </svg>
-<div class="petals" id="petals" aria-hidden="true"></div>
+<div class="sky" id="sky" aria-hidden="true">
+  <canvas id="sky-stars"></canvas>
+  <div class="bough"><canvas id="sky-branch"></canvas></div>
+  <canvas id="sky-back"></canvas>
+</div>
+<canvas class="sky-front" id="sky-front" aria-hidden="true"></canvas>
 
 <header class="bar">
   <div class="brand">
@@ -614,6 +688,34 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
       <circle class="track" cx="18" cy="18" r="9.6"/><circle class="ring" cx="18" cy="18" r="9.6" pathLength="100"/>
     </svg>
     <span class="usage-text"><span></span><span></span></span>
+  </div>
+  <div class="skyctl" id="skyctl">
+    <button class="sky-button" id="sky-button" type="button" lang="ja" aria-expanded="false" aria-controls="sky-panel"
+            aria-label="The sky behind the desk" title="The sky behind the desk">桜</button>
+    <div class="sky-panel" id="sky-panel" role="dialog" aria-label="The sky behind the desk" hidden>
+      <p class="sky-moon" id="sky-moon"></p>
+      <div>
+        <span class="sky-label" id="season-label">Season</span>
+        <div class="seg" role="radiogroup" aria-labelledby="season-label">
+          <label><input type="radio" name="season" value="sakura"><span><b lang="ja">桜</b>Sakura</span></label>
+          <label><input type="radio" name="season" value="momiji"><span><b lang="ja">紅葉</b>Momiji</span></label>
+          <label><input type="radio" name="season" value="yuki"><span><b lang="ja">雪</b>Yuki</span></label>
+          <label><input type="radio" name="season" value="hotaru"><span><b lang="ja">蛍</b>Hotaru</span></label>
+        </div>
+      </div>
+      <div>
+        <span class="sky-label" id="amount-label">How many</span>
+        <div class="seg" role="radiogroup" aria-labelledby="amount-label">
+          <label><input type="radio" name="amount" value="off"><span>None</span></label>
+          <label><input type="radio" name="amount" value="calm"><span>A few</span></label>
+          <label><input type="radio" name="amount" value="lively"><span>Lots</span></label>
+        </div>
+      </div>
+      <div class="sky-row">
+        <label class="sky-toggle"><input type="checkbox" id="sky-branch-toggle"> Branch and moon</label>
+        <button class="add quiet" id="sky-gust" type="button" title="Send a gust of wind through the sky">Gust</button>
+      </div>
+    </div>
   </div>
   <form class="newroom" id="newroom" autocomplete="off">
     <input id="roomname" maxlength="60" spellcheck="false" placeholder="Name the room" aria-label="New room name" tabindex="-1">
@@ -682,6 +784,7 @@ APP?.onPanel?.((width) => {   // the desk makes room for the terminal panel, and
   const at = snapshot();
   document.documentElement.style.setProperty("--panel", `${width}px`);
   glide(at);
+  sky.resize();   // and the moon and branch move over with it
 });
 if (APP) document.getElementById("new-claude").title = "Start Claude in a terminal beside the desk";
 const COMPANIES = { claude: "Claude", gemini: "Gemini", codex: "Codex" };
@@ -704,6 +807,8 @@ const tpl = (id) => $(id).content.firstElementChild;
 const roomEls = new Map();    // room name -> its <section>, kept between updates
 const agentEls = new Map();   // agent id -> its card, kept between updates (moved, never rebuilt)
 const opened = new Set();     // messages clicked open
+const cheers = new Set();     // cards whose agent just finished its turn: petals once they're drawn
+const arrivals = new Set();   // cards of agents that just turned up
 
 let state = null;            // the latest answer from /api/state
 let held = false;            // a card is in the air: redraw once it's down
@@ -868,48 +973,795 @@ function pull(s, to, stiffness, damping, dt) {
 }
 const resting = (s, to, near) => Math.abs(s.x - to) < near && Math.abs(s.v) < near * 8;
 
-// ---- petals ----
+// ---- the sky ----
 
-// A dozen petals drifting down behind the desk, each with its own size, speed, sway and depth.
-function scatterPetals() {
-  if (REDUCED) return;
-  const sky = $("#petals");
-  for (let i = 0; i < 12; i++) {
-    const p = document.createElement("i");
-    const near = Math.random();   // nearer petals are bigger, quicker and softer
-    const d = 34 - near * 16;
-    p.className = "petal";
-    for (const [k, v] of Object.entries({
-      "--x": `${Math.random() * 100}%`, "--s": `${7 + near * 7}px`, "--o": (0.16 + near * 0.3).toFixed(2),
-      "--blur": `${near > 0.75 ? 1.2 : 0}px`, "--d": `${d}s`, "--delay": `${-Math.random() * d}s`,
-      "--sway": `${(Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 70)}px`,
-      "--axis": `${(0.4 + Math.random()).toFixed(2)} ${(Math.random() - 0.3).toFixed(2)} ${(Math.random() * 0.6).toFixed(2)}`,
-    })) p.style.setProperty(k, v);
-    sky.append(p);
+// Behind the desk, a night sky: stars, tonight's moon in its real phase, a branch reaching in from
+// the right, and whatever the season lets fall: cherry petals, maple leaves or snow, or fireflies
+// wandering in the summer dark. They fall at three depths. Far ones are small and soft; middle
+// ones pass behind the desk's glass and settle a while on top of a room, or of a card on its own;
+// a few close ones, big and out of focus, drift in front of everything but the bar. A moving hand
+// stirs them, a carried card more so, and a card landing knocks them off its room. The button in
+// the bar picks the season and how many fall, and the desk remembers.
+
+// Shapes a unit tall, pointing up: a sakura petal with the notch at its tip, and a plain rounded
+// petal. A Japanese maple leaf is seven pointed lobes meeting at (cx, cy), the middle one longest.
+const PETAL = new Path2D("M0 .5 C.46 .26 .44 -.3 .17 -.5 L0 -.38 L-.17 -.5 C-.44 -.3 -.46 .26 0 .5 Z");
+const ROUND = new Path2D("M0 .5 C.42 .34 .46 -.5 0 -.5 C-.46 -.5 -.42 .34 0 .5 Z");
+const MAPLE_LOBES = [[-122, .3], [-82, .42], [-40, .52], [0, .6], [40, .52], [82, .42], [122, .3]];
+function maple(size = 1, cx = 0, cy = .12) {
+  const at = (deg, r) => [cx + Math.sin(deg * Math.PI / 180) * r * size, cy - Math.cos(deg * Math.PI / 180) * r * size];
+  const pts = [at(-150, .06)];
+  MAPLE_LOBES.forEach(([a, len], i) => {
+    const w = 9 + len * 10, next = MAPLE_LOBES[i + 1];   // a lobe's half-width at its shoulders, in degrees
+    pts.push(at(a - w, len * .5), at(a, len), at(a + w, len * .5), next ? at((a + next[0]) / 2, .14) : at(150, .06));
+  });
+  return pts;
+}
+const MAPLE = new Path2D(`M${maple().map(([x, y]) => `${x.toFixed(3)} ${y.toFixed(3)}`).join(" L")} Z`);
+const FLOWER = new Path2D();   // five sakura petals round a centre, for the branch
+for (let i = 0; i < 5; i++) FLOWER.addPath(PETAL, new DOMMatrix().rotate(i * 72).translate(0, -.55).scale(.9, 1.05));
+const FLOWER_TINTS = [   // edge, middle, eye
+  ["#fff4f9", "#ffd3e7", "#f58fbd"], ["#ffeaf3", "#ffc2dd", "#ef7fb2"],
+  ["#fff8fb", "#ffe0ee", "#f7a3c8"], ["#ffe3ef", "#ffb3d4", "#e86fa6"],
+];
+// Room flowers whose petals are round rather than notched, for the petals a room throws up.
+const ROUND_PETALS = new Set(["ume", "tsubaki", "yamabuki", "mikan", "yuzu", "kaki", "zakuro", "ajisai"]);
+const flowerOf = (room) => (room || "").replace(/-\d+$/, "");   // sakura-2 is still sakura
+
+function seeded(a) {   // mulberry32: the same stars and the same branch every time
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const sky = (() => {
+  const TAU = Math.PI * 2;
+  const cv = { stars: $("#sky-stars"), branch: $("#sky-branch"), back: $("#sky-back"), front: $("#sky-front") };
+  const g = Object.fromEntries(Object.entries(cv).map(([k, c]) => [k, c.getContext("2d")]));
+  // Per season: what falls, its tints (hue, saturation, lightness), and how it moves compared with
+  // a cherry petal: how many, how big, how fast it falls, how much it turns over.
+  const SEASONS = {
+    sakura: { glyph: "桜", shape: "petal", count: 1, size: 1, fall: 1, spin: 1,
+              tints: [[345, 100, 95], [340, 100, 92], [336, 95, 89], [332, 92, 86], [328, 85, 83], [350, 70, 94]] },
+    momiji: { glyph: "楓", shape: "maple", count: .55, size: 1.45, fall: 1.3, spin: 1.2,
+              tints: [[358, 80, 50], [8, 88, 54], [18, 92, 56], [28, 95, 58], [38, 95, 60], [345, 70, 42]] },
+    yuki: { glyph: "雪", shape: "flake", count: 1.8, size: .5, fall: .6, spin: 0,
+            tints: [[330, 60, 98], [250, 60, 97], [210, 70, 97]] },
+    hotaru: { glyph: "蛍", shape: "glow", count: .55, size: 1.8, fall: 0, spin: 0,
+              tints: [[48, 100, 72], [40, 100, 68], [54, 100, 78]] },
+  };
+  const AMOUNT = { off: 0, calm: 44, lively: 120 };     // on a window of about 1400 x 850
+  const BREEZE = { off: 0, calm: .16, lively: .34 };
+
+  const prefs = { season: "sakura", amount: "calm", branch: true };
+  try { Object.assign(prefs, JSON.parse(localStorage.getItem("tatami-sky")) || {}); } catch { /* nothing saved */ }
+  if (!SEASONS[prefs.season]) prefs.season = "sakura";
+  if (!(prefs.amount in AMOUNT)) prefs.amount = "calm";
+  prefs.branch = prefs.branch !== false;
+  const keep = () => { try { localStorage.setItem("tatami-sky", JSON.stringify(prefs)); } catch { /* private window */ } };
+
+  let season = SEASONS[prefs.season], looks = [];
+  let W = 0, H = 0, VW = 0, top = 0, DPR = 1, T = 0, gust = 0;
+  let parts = [], blossoms = [], ledgeEls = [], ledges = [], age = 0;
+  const rects = new Map(), burstLooks = new Map();
+
+  // ---- sprites: each shape drawn once per tint, sharp and soft, front and back ----
+
+  const SPRITE = 64, UNIT = SPRITE * .7;   // a shape fills 70% of its sprite, leaving room to blur
+  function sprite(shape, [h, s, l], { back = false, soft = false, color = "" } = {}) {
+    const c = document.createElement("canvas");
+    c.width = c.height = SPRITE;
+    const x = c.getContext("2d");
+    x.translate(SPRITE / 2, SPRITE / 2);
+    x.scale(UNIT, UNIT);
+    if (soft) x.filter = "blur(4px)";
+    const hsl = (dl, a = 1) => `hsla(${h}, ${s}%, ${clamp(l + dl, 0, 100)}%, ${a})`;
+    if (shape === "flake" || shape === "glow") {   // round: a soft snowflake, or a firefly's light
+      const r = shape === "flake" ? .5 : .7, grad = x.createRadialGradient(0, 0, 0, 0, 0, r);
+      const stops = shape === "flake" ? [[0, hsl(0)], [.5, hsl(0, .7)], [1, hsl(0, 0)]]
+        : [[0, hsl(22)], [.1, hsl(0, .95)], [.35, hsl(-6, .25)], [1, hsl(-10, 0)]];
+      for (const [at, col] of stops) grad.addColorStop(at, col);
+      x.fillStyle = grad;
+      x.fillRect(-r, -r, r * 2, r * 2);
+      return c;
+    }
+    const grad = x.createLinearGradient(0, .5, 0, -.5);   // deeper at the base, paler at the tip
+    if (color) {   // a petal in a room's colour
+      grad.addColorStop(0, color);
+      grad.addColorStop(1, "#fff2f8");
+    } else if (shape === "maple") {
+      grad.addColorStop(0, hsl(back ? -16 : -8));
+      grad.addColorStop(1, hsl(back ? -6 : 6));
+    } else {
+      const d = back ? 8 : 0;   // the back is a shade deeper
+      grad.addColorStop(0, hsl(-12 - d));
+      grad.addColorStop(.5, hsl(-d));
+      grad.addColorStop(1, hsl(3 - d));
+    }
+    x.fillStyle = grad;
+    x.fill(shape === "maple" ? MAPLE : shape === "round" ? ROUND : PETAL);
+    if (shape === "maple") {   // its stem, and a vein down each lobe
+      x.lineCap = "round";
+      x.strokeStyle = hsl(-20);
+      x.lineWidth = .035;
+      x.beginPath(); x.moveTo(0, .12); x.lineTo(.02, .5); x.stroke();
+      x.strokeStyle = hsl(14, .4);
+      x.lineWidth = .016;
+      x.beginPath();
+      for (const [a, len] of MAPLE_LOBES) {
+        x.moveTo(0, .12);
+        x.lineTo(Math.sin(a * Math.PI / 180) * len * .8, .12 - Math.cos(a * Math.PI / 180) * len * .8);
+      }
+      x.stroke();
+    } else if (!back && !color) {   // a faint vein down the middle of a petal
+      x.strokeStyle = `hsla(${h}, 100%, 98%, .5)`;
+      x.lineWidth = .025;
+      x.beginPath(); x.moveTo(0, .44); x.quadraticCurveTo(.03, .05, 0, -.3); x.stroke();
+    }
+    return c;
+  }
+
+  function dress() {
+    season = SEASONS[prefs.season];
+    const round = season.shape === "flake" || season.shape === "glow";
+    looks = season.tints.map((t) => {
+      const pair = (soft) => {
+        const front = sprite(season.shape, t, { soft });
+        return { front, back: round ? front : sprite(season.shape, t, { back: true, soft }) };
+      };
+      return { sharp: pair(false), soft: pair(true) };
+    });
+    document.documentElement.dataset.season = prefs.season;
+  }
+
+  // ---- wind and the hand ----
+
+  const LATTICE = Array.from({ length: 256 }, () => Math.random() * 2 - 1);
+  function noise(x) {   // smooth 1-D value noise in [-1, 1]
+    const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f);
+    const a = LATTICE[i & 255], b = LATTICE[(i + 1) & 255];
+    return a + (b - a) * u;
+  }
+  function wind() {   // px/s, positive blows right: a slow swell, a quicker flutter, and any gust
+    const base = 6 + BREEZE[prefs.amount] * 130;
+    return base * (.75 + .6 * noise(T * .11)) + 22 * noise(T * .37 + 40) + gust;
+  }
+
+  const hand = { x: -1e4, y: -1e4, vx: 0, vy: 0, t: 0 };
+  addEventListener("pointermove", (e) => {
+    const now = performance.now(), dt = (now - hand.t) / 1000;
+    if (dt > 0 && dt < .1) {
+      hand.vx += ((e.clientX - hand.x) / Math.max(dt, .008) - hand.vx) * .5;
+      hand.vy += ((e.clientY - hand.y) / Math.max(dt, .008) - hand.vy) * .5;
+    }
+    hand.x = e.clientX;
+    hand.y = e.clientY;
+    hand.t = now;
+  }, { passive: true });
+  document.documentElement.addEventListener("pointerleave", () => { hand.x = hand.y = -1e4; hand.vx = hand.vy = 0; });
+
+  // ---- what falls ----
+
+  function spawn(layer, where) {
+    if (!layer) { const r = Math.random(); layer = r < .42 ? "far" : r < .91 ? "mid" : "near"; }
+    const z = layer === "far" ? Math.random() * .33 : layer === "mid" ? .36 + Math.random() * .4 : .82 + Math.random() * .18;
+    const turn = season.spin, spin = turn * (Math.random() < .5 ? -1 : 1) * (1.2 + Math.random() * 2.6);
+    const look = looks[(Math.random() * looks.length) | 0];
+    const p = {
+      layer, z, d: .35 + z * .95, size: (7 + z ** 2.2 * 26) * season.size,
+      alpha: season.shape === "glow" ? .5 + z * .5 : layer === "far" ? .3 + z * .8 : layer === "mid" ? .85 : .5,
+      look: layer === "mid" ? look.sharp : look.soft,
+      glow: season.shape === "glow", glide: turn ? 28 : 0, sway: season.shape === "flake" ? 14 : 0, fall: season.fall,
+      rot: Math.random() * TAU, rotV: (Math.random() - .5) * 1.4 * turn,
+      flip: turn ? Math.random() * TAU : 0, flipTo: 0, spin, flipV: spin,
+      tilt: turn ? Math.random() * TAU : 0, tiltV: (Math.random() - .5) * 2.2 * turn,
+      x: 0, y: 0, vx: 0, vy: 0, fade: 1, squash: 1, life: Infinity, front: false, burst: false,
+      on: null, lx: 0, rest: 0, lands: false, groundY: H, retire: false,
+      seed: Math.random() * 200, wander: 0, blink: Math.random() * TAU, blinkV: .8 + Math.random() * 1.8,
+    };
+    place(p, where);
+    return p;
+  }
+
+  // Where something starts falling: anywhere (when the sky fills), from the branch, in from the
+  // side on a strong wind, or else from above the top.
+  function place(p, where) {
+    const w = wind();
+    Object.assign(p, { on: null, front: false, squash: 1, flipV: p.spin, groundY: H - 3 - Math.random() * 14,
+                       lands: p.layer === "mid" && !p.glow && Math.random() < .45 });
+    if (p.glow) {   // fireflies don't fall: they rise out of the dark low down, and wander
+      p.x = Math.random() * VW;
+      p.y = where === "anywhere" ? H * (.25 + Math.random() * .75) : H * (.45 + Math.random() * .55);
+      p.vx = p.vy = 0;
+      if (where !== "anywhere") p.fade = 0;
+      return;
+    }
+    if (where === "top" && p.layer === "mid" && Math.random() < .3) where = "branch";
+    if (where === "branch" && !blossoms.length) where = "top";
+    p.fade = 1;
+    if (where === "anywhere") {
+      p.x = Math.random() * VW;
+      p.y = Math.random() * H;
+    } else if (where === "branch") {   // let go by a blossom: no push yet, fading in
+      const b = blossoms[(Math.random() * blossoms.length) | 0];
+      p.x = b.x + (Math.random() - .5) * 10;
+      p.y = b.y + (Math.random() - .5) * 10;
+      p.vx = p.vy = 0;
+      p.fade = 0;
+      return;
+    } else if (Math.abs(w) > 30 && Math.random() < Math.min(.55, Math.abs(w) / 260)) {
+      p.x = w > 0 ? -30 : VW + 30;
+      p.y = top + Math.random() * (H - top) * .7;
+    } else {
+      p.x = (Math.random() * 1.1 - .05 - Math.sign(w) * Math.random() * .12) * VW;
+      p.y = -30 - Math.random() * 60;
+    }
+    p.vx = w * p.d;
+    p.vy = 30 * p.d * p.fall;
+  }
+
+  // Coming to rest on a room or a card (on: that element, lx: how far along it) or the ground.
+  function settle(p, on, lx) {
+    Object.assign(p, { on, lx, vx: 0, vy: 0, rest: 9 + Math.random() * 14,
+                       flipTo: Math.round(p.flip / Math.PI) * Math.PI + (Math.random() - .5) * .6 });   // face up or down
+  }
+
+  // Off again: hopping up a little first. Off the edge of a room it's in front of the glass now.
+  function fall(p, w) {
+    if (p.on && p.on !== "ground") p.front = true;
+    p.on = null;
+    p.vy = -(40 + Math.random() * 90);
+    p.vx = w * .5 + (Math.random() - .5) * 80;
+    p.flipV = p.spin * 3;
+    p.lands = Math.random() < .5;
+  }
+
+  function recycle(p, i) {
+    if (p.retire || p.burst) parts.splice(i, 1);
+    else place(p, "top");
+  }
+
+  // How many fall: by the setting, the season and the size of the window. Extras fade out.
+  function populate(fade) {
+    const area = clamp(VW * H / (1400 * 850), .6, 1.4);
+    const want = REDUCED ? 0 : Math.round(AMOUNT[prefs.amount] * season.count * area);
+    const live = parts.filter((p) => !p.retire && !p.burst);
+    for (const p of parts) if (p.retire && !p.burst && live.length < want) Object.assign(p, { retire: false, life: Infinity }), live.push(p);
+    for (let i = live.length; i < want; i++) {
+      const p = spawn(null, "anywhere");
+      p.fade = fade;
+      if (p.lands && Math.random() < .25) { p.y = p.groundY; settle(p, "ground", p.x); }
+      parts.push(p);
+    }
+    for (const p of live.slice(want)) Object.assign(p, { retire: true, life: Math.min(p.life, .8 + Math.random()) });
+    parts.sort((a, b) => a.z - b.z);   // far first, so nearer ones draw over them
+  }
+
+  // The tops things settle on: each room's stage, and the cards on their own. Read every frame,
+  // since rooms glide and the page scrolls; the list of them every half second.
+  function measure() {
+    if (--age <= 0) { ledgeEls = [...document.querySelectorAll(".stage, #lobby-cards > .agent")]; age = 30; }
+    rects.clear();
+    ledges = [];
+    for (const el of ledgeEls) {
+      if (!el.isConnected) continue;
+      const r = el.getBoundingClientRect();
+      rects.set(el, r);
+      if (r.width < 80 || r.top < top + 6 || r.top > H || el.classList.contains("lifted")) continue;
+      const room = el.classList.contains("stage"), inset = room ? 34 : 24;   // clear of the round corners
+      ledges.push({ el, top: r.top, x0: r.left, left: r.left + inset, right: r.right - inset, cap: room ? 14 : 5 });
+    }
+  }
+
+  function step(dt) {
+    gust *= Math.exp(-dt / 2.4);
+    hand.vx *= Math.exp(-dt * 5);
+    hand.vy *= Math.exp(-dt * 5);
+    measure();
+    const w0 = wind(), speed = Math.hypot(hand.vx, hand.vy);
+    const carrying = document.body.classList.contains("dragging"), R = carrying ? 190 : 110;
+    const kx = 1 - Math.exp(-dt * 1.8), ky = 1 - Math.exp(-dt * 1.5), ease = 1 - Math.exp(-dt * 6);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      if (p.life !== Infinity) {
+        p.life -= dt;
+        p.fade = Math.min(p.fade, p.life / 1.1);
+        if (p.life <= 0) { parts.splice(i, 1); continue; }
+      }
+      const w = w0 * (.85 + .15 * Math.sin(p.y * .005 + T * .6 + p.z * 3));
+
+      // A moving hand pushes things along and spins them; quick and close, it sweeps resting ones off.
+      if (p.layer !== "far" && speed > 40) {
+        const dx = p.x - hand.x, dy = p.y - hand.y, d2 = dx * dx + dy * dy;
+        if (d2 < R * R) {
+          const f = (1 - Math.sqrt(d2) / R) * Math.min(1, speed / 400) * (carrying ? 1.6 : 1);
+          if (p.on && f > .3 && speed > 260) fall(p, hand.vx * .3);
+          if (!p.on) {
+            p.vx += (hand.vx * 1.4 + dx * 6) * f * dt * 3;
+            p.vy += (hand.vy * 1.4 + dy * 6) * f * dt * 3;
+            p.flipV = clamp(p.flipV + Math.sign(p.spin) * f * 40 * dt, -12, 12);
+          }
+        }
+      }
+
+      if (p.on) {   // resting: it lies flat, and fades before it goes
+        p.flip += (p.flipTo - p.flip) * ease;
+        p.squash += (.45 - p.squash) * ease;
+        p.rest -= dt;
+        p.fade = Math.min(p.fade, 1, p.rest / 2.5);
+        if (p.on !== "ground") {
+          const r = rects.get(p.on);
+          if (!r || p.on.classList.contains("lifted")) { fall(p, 0); continue; }
+          p.x = r.left + p.lx;
+          p.y = r.top + .5 - p.size * .1;
+        }
+        if (Math.abs(w) > 120 && Math.random() < dt * .5) fall(p, w);
+        else if (p.rest <= 0) recycle(p, i);
+        continue;
+      }
+
+      if (p.glow) {   // a firefly wanders on its own slow path, blinking, and keeps out of the top
+        p.wander += dt * .22;
+        const ax = noise(p.wander + p.seed) * 28 + w * .12;
+        const ay = noise(p.wander * 1.3 + p.seed + 50) * 18 + (p.y < H * .2 ? 25 : 0);
+        p.vx += (ax - p.vx) * kx;
+        p.vy += (ay - p.vy) * ky;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.blink += p.blinkV * dt;
+        if (p.fade < 1) p.fade = Math.min(1, p.fade + dt * .5);
+        if (p.x < -40) p.x = VW + 40; else if (p.x > VW + 40) p.x = -40;
+        if (p.y > H + 30) p.y = H * (.5 + Math.random() * .4);
+        continue;
+      }
+
+      // Falling: lying flat it catches the air and drifts; edge-on it drops; tipping, it glides
+      // sideways, which is what gives a falling petal its swing. Snow just sways.
+      const flat = Math.abs(Math.cos(p.flip));
+      const tx = w * p.d + Math.sin(p.flip) * p.glide * p.d + Math.sin(T * .9 + p.seed) * p.sway * p.d;
+      const ty = (32 + (p.glide ? 46 * (1 - flat) : 0)) * p.d * p.fall + w * .06;
+      p.vx += (tx - p.vx) * kx;
+      p.vy += (ty - p.vy) * ky;
+      const ny = p.y + p.vy * dt;
+      let caught = null;
+      if (p.layer === "mid" && !p.front && !p.burst && p.vy > 0) {
+        const L = ledges.find((l) => p.y <= l.top && ny >= l.top && p.x > l.left && p.x < l.right);
+        if (L && Math.random() < .55 && parts.reduce((n, q) => n + (q.on === L.el), 0) < L.cap) caught = L;
+      }
+      if (caught) {
+        settle(p, caught.el, p.x - caught.x0);
+      } else {
+        p.x += p.vx * dt;
+        p.y = ny;
+      }
+      p.flipV += (p.spin - p.flipV) * dt * .6;
+      p.flip += p.flipV * dt * (1 + Math.abs(w) / 180);
+      p.tilt += p.tiltV * dt;
+      p.rot += (p.rotV + (p.glide ? w * .0025 : 0)) * dt;
+      p.squash += (1 - p.squash) * ease;
+      if (p.fade < 1 && p.life === Infinity) p.fade = Math.min(1, p.fade + dt * 1.5);
+      if (caught) continue;
+      if (p.lands && p.vy > 0 && p.y >= p.groundY) { p.y = p.groundY; settle(p, "ground", p.x); }
+      else if (p.y > H + 60 || p.y < -H || p.x < -VW * .3 - 40 || p.x > VW * 1.3 + 40) recycle(p, i);
+    }
+  }
+
+  // ---- drawing ----
+
+  // Turning over shows as the shape narrowing; tipping, as it shortening. Resting ones are seen
+  // edge-on, so they flatten. A firefly's light comes and goes.
+  function draw(x, p) {
+    const face = Math.cos(p.flip), open = Math.max(.08, Math.abs(face));
+    const sx = open, sy = .72 + .28 * Math.abs(Math.cos(p.tilt));
+    const c = Math.cos(p.rot), s = Math.sin(p.rot), q = p.squash, k = DPR, D = p.size / .7;
+    const a = p.glow ? p.alpha * p.fade * (.2 + .8 * (.5 + .5 * Math.sin(p.blink)) ** 2)
+      : p.alpha * p.fade * (.7 + .3 * open);
+    if (a < .01) return;
+    x.globalAlpha = Math.min(1, a);
+    x.setTransform(c * sx * k, s * sx * k * q, -s * sy * k, c * sy * k * q, p.x * k, p.y * k);
+    x.drawImage(face >= 0 ? p.look.front : p.look.back, -D / 2, -D / 2, D, D);
+  }
+
+  function render() {
+    for (const x of [g.back, g.front]) {
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      x.clearRect(0, 0, x.canvas.width, x.canvas.height);
+      x.globalCompositeOperation = season.shape === "glow" ? "lighter" : "source-over";
+    }
+    for (const p of parts) draw(p.front || p.layer === "near" || (p.on && p.on !== "ground") ? g.front : g.back, p);
+  }
+
+  // ---- the moon, the stars and the branch, drawn once (again on a resize) ----
+
+  function moonPhase(now = Date.now()) {   // 0 new, .5 full: days since a known new moon, over the synodic month
+    return (((now - Date.UTC(2000, 0, 6, 18, 14)) / 864e5 / 29.530588853) % 1 + 1) % 1;
+  }
+  // The moon's phases by their Japanese names (a day either side of new, quarter and full).
+  const MOONS = [[.034, "新月", "New moon"], [.216, "三日月", "Waxing crescent"], [.284, "上弦", "First quarter"],
+                 [.466, "十三夜", "Waxing gibbous"], [.534, "満月", "Full moon"], [.716, "寝待月", "Waning gibbous"],
+                 [.784, "下弦", "Last quarter"], [.966, "有明月", "Waning crescent"], [1.01, "新月", "New moon"]];
+  function moon() {
+    const ph = moonPhase(), [, ja, en] = MOONS.find(([upto]) => ph < upto);
+    return { ja, en, lit: Math.round((1 - Math.cos(ph * TAU)) / 2 * 100) };
+  }
+  const moonAt = () => ({ x: VW * .8, y: clamp(H * .2, top + 70, 230), r: clamp(VW * .021, 17, 32) });
+
+  function drawMoon(x, { x: cx, y: cy, r }) {
+    const ph = moonPhase(), k = Math.cos(ph * TAU), lit = (1 - k) / 2;
+    const halo = x.createRadialGradient(cx, cy, r * .8, cx, cy, r * 7);
+    halo.addColorStop(0, `rgba(255, 214, 234, ${.05 + .13 * lit})`);
+    halo.addColorStop(.35, `rgba(255, 133, 192, ${.02 + .05 * lit})`);
+    halo.addColorStop(1, "rgba(255, 133, 192, 0)");
+    x.fillStyle = halo;
+    x.fillRect(cx - r * 7, cy - r * 7, r * 14, r * 14);
+    x.fillStyle = "rgba(255, 228, 244, .07)";   // the dark part, faintly lit by the earth
+    x.beginPath(); x.arc(cx, cy, r, 0, TAU); x.fill();
+    // The lit part: half the disc's edge on the lit side, and back along the terminator, a
+    // half-ellipse that bulges toward the light while it's a crescent and away from it past half.
+    const light = new Path2D(), half = Math.PI / 2;
+    if (ph < .5) {   // waxing: lit on the right, as seen from Japan
+      light.arc(cx, cy, r, -half, half);
+      light.ellipse(cx, cy, r * Math.abs(k), r, 0, half, k > 0 ? -half : 3 * half, k > 0);
+    } else {
+      light.arc(cx, cy, r, half, 3 * half);
+      light.ellipse(cx, cy, r * Math.abs(k), r, 0, k > 0 ? 3 * half : -half, half, k > 0);
+    }
+    const face = x.createRadialGradient(cx - r * .3, cy - r * .35, r * .1, cx, cy, r);
+    face.addColorStop(0, "#fffafd");
+    face.addColorStop(.6, "#fdeef5");
+    face.addColorStop(1, "#f1d3e2");
+    x.save();
+    x.clip(light);
+    x.fillStyle = face;
+    x.fillRect(cx - r, cy - r, r * 2, r * 2);
+    x.fillStyle = "rgba(205, 165, 190, .24)";   // its seas
+    x.filter = `blur(${Math.max(1, r * .06)}px)`;
+    for (const [mx, my, mr] of [[-.28, -.18, .26], [.16, -.3, .2], [.05, .1, .24], [-.32, .28, .15], [.34, .16, .13]]) {
+      x.beginPath(); x.arc(cx + mx * r, cy + my * r, mr * r, 0, TAU); x.fill();
+    }
+    x.restore();
+  }
+
+  function drawStars() {
+    const x = g.stars, k = Math.min(devicePixelRatio || 1, 2), rnd = seeded(7), m = moonAt();
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.clearRect(0, 0, cv.stars.width, cv.stars.height);
+    x.setTransform(k, 0, 0, k, 0, 0);
+    for (let i = 0, n = Math.round(VW * H / 16000); i < n; i++) {
+      const sx = rnd() * VW, sy = rnd() * H * .65, r = .35 + rnd() ** 3 * 1.1, a = (.12 + rnd() * .4).toFixed(2), hue = rnd();
+      if (prefs.branch && Math.hypot(sx - m.x, sy - m.y) < m.r * 2.2) continue;
+      x.fillStyle = hue < .5 ? `rgba(255, 228, 244, ${a})` : hue < .8 ? `rgba(220, 230, 255, ${a})` : `rgba(255, 200, 225, ${a})`;
+      x.beginPath(); x.arc(sx, sy, r, 0, TAU); x.fill();
+    }
+    if (prefs.branch) drawMoon(x, m);
+  }
+
+  // A cherry branch reaching in from the right, under the bar: boughs that wander, droop and fork,
+  // dressed for the season. Blossom in spring, red maple in autumn, snow (and a few plum flowers)
+  // in winter, bare for the fireflies. Petals and leaves fall from where it's dressed.
+  function drawBranch() {
+    const x = g.branch, k0 = Math.min(devicePixelRatio || 1, 2);
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.clearRect(0, 0, cv.branch.width, cv.branch.height);
+    blossoms = [];
+    if (!prefs.branch) return;
+    x.setTransform(k0, 0, 0, k0, 0, 0);
+    const rnd = seeded(1704), k = clamp(Math.min(VW / 1400, H / 820), .45, 1);
+    const boughs = [], clusters = [];
+    const grow = (px, py, a, len, wid, depth) => {
+      const pts = [[px, py]];
+      for (let i = 1; i <= 4; i++) {   // a bough wanders a little and droops under its own weight
+        a += (rnd() - .5) * .42 + (Math.PI / 2 - a) * .03;
+        px += Math.cos(a) * len / 4;
+        py += Math.sin(a) * len / 4;
+        pts.push([px, py]);
+      }
+      boughs.push({ pts, wid });
+      if (depth >= 2) for (const [cx, cy] of pts.slice(2)) if (rnd() < .5) clusters.push([cx, cy, 2 + ((rnd() * 3) | 0)]);
+      if (depth >= 5) return void clusters.push([px, py, 3 + ((rnd() * 3) | 0)]);
+      const kids = depth > 1 && rnd() < .3 ? 3 : 2;
+      for (let i = 0; i < kids; i++) {
+        const spread = (i - (kids - 1) / 2) * (.55 + rnd() * .35) + (rnd() - .5) * .25;
+        grow(px, py, a + spread, len * (.64 + rnd() * .16), wid * .62, depth + 1);
+      }
+    };
+    grow(VW + 40, top + 24 + 30 * k, Math.PI - .2, 180 * k, 20 * k, 0);
+
+    x.lineCap = x.lineJoin = "round";
+    const snowy = prefs.season === "yuki";
+    for (const pass of ["bark", "moonlight", ...(snowy ? ["snow"] : [])]) {
+      for (const { pts, wid } of boughs) {
+        for (let i = 1; i < pts.length; i++) {
+          const [ax, ay] = pts[i - 1], [bx, by] = pts[i], w = wid * (1 - (i / pts.length) * .38);
+          if (pass === "snow" && Math.abs(by - ay) > Math.abs(bx - ax) * 1.2) continue;   // too steep to hold any
+          const lift = pass === "bark" ? 0 : -w * (pass === "snow" ? .45 : .3);
+          x.lineWidth = pass === "bark" ? w : pass === "snow" ? Math.max(1.2, w * .55) : w * .28;
+          x.strokeStyle = pass === "bark" ? "#2a1b2b" : pass === "snow" ? "rgba(250, 246, 255, .9)" : "rgba(255, 200, 228, .13)";
+          x.beginPath(); x.moveTo(ax, ay + lift); x.lineTo(bx, by + lift); x.stroke();
+        }
+      }
+    }
+    const shape = season.shape;
+    if (shape === "glow") return;
+    if (shape !== "flake") {   // each cluster lit softly from within
+      x.globalCompositeOperation = "lighter";
+      const tone = shape === "maple" ? "255, 120, 80" : "255, 133, 192";
+      for (const [cx, cy] of clusters) {
+        const r = 46 * k, glow = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+        glow.addColorStop(0, `rgba(${tone}, .035)`);
+        glow.addColorStop(1, `rgba(${tone}, 0)`);
+        x.fillStyle = glow;
+        x.fillRect(cx - r, cy - r, r * 2, r * 2);
+      }
+      x.globalCompositeOperation = "source-over";
+    }
+    for (const [cx, cy, n] of clusters) {
+      blossoms.push({ x: cx, y: cy });
+      for (let i = 0; i < n; i++) {
+        const f = { x: cx + (rnd() - .5) * 26 * k, y: cy + (rnd() - .5) * 20 * k, r: (6 + rnd() * 5) * k,
+                    rot: rnd() * TAU, sq: rnd() < .4 ? .5 + rnd() * .4 : 1, pick: rnd() };
+        x.save();
+        x.translate(f.x, f.y);
+        x.rotate(f.rot);
+        if (shape === "petal") flower(x, f);
+        else if (shape === "maple") {
+          const [h, s, l] = season.tints[(f.pick * season.tints.length) | 0];
+          x.scale(f.r * 2, f.r * 2 * f.sq);
+          x.fillStyle = `hsl(${h}, ${s}%, ${l - 4}%)`;
+          x.fill(MAPLE);
+        } else if (f.pick < .12) plum(x, f);
+        x.restore();
+      }
+    }
+  }
+
+  function flower(x, f) {   // a sakura flower: five petals, a pink eye, stamens
+    const [edge, mid, eye] = FLOWER_TINTS[(f.pick * 4) | 0];
+    x.scale(f.r, f.r * f.sq);
+    if (f.pick > .86) {   // a bud
+      x.fillStyle = eye;
+      x.beginPath(); x.ellipse(0, 0, .38, .56, 0, 0, TAU); x.fill();
+      return;
+    }
+    const grad = x.createRadialGradient(0, 0, 0, 0, 0, 1.1);
+    grad.addColorStop(0, eye);
+    grad.addColorStop(.32, mid);
+    grad.addColorStop(1, edge);
+    x.fillStyle = grad;
+    x.fill(FLOWER);
+    x.strokeStyle = "rgba(255, 232, 242, .7)";
+    x.lineWidth = .045;
+    x.beginPath();
+    for (let i = 0; i < 7; i++) { const a = i / 7 * TAU + .3; x.moveTo(0, 0); x.lineTo(Math.cos(a) * .42, Math.sin(a) * .42); }
+    x.stroke();
+    x.fillStyle = "#ffd98a";
+    for (let i = 0; i < 7; i++) { const a = i / 7 * TAU + .3; x.beginPath(); x.arc(Math.cos(a) * .44, Math.sin(a) * .44, .055, 0, TAU); x.fill(); }
+  }
+
+  function plum(x, f) {   // a red plum flower in the snow: five round petals and a gold eye
+    x.scale(f.r * .9, f.r * .9);
+    x.fillStyle = "#ff6b8b";
+    for (let i = 0; i < 5; i++) { const a = i / 5 * TAU; x.beginPath(); x.arc(Math.sin(a) * .5, -Math.cos(a) * .5, .38, 0, TAU); x.fill(); }
+    x.fillStyle = "#ffd98a";
+    x.beginPath(); x.arc(0, 0, .18, 0, TAU); x.fill();
+  }
+
+  // ---- the clock ----
+
+  let running = false, last = 0, odd = false;
+  function wake() {
+    if (running || REDUCED || document.hidden || !parts.length) return;
+    running = true;
+    last = performance.now();
+    requestAnimationFrame(frame);
+  }
+  function frame(now) {
+    if (document.hidden || !parts.length) {
+      running = false;
+      render();
+      return;
+    }
+    // With the desk in the background, every other frame is plenty.
+    if (!document.hasFocus() && (odd = !odd)) return void requestAnimationFrame(frame);
+    const dt = clamp((now - last) / 1000, 0, 1 / 20);
+    last = now;
+    T += dt;
+    step(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  let pending = 0;
+  function resize() {
+    if (pending) return;
+    pending = requestAnimationFrame(() => {
+      pending = 0;
+      W = innerWidth;
+      H = innerHeight;
+      VW = Math.max(240, W - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--panel")) || 0));
+      top = $(".bar").getBoundingClientRect().bottom;
+      DPR = Math.min(devicePixelRatio || 1, 1.5);
+      const hi = Math.min(devicePixelRatio || 1, 2);
+      for (const [c, k] of [[cv.stars, hi], [cv.branch, hi], [cv.back, DPR], [cv.front, DPR]]) {
+        c.width = Math.round(W * k);
+        c.height = Math.round(H * k);
+      }
+      drawStars();
+      drawBranch();
+      for (const p of parts) {
+        p.groundY = H - 3 - Math.random() * 14;
+        if (p.on === "ground") p.y = p.groundY;
+      }
+      render();
+    });
+  }
+
+  return {
+    prefs, moon,
+    glyph: () => season.glyph,
+    start() {
+      dress();
+      W = innerWidth; H = innerHeight;
+      VW = W;
+      top = $(".bar").getBoundingClientRect().bottom;
+      resize();
+      requestAnimationFrame(() => { populate(1); render(); wake(); });   // once the canvases have their size
+      $("#sky").classList.toggle("still", prefs.amount === "off");
+      addEventListener("resize", resize);
+      document.addEventListener("visibilitychange", () => { if (!document.hidden) { drawStars(); wake(); } });
+      setInterval(drawStars, 30 * 60 * 1000);   // the moon moves on
+    },
+    resize,
+    set(next) {
+      const was = { ...prefs };
+      Object.assign(prefs, next);
+      keep();
+      if (prefs.season !== was.season) {
+        parts = parts.filter((p) => p.burst);
+        dress();
+      }
+      if (prefs.season !== was.season || prefs.branch !== was.branch) { drawStars(); drawBranch(); }
+      $("#sky").classList.toggle("still", prefs.amount === "off");
+      populate(0);
+      render();
+      wake();
+    },
+
+    // A handful thrown up from (x, y) in a room's colour, shaped like its flower's petals: the
+    // desk's way of saying something happened here.
+    burst(x, y, color, n = 8, flower = "") {
+      if (REDUCED || !W) return;
+      const shape = flower === "momiji" ? "maple" : ROUND_PETALS.has(flower) ? "round" : "petal", key = `${shape} ${color}`;
+      if (!burstLooks.has(key)) { const s = sprite(shape, [0, 0, 0], { color }); burstLooks.set(key, { front: s, back: s }); }
+      for (let i = 0; i < n; i++) {
+        const a = (-90 + (i / n - .5) * 150 + (Math.random() - .5) * 24) * Math.PI / 180;   // a fan, mostly upward
+        const v = 190 + Math.random() * 170, spin = (Math.random() < .5 ? -1 : 1) * (3 + Math.random() * 4);
+        parts.push({
+          layer: "near", z: 1, d: .8, size: (9 + Math.random() * 6) * (shape === "maple" ? 1.4 : 1), alpha: 1,
+          look: burstLooks.get(key), glow: false, glide: 20, sway: 0, fall: 1.1,
+          rot: Math.random() * TAU, rotV: (Math.random() - .5) * 3, flip: Math.random() * TAU, flipTo: 0, spin, flipV: spin,
+          tilt: Math.random() * TAU, tiltV: (Math.random() - .5) * 3,
+          x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, fade: 1, squash: 1, life: 2 + Math.random() * .8,
+          front: true, burst: true, on: null, lx: 0, rest: 0, lands: false, groundY: H, retire: true,
+          seed: Math.random() * 200, wander: 0, blink: 0, blinkV: 0,
+        });
+      }
+      wake();
+    },
+
+    // The air a landing card pushes aside, out from (x, y).
+    puff(x, y, power = 240, R = 220) {
+      for (const p of parts) {
+        const dx = p.x - x, dy = p.y - y, d = Math.hypot(dx, dy);
+        if (d > R || p.layer === "far" || p.burst) continue;
+        const f = 1 - d / R;
+        if (p.on && p.on !== "ground") fall(p, 0);
+        if (p.on) continue;
+        p.vx += dx / Math.max(d, 20) * power * f;
+        p.vy += dy / Math.max(d, 20) * power * f - power * .2 * f;
+        p.flipV += p.spin * 2 * f;
+      }
+      wake();
+    },
+
+    // Whatever rests on a room or a card hops off: the room took a landing, or the card was picked up.
+    jolt(el) {
+      for (const p of parts) if (p.on === el) fall(p, (Math.random() - .5) * 120);
+      wake();
+    },
+
+    // A gust: the wind picks up, the branch shakes, and lets a few go.
+    gust(power = 170) {
+      if (REDUCED) return;
+      gust += (wind() < 0 ? -1 : 1) * power;
+      cv.branch.classList.remove("shake");
+      void cv.branch.offsetWidth;   // start the shake again if it's still going
+      cv.branch.classList.add("shake");
+      if (prefs.amount !== "off" && season.shape !== "glow") {
+        for (let i = 0; i < 14 && blossoms.length; i++) {
+          const p = spawn("mid", "branch");
+          p.retire = true;
+          parts.push(p);
+        }
+      }
+      wake();
+    },
+  };
+})();
+
+// A handful of petals thrown up from (x, y) in a room's colour.
+function bloom(x, y, color, n = 8, flower = "") {
+  sky.burst(x, y, color, n, flower);
+}
+
+// An agent that has finished its turn, or just arrived, throws up a few petals in its own colour,
+// so you notice from across the desk.
+function cheer(card, n) {
+  if (!card.isConnected) return;
+  const r = card.getBoundingClientRect();
+  if (r.bottom < 0 || r.top > innerHeight) return;
+  const hue = (card.style.getPropertyValue("--hue") || "").match(/\d+/)?.[0];
+  bloom(r.left + r.width / 2, r.top + r.height * 0.3, hue ? `hsl(${hue}, 75%, 80%)` : "#ffd6ea", n);
+}
+
+// ---- crests ----
+
+// Each flower room wears its flower as a crest (kamon) in a ring, faint in the bottom corner of
+// its stage, the way an inn marks a room's door. A room you named yourself wears the desk's
+// own mark. Drawn on a 100 x 100 grid, mostly as petals turned around the middle.
+function crestArt(flower) {
+  const turn = (n, d, at = 0) => Array.from({ length: n }, (_, i) =>
+    `<path d="${d}" transform="rotate(${at + i * 360 / n} 50 50)"/>`).join("");
+  const dot = (x, y, r) => `<circle cx="${x}" cy="${y}" r="${r}"/>`;
+  const dots = (n, dist, r, at = 0) => Array.from({ length: n }, (_, i) => {
+    const a = (at + i * 360 / n) * Math.PI / 180;
+    return dot((50 + Math.sin(a) * dist).toFixed(1), (50 - Math.cos(a) * dist).toFixed(1), r);
+  }).join("");
+  const leaf = "M50 31C55 20 67 15 78 18C73 29 61 33 50 31Z";
+  switch (flower) {
+    case "sakura": return turn(5, "M50 46C62 38 66 22 56 11L50 17L44 11C34 22 38 38 50 46Z") + dot(50, 50, 3.5);
+    case "momo": return turn(5, "M50 46C63 38 64 20 50 9C36 20 37 38 50 46Z") + dot(50, 50, 3.5);
+    case "nadeshiko": return turn(5, "M50 47C58 42 64 31 64 23L60 21L59 15L54 16L50 11L46 16L41 15L40 21L36 23C36 31 42 42 50 47Z") + dot(50, 50, 3);
+    case "ume": return dots(5, 21, 12) + dot(50, 50, 5);
+    case "tsubaki": return turn(5, "M50 44C60 40 68 26 61 15C56 9 44 9 39 15C32 26 40 40 50 44Z") + dots(9, 9, 2) + dot(50, 50, 3);
+    case "yamabuki": return turn(5, "M50 45C58 40 62 26 57 15C54 10 46 10 43 15C38 26 42 40 50 45Z") + dots(5, 6, 2, 36);
+    case "kiku": return turn(16, "M50 40C53 30 54.5 18 54 12A4 4 0 0 0 46 12C45.5 18 47 30 50 40Z") + dot(50, 50, 8);
+    case "kikyo": return turn(5, "M50 46C57 40 62 31 61 23L50 9L39 23C38 31 43 40 50 46Z") + dot(50, 50, 3);
+    case "ajisai": return turn(4, "M50 46C61 40 66 25 50 12C34 25 39 40 50 46Z", 45) + dot(50, 50, 3.5);
+    case "asagao": return `<circle cx="50" cy="50" r="33" fill="none" stroke-width="7"/>` + turn(5, "M48.5 50L49 16H51L51.5 50Z") + dot(50, 50, 7);
+    case "sumire": return turn(5, "M50 46C58 42 62 30 56 20C53 16 47 16 44 20C38 30 42 42 50 46Z", 36) + dot(50, 50, 3);
+    case "ayame": return turn(3, "M50 50C63 44 68 26 50 11C32 26 37 44 50 50Z", 60) + turn(3, "M50 45C55 36 56 25 50 15C44 25 45 36 50 45Z");
+    case "fuji": {   // a hanging spray of wisteria under its arching stem
+      const rows = [[30, [32, 44, 56, 68], 6], [41, [38, 50, 62], 5.6], [51, [44, 56], 5], [60, [50], 4.6], [68, [50], 3.8], [75, [50], 3]];
+      return `<path d="M16 26C30 14 70 14 84 26" fill="none" stroke-width="4" stroke-linecap="round"/>`
+        + rows.map(([y, xs, r]) => xs.map((x) => `<ellipse cx="${x}" cy="${y}" rx="${r}" ry="${(r * 1.25).toFixed(1)}"/>`).join("")).join("");
+    }
+    case "momiji": return `<path d="M${maple(78, 50, 58).map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join("L")}Z"/>`
+      + `<path d="M50 58L51 86" fill="none" stroke-width="3.5" stroke-linecap="round"/>`;
+    case "mikan": return dot(50, 57, 26) + `<path d="${leaf}"/>`;
+    case "yuzu": return dot(50, 57, 26) + `<path d="${leaf}"/><path d="${leaf}" transform="matrix(-1 0 0 1 100 0)"/>`;
+    case "kaki": return dot(50, 58, 26) + `<path d="M50 32C58 24 68 25 74 30C66 34 57 35 50 32ZM50 32C42 24 32 25 26 30C34 34 43 35 50 32Z"/>`
+      + `<path d="M50 32V20" fill="none" stroke-width="4" stroke-linecap="round"/>`;
+    case "zakuro": return dot(50, 58, 26) + `<path d="M38 36L40 22L45.5 30L50 18L54.5 30L60 22L62 36Z"/>`;
+    default:   // the desk's mark: four mats round a square
+      return `<g transform="translate(20 20) scale(2)"><rect x=".6" y=".6" width="18.8" height="8.8" rx="1.2"/>`
+        + `<rect x="20.6" y=".6" width="8.8" height="18.8" rx="1.2"/><rect x="10.6" y="20.6" width="18.8" height="8.8" rx="1.2"/>`
+        + `<rect x=".6" y="10.6" width="8.8" height="18.8" rx="1.2"/></g>`;
   }
 }
 
-// A handful of petals thrown up from (x, y) in a room's colour: the desk's way of saying "done".
-function bloom(x, y, color, n = 8) {
-  if (REDUCED) return;
-  for (let i = 0; i < n; i++) {
-    const p = document.createElement("i");
-    p.className = "burst";
-    p.style.background = `linear-gradient(135deg, #fff2f8, ${color})`;
-    document.body.append(p);
-    const a = (-90 + (i / n - 0.5) * 150 + (Math.random() - 0.5) * 24) * Math.PI / 180;   // a fan, mostly upward
-    const speed = 170 + Math.random() * 150, vx = Math.cos(a) * speed, vy = Math.sin(a) * speed;
-    const spin = (Math.random() < 0.5 ? -1 : 1) * (240 + Math.random() * 360), s = 0.7 + Math.random() * 0.6;
-    const frames = [], T = 0.95 + Math.random() * 0.35;
-    for (let k = 0; k <= 12; k++) {   // thrown, then falling and slowing like a petal does
-      const t = (k / 12) * T, drag = 1 - Math.exp(-2.6 * t);
-      frames.push({
-        transform: `translate(${x + vx * drag / 2.6}px, ${y + vy * drag / 2.6 + 160 * t * t}px) rotate(${spin * t}deg) scale(${s})`,
-        opacity: k < 2 ? 1 : 1 - (k / 12) ** 2,
-      });
-    }
-    p.animate(frames, { duration: T * 1000, easing: "linear", fill: "forwards" }).onfinish = () => p.remove();
+const crests = new Map();
+function crest(room, color) {
+  const flower = KANJI[flowerOf(room)] ? flowerOf(room) : "", key = `${flower} ${color}`;
+  if (!crests.has(key)) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="${color}" stroke="${color}" stroke-width="0">`
+      + `<circle cx="50" cy="50" r="46" fill="none" stroke-width="4"/>${crestArt(flower)}</g></svg>`;
+    crests.set(key, `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
   }
+  return crests.get(key);
 }
 
 // A new room blooms once it has grown in and the page has stopped scrolling to it (the petals
@@ -924,22 +1776,25 @@ function blossom(room, n) {
     if (still < 3 || performance.now() - start < 380) return requestAnimationFrame(wait);
     if (!room.isConnected) return;
     const r = $(".stage", room).getBoundingClientRect();
-    bloom(r.left + r.width / 2, r.top + r.height * 0.4, room.style.getPropertyValue("--room"), n);
+    bloom(r.left + r.width / 2, r.top + r.height * 0.4, room.style.getPropertyValue("--room"), n, flowerOf(room.dataset.name));
   };
   requestAnimationFrame(wait);
 }
 
 // A card landing in a room: the stage gives a little under it, a ring spreads from where it
-// touched down, and petals fly up in the room's colour.
+// touched down, the air it pushes aside scatters the petals, whatever rested on the room hops
+// off, and petals of the room's flower fly up in its colour.
 function impact(card) {
   const room = card.closest(".room");
   const r = card.getBoundingClientRect();
   const x = r.left + r.width / 2, y = r.top + r.height / 2;
+  sky.puff(x, y);
   if (!room) return bloom(x, y, "#ffd6ea", 5);
   const color = room.style.getPropertyValue("--room") || "#c3a6ff";
-  bloom(x, y - r.height * 0.3, color);
+  bloom(x, y - r.height * 0.3, color, 8, flowerOf(room.dataset.name));
   if (REDUCED) return;
   const stage = $(".stage", room), fx = $(".fx", room), s = stage.getBoundingClientRect();
+  sky.jolt(stage);
   const ring = document.createElement("i");
   ring.className = "ripple";
   ring.style.left = `${x - s.left}px`;
@@ -965,7 +1820,11 @@ function render(s) {
   for (const [name] of gone) roomEls.delete(name);
   s.rooms.forEach((r, i) => {
     let el = roomEls.get(r.name);
-    if (!el) { el = newRoom(); roomEls.set(r.name, el); }
+    if (!el) {
+      el = newRoom();
+      roomEls.set(r.name, el);
+      if (!firstPaint) el.classList.add("flash");   // a room that turns up later is stamped in with its crest
+    }
     if (roomsEl.children[i] !== el) roomsEl.insertBefore(el, roomsEl.children[i] || null);
     fillRoom(el, r, hues);
   });
@@ -987,6 +1846,10 @@ function render(s) {
   $("#empty").hidden = rooms > 0 || n > 0;
   showUsage(s.usage || {});
   glide(at);
+  for (const card of cheers) requestAnimationFrame(() => cheer(card, 9));
+  for (const card of arrivals) setTimeout(() => cheer(card, 6), 420);   // once it has grown in
+  cheers.clear();
+  arrivals.clear();
   firstPaint = false;
 }
 
@@ -1035,6 +1898,7 @@ function fillRoom(el, r, hues) {
   const n = r.members.length;
   el.dataset.name = r.name;
   el.style.setProperty("--room", color);
+  el.style.setProperty("--crest", crest(r.name, color));
   el.setAttribute("aria-label", `Room ${r.name}`);
   $("h2", el).textContent = r.name;
   $(".kanji", el).textContent = KANJI[r.name.replace(/-\d+$/, "")] || "";   // sakura-2 is still 桜
@@ -1096,6 +1960,7 @@ function cardFor(a) {
   if (card) return card;
   card = tpl("#tpl-agent").cloneNode(true);
   card.dataset.id = a.id;
+  if (!firstPaint) arrivals.add(card);
   const img = $(".girl", card);
   img.addEventListener("load", () => { img.hidden = false; });
   img.addEventListener("error", () => { img.hidden = true; });
@@ -1123,6 +1988,7 @@ function fillCard(card, a) {
   $(".name", card).textContent = a.id;
   $(".folder", card).textContent = a.folder ? `${a.folder}/` : "";
   const status = STATUS[a.status];
+  if (!firstPaint && card.dataset.status === "working" && a.status === "done") cheers.add(card);   // its turn is over
   card.dataset.status = status ? a.status : "";
   $(".state", card).textContent = status || "";
   card.setAttribute("aria-label", `${a.id}, ${company} agent, folder ${a.folder || "unknown"}, `
@@ -1211,7 +2077,8 @@ async function teamUp(card, other, skip) {
   if (el) {
     el.classList.add("flash");
     el.scrollIntoView({ block: "nearest", behavior: REDUCED ? "auto" : "smooth" });
-    blossom(el, 14);   // a new team: a bigger bloom
+    blossom(el, 14);   // a new team: a bigger bloom, and a gust through the sky
+    sky.gust(150);
   }
   if (focused) card.focus();
 }
@@ -1302,6 +2169,7 @@ function lift() {
     size: { x: 0.975, v: 0 },   // from pressed, up past where it's held, and back
   });
   card.classList.add("lifted");
+  sky.jolt(card);   // whatever rested on it falls off
   document.body.classList.add("dragging");
   if (REDUCED) drag.size.x = 1.045;
   carrying(0);
@@ -1595,7 +2463,44 @@ function announce(msg) {
   $("#live").textContent = msg;
 }
 
-scatterPetals();
+// ---- the sky's button ----
+
+// Opens a small panel: tonight's moon, the season, how many fall, the branch and moon, and a gust.
+// Outside it, or Escape, closes it again.
+const skyButton = $("#sky-button"), skyPanel = $("#sky-panel");
+function skyOpen(open) {
+  if (open === !skyPanel.hidden) return;
+  skyPanel.hidden = !open;
+  skyButton.setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  const m = sky.moon(), name = document.createElement("b");
+  name.lang = "ja";
+  name.textContent = m.ja;
+  $("#sky-moon").replaceChildren(name, `${m.en}, ${m.lit}% lit tonight`);
+  for (const r of skyPanel.querySelectorAll("input[type=radio]")) r.checked = sky.prefs[r.name] === r.value;
+  $("#sky-branch-toggle").checked = sky.prefs.branch;
+  if (!REDUCED) {
+    skyPanel.animate([{ opacity: 0, transform: "translateY(-8px) scale(.96)" }, { opacity: 1, transform: "none" }],
+                     { duration: 460, easing: BOUNCE });
+  }
+}
+skyButton.addEventListener("click", () => skyOpen(skyPanel.hidden));
+document.addEventListener("pointerdown", (e) => { if (!skyPanel.hidden && !e.target.closest?.("#skyctl")) skyOpen(false); });
+$("#skyctl").addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || skyPanel.hidden) return;
+  skyOpen(false);
+  skyButton.focus();
+});
+skyPanel.addEventListener("change", (e) => {
+  const t = e.target;
+  if (t.type === "radio") sky.set({ [t.name]: t.value });
+  else if (t.id === "sky-branch-toggle") sky.set({ branch: t.checked });
+  skyButton.textContent = sky.glyph();
+});
+$("#sky-gust").addEventListener("click", () => sky.gust(220));
+
+sky.start();
+skyButton.textContent = sky.glyph();
 if (TOKEN.startsWith("__")) {
   setStatus("denied");
   toast("Open the desk with the tatami launcher, not as a file.");
