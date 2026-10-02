@@ -542,7 +542,31 @@ body.stale main { opacity: .5; filter: saturate(.4); }
 .badge[hidden] { display: none; }
 .agent[data-status="done"] .badge { box-shadow: 0 0 0 3px rgba(255, 133, 192, .3), 0 0 18px rgba(255, 133, 192, .7); }
 .label { left: 16px; right: 16px; bottom: 13px; display: grid; gap: 1px; }
-.name { font: 650 1.06rem/1.2 var(--display); letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 8px rgba(0, 0, 0, .5); }
+/* Its name is its window's colour, written in that colour; above it, in small capitals, the kind
+   of agent it is, with its maker's mark. */
+.maker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 1px;
+  color: rgba(247, 233, 242, .62);
+  font: 650 .62rem/1.2 var(--ui);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.maker:has(.maker-name:empty) { display: none; }
+.mark { flex: none; width: 11px; height: 11px; color: var(--maker, var(--hue)); filter: drop-shadow(0 0 4px color-mix(in srgb, var(--maker, var(--hue)) 55%, transparent)); }
+.mark path { fill: currentColor; }
+.mark.line path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.name {
+  font: 680 1.3rem/1.15 var(--display);
+  letter-spacing: -.01em;
+  color: color-mix(in oklab, var(--hue) 72%, white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, .55);
+}
 .folder { color: rgba(247, 233, 242, .7); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .jump {   /* a click brings up the agent's own window */
   right: 12px;
@@ -765,7 +789,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
       <img class="girl" alt="" draggable="false" hidden>
       <span class="chips"><span class="chip state"></span><span class="chip kind"></span></span>
       <span class="badge" hidden></span>
-      <span class="label"><strong class="name"></strong><span class="folder"></span></span>
+      <span class="label"><span class="maker"><svg class="mark" viewBox="-12 -12 24 24" aria-hidden="true"><path></path></svg><span class="maker-name"></span></span><strong class="name"></strong><span class="folder"></span></span>
       <span class="jump" aria-hidden="true">Open</span>
     </div>
   </div>
@@ -787,7 +811,18 @@ APP?.onPanel?.((width) => {   // the desk makes room for the terminal panel, and
   sky.resize();   // and the moon and branch move over with it
 });
 if (APP) document.getElementById("new-claude").title = "Start Claude in a terminal beside the desk";
-const COMPANIES = { claude: "Claude", gemini: "Gemini", codex: "Codex" };
+// Who made each kind of agent: its name on the card, and a small mark in its colour.
+const MAKERS = {
+  claude: { name: "Claude", color: "#e08a6d", line: true, d: "M0 0L0.0 -10.5M0 0L4.7 -6.5M0 0L10.0 -3.2M0 0L7.6 2.5M0 0L6.2 8.5M0 0L0.0 8.0M0 0L-6.2 8.5M0 0L-7.6 2.5M0 0L-10.0 -3.2M0 0L-4.7 -6.5" },
+  gemini: { name: "Gemini", color: "#9db8ff", d: "M0-11C1-3 3-1 11 0C3 1 1 3 0 11C-1 3-3 1-11 0C-3-1-1-3 0-11Z" },
+  codex: { name: "Codex", color: "#e9e4ee", line: true, d: "M-8-6L-2 0L-8 6M1 7H9" },
+};
+const OTHER_MARK = { d: "M0-5A5 5 0 1 1 0 5A5 5 0 1 1 0-5Z" };
+// An agent's name on the desk: its window's colour ("dusk" → "Dusk", "dusk-2" → "Dusk 2").
+// Agents started before names lost their maker ("claude-dusk") read the same way.
+const MAKER_PREFIX = new RegExp(`^(${Object.keys(MAKERS).join("|")})-(?=.)`);
+const nameOf = (id) => id === "user" ? "you"
+  : String(id).replace(MAKER_PREFIX, "").split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 const STATUS = { working: "Working", done: "Your turn", asking: "Needs your OK" };   // from the hooks
 // Rooms the board names after flowers, as an inn would write them.
 const KANJI = { sakura: "桜", momo: "桃", nadeshiko: "撫子", ajisai: "紫陽花", asagao: "朝顔", kikyo: "桔梗",
@@ -1987,8 +2022,8 @@ function line(m) {
   li.dataset.from = m.from;
   li.dataset.key = `${m.ts}|${m.from}`;
   li.classList.toggle("is-open", opened.has(li.dataset.key));
-  $("b", li).textContent = m.from === "user" ? "you" : m.from;  // typed in a window's /room pane
-  $(".to", li).textContent = m.to ? `to ${m.to}` : "";
+  $("b", li).textContent = nameOf(m.from);  // "user": typed in a window's /room pane
+  $(".to", li).textContent = m.to ? `to ${nameOf(m.to)}` : "";
   $("time", li).textContent = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   $("time", li).dateTime = when.toISOString();
   $(".text", li).textContent = m.text;
@@ -2017,7 +2052,9 @@ function cardFor(a) {
 
 function fillCard(card, a) {
   const tint = HEX.test(a.tint) ? a.tint : "#2a2233";
-  const company = COMPANIES[a.agent] || a.agent;
+  const maker = MAKERS[a.agent];
+  const company = maker?.name || a.agent;
+  const name = nameOf(a.id);
   card.dataset.room = a.room || "";
   card.style.setProperty("--tint", tint);
   card.style.setProperty("--hue", lightHue(tint));
@@ -2028,19 +2065,24 @@ function fillCard(card, a) {
   const letters = unread === 1 ? "1 room message it hasn't read" : `${unread} room messages it hasn't read`;
   card.title = "Click to bring up its window, drag to move it"
     + (unread ? `\n${letters}` + (a.status === "done" ? ": it reads them when you next talk to it" : "") : "");
-  // Which kind of agent, when it isn't plain Claude in a Terminal window, and whose helper it is.
-  const kind = a.session ? (a.agent === "claude" ? "In the app" : `${company} in the app`)
-    : a.agent === "claude" ? "" : company;
-  $(".kind", card).textContent = a.helper_of ? `Helper of ${a.helper_of}` : kind;
-  $(".name", card).textContent = a.id;
+  // Where it runs, when that's inside the app, and whose helper it is. What kind of agent it is
+  // sits above its name.
+  $(".kind", card).textContent = a.helper_of ? `Helper of ${nameOf(a.helper_of)}` : a.session ? "In the app" : "";
+  $(".maker-name", card).textContent = company;
+  const mark = $(".mark", card);
+  mark.classList.toggle("line", !!maker?.line);
+  $("path", mark).setAttribute("d", (maker || OTHER_MARK).d);
+  if (maker) card.style.setProperty("--maker", maker.color); else card.style.removeProperty("--maker");
+  $(".name", card).textContent = name;
+  card.dataset.name = name;
   $(".folder", card).textContent = a.folder ? `${a.folder}/` : "";
   const status = STATUS[a.status];
   if (!firstPaint && card.dataset.status === "working" && a.status === "done") cheers.add(card);   // its turn is over
   card.dataset.status = status ? a.status : "";
   $(".state", card).textContent = status || "";
-  card.setAttribute("aria-label", `${a.id}, ${company} agent, folder ${a.folder || "unknown"}, `
+  card.setAttribute("aria-label", `${name}, ${company} agent, folder ${a.folder || "unknown"}, `
                                   + (a.room ? `in room ${a.room}` : "on its own") + (status ? `, ${status}` : "")
-                                  + (a.helper_of ? `, helper of ${a.helper_of}` : "") + (unread ? `, ${letters}` : ""));
+                                  + (a.helper_of ? `, helper of ${nameOf(a.helper_of)}` : "") + (unread ? `, ${letters}` : ""));
   const img = $(".girl", card);
   const src = a.girl ? `/girl/${encodeURIComponent(a.id)}?token=${encodeURIComponent(TOKEN)}` : "";
   if (img.dataset.src !== src) {
@@ -2100,7 +2142,7 @@ function goAlone(card, skip) {
   putAmong(lobbyCards, card);
   glide(at, skip);
   card.dataset.room = "";
-  announce(`${card.dataset.id} is on its own now.`);
+  announce(`${card.dataset.name} is on its own now.`);
   change("/api/move", { agent: card.dataset.id, room: null });
 }
 
@@ -2119,7 +2161,7 @@ async function teamUp(card, other, skip) {
   const s = await change("/api/team", { agent: card.dataset.id, with: other.dataset.id });
   const room = s?.rooms.find((r) => r.members.some((a) => a.id === card.dataset.id));
   if (!room) return;
-  announce(`${card.dataset.id} and ${other.dataset.id} are a team now, in ${room.name}.`);
+  announce(`${card.dataset.name} and ${other.dataset.name} are a team now, in ${room.name}.`);
   const el = roomEls.get(room.name);
   if (el) {
     el.classList.add("flash");
@@ -2365,7 +2407,7 @@ function pickUp(card) {
   carry = { card, spots, i: Math.max(0, spots.indexOf(home)) };
   card.classList.add("carried");
   aim(spots[carry.i], card);
-  announce(`Picked up ${card.dataset.id}. Arrow keys choose where it goes, Space puts it down, Escape cancels.`);
+  announce(`Picked up ${card.dataset.name}. Arrow keys choose where it goes, Space puts it down, Escape cancels.`);
 }
 
 function step(d) {
@@ -2374,7 +2416,7 @@ function step(d) {
   aim(t, carry.card);
   t.scrollIntoView({ block: "nearest", behavior: REDUCED ? "auto" : "smooth" });
   announce(t.classList.contains("room") ? `Room ${t.dataset.name}`
-    : t.classList.contains("agent") ? `Make a team with ${t.dataset.id}` : "On its own");
+    : t.classList.contains("agent") ? `Make a team with ${t.dataset.name}` : "On its own");
 }
 
 function putDown() {
@@ -2422,7 +2464,7 @@ function go(link) {
 }
 
 async function jump(card) {
-  announce(`Bringing up ${card.dataset.id}'s window.`);
+  announce(`Bringing up ${card.dataset.name}'s window.`);
   if (!REDUCED) $(".face", card).animate([{ scale: "1" }, { scale: ".965" }, { scale: "1" }], { duration: 320, easing: BOUNCE });
   if (!APP) return go(`tatami-room:focus/${encodeURIComponent(card.dataset.id)}`);
   if (await APP.focus(card.dataset.id) === 2) toast("This agent has no window of its own to bring up.");

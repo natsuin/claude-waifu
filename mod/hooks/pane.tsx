@@ -1,6 +1,6 @@
 // The /room pane: the window's team (who's working, who needs you, how far each has read) and
 // the room's messages, with a line at the bottom to post to the room as yourself. `/room hello`
-// posts without opening it; "@claude-sky hello" sends a message to one agent.
+// posts without opening it; "@dusk hello" sends a message to one agent.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 

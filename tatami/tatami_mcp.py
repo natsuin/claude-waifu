@@ -312,8 +312,10 @@ class Agent:
         self.cwd = os.getcwd()
         self.slot = waifu_slot()
         self.color, self.girl = waifu_look(self.slot)
-        suffix = self.color or uuid.uuid4().hex[:4]
-        base = safe_name(os.environ.get("TATAMI_ID") or f"{self.kind}-{suffix}")
+        # Named after its window's colour ("dusk"); which kind of agent it is lives in "agent".
+        # Without a colour, a few random letters need the kind to read as a name ("claude-3fa2").
+        name = self.color or f"{self.kind}-{uuid.uuid4().hex[:4]}"
+        base = safe_name(os.environ.get("TATAMI_ID") or name)
         base = f"{base}-agent" if base == USER else base
         self.pid = os.getppid()  # the agent process that started us; gone means the agent closed
         self.started = proc_start(self.pid)
