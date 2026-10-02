@@ -13,6 +13,8 @@ script is one of its parents, and that's the pid the agent's channel recorded.
                               starts waiting for your OK
   tatami mod post TEXT        post TEXT to the window's room as the user ("@id text" sends it
                               to one agent)
+  tatami mod on | off         load the mod in every Claude window you open from now on (one
+                              marked line in ~/.bashrc that points Claude Code at ../mod), or not
 """
 import json
 import math
@@ -189,6 +191,33 @@ def event(play_chime):
     return out
 
 
+BASHRC = os.path.expanduser("~/.bashrc")
+MARK = "# tatami-mod"
+
+
+def switch(on):
+    """Add the line that loads the mod in every new Claude session (or take it out)."""
+    folder = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "mod")
+    try:
+        with open(BASHRC, encoding="utf-8") as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        lines = []
+    kept = [line for line in lines if not line.rstrip().endswith(MARK)]
+    if on:
+        if kept and not kept[-1].endswith("\n"):
+            kept[-1] += "\n"
+        # Only once, however many times the file is read: Claude Code would load it twice.
+        kept.append(f'case ":${{CLAUDE_CODE_PLUGIN_DIRS:-}}:" in *":{folder}:"*) ;; *) export CLAUDE_CODE_PLUGIN_DIRS='
+                    f'"${{CLAUDE_CODE_PLUGIN_DIRS:+$CLAUDE_CODE_PLUGIN_DIRS:}}{folder}" ;; esac  {MARK}\n')
+    if kept != lines:
+        with open(BASHRC + ".tmp", "w", encoding="utf-8") as f:
+            f.writelines(kept)
+        os.replace(BASHRC + ".tmp", BASHRC)
+    print("The Tatami Room mod loads in every Claude window you open from now on (open ones keep "
+          "what they have)." if on else "The Tatami Room mod is off for new Claude windows.")
+
+
 def main():
     args = sys.argv[1:]
     cmd = args[0] if args else ""
@@ -204,6 +233,8 @@ def main():
         post(" ".join(args[1:]))
     elif cmd == "chime":
         chime()
+    elif cmd in ("on", "off"):
+        switch(cmd == "on")
     else:
         print(__doc__)
 

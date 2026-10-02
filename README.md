@@ -25,6 +25,7 @@ One agent in one terminal is easy. Five agents in five terminals is a mess: whic
 - **Helpers.** Ask an agent to get help and it can bring a helper into its room: a new Claude window, with its own girl and color, that starts in the same folder with the piece of work it was handed and reports back in the room. Unlike a hidden subagent, you see the helper on the desk (marked *helper of* its agent) and can talk to it. Each agent can have two at a time, and helpers can't bring in more.
 - **Matching tab colors.** Windows on the same team get the same tab color, the one the desk shows for their room. No two teams share a color.
 - **Who needs you** (optional). Turn it on with `tatami hooks on` and each card says *working*, *your turn* or *needs your OK*. A card waiting on a permission prompt pulses pink, and the desk's title counts them. The hooks also tell a busy agent when room messages arrive, so it doesn't miss its team while it works.
+- **Tatami Room inside Claude** (optional). Turn it on with `tatami mod on` and every Claude window you open carries a bit of the desk: its name tag on the status line ("claude-teal · Firefly · ajisai"), a line above the prompt when room messages are waiting, and `/room`, a pane with the team, what each one is doing, how far each has read, and a line to post as yourself (`/room hello` posts straight away, `@claude-sky` sends to one agent). It also does what `tatami hooks on` does without touching Claude Code's settings, plays a soft chime when the window needs your OK, and can wake an idle agent when a teammate messages it (off by default; at most 3 times in 30 minutes). Both switches are in `/config`.
 - **Unread badges.** A badge on an agent's card counts the room messages it hasn't read. An agent waiting for you can't read anything until you talk to it, so with the hooks on its badge glows pink.
 - **Your usage.** The desk's header shows your 5-hour and weekly Claude usage, with reset times.
 - **Windows you can tell apart.** Every Claude window gets a background color no other open window has, and, as a design touch, an anime girl drawn behind the text as faint dots. See [Window looks](LOOKS.md).
@@ -68,6 +69,7 @@ To update later, run `git pull` in the folder. Everything is linked, not copied,
 | --- | --- |
 | `tatami` | Open the desk, or bring it to the front |
 | `tatami hooks on` | Show which agents are working, done, or waiting for your OK, get a notification when one needs your OK, and let busy agents hear about room messages (`tatami hooks off` removes it) |
+| `tatami mod on` | Bring the room into every Claude window you open: name tag, room mail above the prompt, `/room`, who-needs-you, a chime (`tatami mod off` removes it) |
 | `tatami autostart off` | Don't open the desk with your first Claude window (`tatami autostart on` brings it back) |
 | `tatami stop` | Stop the desk's server; your agents keep running and don't need it |
 
@@ -83,6 +85,7 @@ From inside Claude Code, put `!` in front of a command, like `! tatami hooks on`
 - **The desk's buttons** open a new Claude window or bring an agent's window to the front. In the app, the app does that. In a browser they're `tatami-room:` links, which Windows hands to a small script that does exactly those two things and ignores anything else (the first time, your browser asks before opening Windows Script Host: tick **Always allow** and choose **Open**). To find an agent's window, it asks from inside that agent's own WSL session: the session's console belongs to the window the agent lives in, so this works for every window, however it was opened.
 - **Tab colors** are set by each agent's own channel, on its own window only.
 - **Who needs you** comes from Claude Code hooks: small commands Claude Code runs when you send a prompt, when it uses a tool, when it finishes, and when it's waiting for your OK. They note each agent's state in a file for the desk. The only thing they ever tell Claude is that room messages arrived: once per message, as a short note, and, if a message was addressed to it, a request to read the room before it finishes its turn (never twice in a row).
+- **The mod** (`mod/`) is a Claude Code mod: a plugin of TypeScript hooks that Claude Code runs inside itself. `tatami mod on` adds one line to `~/.bashrc` that points `CLAUDE_CODE_PLUGIN_DIRS` at it. Every few seconds it runs `tatami mod poll`, which finds its window's agent through the process tree and reads the same files the desk does; it never talks to the desk or the network. `mod/tests` runs with `claude plugin test mod`.
 - **WSL shuts itself down** soon after its last terminal closes, and the desk's server with it. So while the desk is open (the app, or a desk window in your browser), it quietly holds WSL up, and it lets go a few minutes after you close it.
 
 ## Extras for Claude Code
@@ -109,6 +112,7 @@ Copy it to `~/.claude/statusline.py` and add this to `~/.claude/settings.json`:
 
 ```bash
 tatami hooks off     # only if you turned them on
+tatami mod off       # only if you turned it on
 waifu uninstall
 claude mcp remove tatami --scope user
 ```
