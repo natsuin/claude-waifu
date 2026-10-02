@@ -542,19 +542,23 @@ body.stale main { opacity: .5; filter: saturate(.4); }
 .badge[hidden] { display: none; }
 .agent[data-status="done"] .badge { box-shadow: 0 0 0 3px rgba(255, 133, 192, .3), 0 0 18px rgba(255, 133, 192, .7); }
 .label { left: 16px; right: 16px; bottom: 13px; display: grid; gap: 1px; }
-/* Its name is its window's colour, written in that colour; above it, in small capitals, the kind
-   of agent it is, with its maker's mark. */
+/* Its name is its window's colour, written in that colour. Above it, in small capitals, the kind
+   of agent it is, with its maker's mark and the model it runs on; below it, in a few words, what
+   it's working on. */
 .maker {
   display: flex;
   align-items: center;
   gap: 5px;
   margin-bottom: 1px;
-  color: rgba(247, 233, 242, .62);
-  font: 650 .62rem/1.2 var(--ui);
+  color: rgba(247, 233, 242, .66);
+  font: 650 .64rem/1.2 var(--ui);
   letter-spacing: .14em;
   text-transform: uppercase;
 }
 .maker:has(.maker-name:empty) { display: none; }
+.model { color: rgba(247, 233, 242, .95); white-space: nowrap; }
+.model::before { content: "·"; margin-right: 5px; color: rgba(247, 233, 242, .45); }
+.model:empty { display: none; }
 .mark { flex: none; width: 11px; height: 11px; color: var(--maker, var(--hue)); filter: drop-shadow(0 0 4px color-mix(in srgb, var(--maker, var(--hue)) 55%, transparent)); }
 .mark path { fill: currentColor; }
 .mark.line path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
@@ -567,6 +571,8 @@ body.stale main { opacity: .5; filter: saturate(.4); }
   text-overflow: ellipsis;
   text-shadow: 0 1px 10px rgba(0, 0, 0, .55);
 }
+.summary { margin-top: 1px; color: rgba(247, 233, 242, .9); font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 6px rgba(0, 0, 0, .5); }
+.summary:empty { display: none; }
 .folder { color: rgba(247, 233, 242, .7); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .jump {   /* a click brings up the agent's own window */
   right: 12px;
@@ -789,7 +795,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
       <img class="girl" alt="" draggable="false" hidden>
       <span class="chips"><span class="chip state"></span><span class="chip kind"></span></span>
       <span class="badge" hidden></span>
-      <span class="label"><span class="maker"><svg class="mark" viewBox="-12 -12 24 24" aria-hidden="true"><path></path></svg><span class="maker-name"></span></span><strong class="name"></strong><span class="folder"></span></span>
+      <span class="label"><span class="maker"><svg class="mark" viewBox="-12 -12 24 24" aria-hidden="true"><path></path></svg><span class="maker-name"></span><span class="model"></span></span><strong class="name"></strong><span class="summary"></span><span class="folder"></span></span>
       <span class="jump" aria-hidden="true">Open</span>
     </div>
   </div>
@@ -2063,12 +2069,14 @@ function fillCard(card, a) {
   badge.hidden = !unread;
   badge.textContent = unread > 99 ? "99+" : String(unread);
   const letters = unread === 1 ? "1 room message it hasn't read" : `${unread} room messages it hasn't read`;
-  card.title = "Click to bring up its window, drag to move it"
+  card.title = (a.summary ? `${a.summary}\n` : "") + "Click to bring up its window, drag to move it"
     + (unread ? `\n${letters}` + (a.status === "done" ? ": it reads them when you next talk to it" : "") : "");
   // Where it runs, when that's inside the app, and whose helper it is. What kind of agent it is
   // sits above its name.
   $(".kind", card).textContent = a.helper_of ? `Helper of ${nameOf(a.helper_of)}` : a.session ? "In the app" : "";
   $(".maker-name", card).textContent = company;
+  $(".model", card).textContent = a.model || "";   // the model that answered last, "Opus 5.5"
+  $(".summary", card).textContent = a.summary || "";   // its session's title, a few words
   const mark = $(".mark", card);
   mark.classList.toggle("line", !!maker?.line);
   $("path", mark).setAttribute("d", (maker || OTHER_MARK).d);
@@ -2080,7 +2088,8 @@ function fillCard(card, a) {
   if (!firstPaint && card.dataset.status === "working" && a.status === "done") cheers.add(card);   // its turn is over
   card.dataset.status = status ? a.status : "";
   $(".state", card).textContent = status || "";
-  card.setAttribute("aria-label", `${name}, ${company} agent, folder ${a.folder || "unknown"}, `
+  card.setAttribute("aria-label", `${name}, ${company}${a.model ? ` ${a.model}` : ""} agent, `
+                                  + (a.summary ? `working on ${a.summary}, ` : "") + `folder ${a.folder || "unknown"}, `
                                   + (a.room ? `in room ${a.room}` : "on its own") + (status ? `, ${status}` : "")
                                   + (a.helper_of ? `, helper of ${nameOf(a.helper_of)}` : "") + (unread ? `, ${letters}` : ""));
   const img = $(".girl", card);

@@ -15,8 +15,10 @@ import hmac
 import json
 import os
 import re
+import glob
 import secrets
 import sys
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -27,6 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TOKEN_FILE = os.path.join(channel.HOME, "board.token")
 SEEN_FILE = os.path.join(channel.HOME, "board.seen")  # touched while a desk window is open (tatami hold)
 WAIFU_CONFIG = os.path.expanduser("~/.config/waifu/config.json")
+CLAUDE_DIR = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
 TINTS = {"cherry": "#4c112c", "rouge": "#491a1f", "wine": "#340417", "plum": "#360d30",
          "mauve": "#4d303e", "orchid": "#42194d", "grape": "#2a1748", "iris": "#161141",
          "indigo": "#051032", "dusk": "#0f2e4d", "haze": "#313955", "matcha": "#15361b"}
@@ -49,6 +52,69 @@ def token():
             f.write(secrets.token_hex(24))
     with open(TOKEN_FILE) as f:
         return f.read().strip()
+
+
+def model_name(model):
+    """'claude-opus-5-5' -> 'Opus 5.5', 'claude-haiku-4-5-20251001' -> 'Haiku 4.5'."""
+    model = model.split("[")[0]  # 'claude-opus-5-5[1m]'
+    m = re.fullmatch(r"claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?", model)
+    if m:
+        family, major, minor = m.groups()
+    else:
+        m = re.fullmatch(r"claude-(\d+)(?:-(\d{1,2}))?-([a-z]+)(?:-\d{8})?", model)  # 'claude-3-5-sonnet-20241022'
+        if not m:
+            return model.removeprefix("claude-")[:24]
+        major, minor, family = m.groups()
+    return f"{family.title()} {major}" + (f".{minor}" if minor else "")
+
+
+# What's been read of each Claude transcript so far, so each poll reads only what was added.
+TRANSCRIPTS = {}
+reading = threading.Lock()
+
+
+def session_of(rec):
+    """What Claude Code says about a Claude agent's session: the model that answered last
+    ('Opus 5.5') and the session's title, a few words on what it's for (the one /rename gave
+    it, else the one Claude Code wrote after its first prompt). Claude Code keeps a file per
+    running Claude process saying which session it's in; the transcript says the rest."""
+    started = rec.get("started")
+    s = channel.load(os.path.join(CLAUDE_DIR, "sessions", f"{rec.get('pid')}.json"), {})
+    sid = str(s.get("sessionId", ""))
+    if not re.fullmatch(r"[0-9a-f-]{36}", sid) or (started is not None and str(s.get("procStart")) != str(started)):
+        return None, None  # no session file, or one left by an earlier process with this pid
+    with reading:
+        seen = next((t for t in TRANSCRIPTS.values() if t["sid"] == sid), None)
+        if not seen:
+            path = next(iter(glob.glob(os.path.join(CLAUDE_DIR, "projects", "*", sid + ".jsonl"))), None)
+            if not path:
+                return None, None
+            seen = TRANSCRIPTS[path] = {"sid": sid, "path": path, "at": 0, "model": None, "title": None, "named": None}
+        try:
+            with open(seen["path"], "rb") as f:
+                f.seek(seen["at"])
+                added = f.read()
+        except OSError:
+            return None, None
+        whole = added[:added.rfind(b"\n") + 1]  # a line still being written waits for the next poll
+        seen["at"] += len(whole)
+        for line in whole.splitlines():
+            if b'"assistant"' not in line and b'"ai-title"' not in line and b'"custom-title"' not in line:
+                continue
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            kind = d.get("type")
+            if kind == "assistant" and not d.get("isSidechain"):
+                model = (d.get("message") or {}).get("model")
+                if isinstance(model, str) and model.startswith("claude"):  # not '<synthetic>'
+                    seen["model"] = model_name(model)
+            elif kind == "ai-title" and isinstance(d.get("aiTitle"), str):
+                seen["title"] = d["aiTitle"]
+            elif kind == "custom-title" and isinstance(d.get("customTitle"), str):
+                seen["named"] = d["customTitle"]
+        return seen["model"], clip(seen["named"] or seen["title"] or "", 60) or None
 
 
 def girls_hidden():
@@ -79,6 +145,7 @@ def agents():
              "hwnd": rec["hwnd"] if isinstance(rec.get("hwnd"), int) else None,
              # set when the agent runs in a terminal inside the Tatami Room app
              "session": rec["session"] if re.fullmatch(r"[a-z0-9-]{1,40}", str(rec.get("session"))) else None}
+            | dict(zip(("model", "summary"), session_of(rec) if rec.get("agent", "claude") == "claude" else (None, None)))
             for rec in channel.live_agents()]
 
 
