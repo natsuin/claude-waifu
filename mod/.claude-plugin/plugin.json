@@ -1,0 +1,20 @@
+{
+  "name": "tatami",
+  "version": "0.1.0",
+  "description": "Tatami Room inside Claude Code: room mail above the prompt, desk status, a name tag and a /room pane",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "wake": {
+      "type": "boolean",
+      "title": "Wake on room mail",
+      "description": "When this window's agent is idle and a teammate sends it a room message, start a turn so it answers (uses your plan; at most 3 wake-ups in 30 minutes)",
+      "default": false
+    },
+    "chime": {
+      "type": "boolean",
+      "title": "Chime when Claude needs your OK",
+      "description": "Play a soft two-note chime on Windows when this window starts waiting for a permission answer",
+      "default": true
+    }
+  }
+}

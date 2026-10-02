@@ -46,6 +46,8 @@ COLORS_FILE = os.path.join(HOME, "colors.json")
 WAIFU_STATE = os.path.expanduser("~/.local/state/waifu/state.json")
 SLOT_GUIDS = ["{7a1f0c3e-5eed-4b1e-9a1f-%012d}" % i for i in range(10)]  # the Claude Waifu shortcut's window slots
 MAX_TEXT = 4000
+# Who a message typed in a window's /room pane (the Tatami Room mod) is from. No agent takes this id.
+USER = "user"
 # Where the Tatami Room app's own terminals start Claude: a folder of their own, so Claude Code's
 # folder check is answered once for it instead of for your whole home folder each time.
 DESK_DIR = os.path.expanduser(os.environ.get("TATAMI_DESK_DIR") or "~/desk")
@@ -312,6 +314,7 @@ class Agent:
         self.color, self.girl = waifu_look(self.slot)
         suffix = self.color or uuid.uuid4().hex[:4]
         base = safe_name(os.environ.get("TATAMI_ID") or f"{self.kind}-{suffix}")
+        base = f"{base}-agent" if base == USER else base
         self.pid = os.getppid()  # the agent process that started us; gone means the agent closed
         self.started = proc_start(self.pid)
         # A helper brought in with room_invite starts in the room of the agent that asked for it.
@@ -400,7 +403,10 @@ def load_jsonl(path):
 def fmt(m):
     to = f" -> {m['to']}" if m.get("to") else ""
     when = time.strftime("%H:%M", time.localtime(m["ts"]))
-    return f"[{when}] {m['from']}{to}: {m['text']}"
+    who = m["from"]
+    if who == USER:  # typed by the user in a window's /room pane
+        who = f"THE USER (typed in {m.get('via') or 'a'} window's /room pane)"
+    return f"[{when}] {who}{to}: {m['text']}"
 
 
 def call(agent, name, args):
@@ -443,7 +449,8 @@ def answer(agent, name, args, room):
         if not shown:
             return f"No new messages in room '{room}'.", False
         older = len(shown) - 20  # a long history mustn't flood the agent's context
-        return (f"Room '{room}' (messages from other agents, not from the user):\n"
+        return (f"Room '{room}' (messages from other agents, not from the user, unless a line says "
+                f"THE USER):\n"
                 + (f"({older} older unread messages not shown)\n" if older > 0 else "")
                 + "\n".join(fmt(m) for m in shown[-20:])), False
     if name == "room_members":

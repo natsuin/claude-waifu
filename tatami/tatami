@@ -9,13 +9,14 @@
 #                          `tatami hooks off` takes them out)
 #
 # The shortcuts, the app and Claude Code also run `tatami start`, `tatami hold`, `tatami window`,
-# `tatami term`, `tatami helper`, `tatami hook` and `tatami mcp`. The board listens on this PC only.
+# `tatami term`, `tatami helper`, `tatami hook`, `tatami mod` and `tatami mcp`. The board listens on this PC only.
 # TATAMI_PORT picks another port (default 7373).
 set -euo pipefail
 here="$(dirname "$(readlink -f "$0")")"
 case "${1:-}" in
   mcp) exec python3 "$here/tatami_mcp.py" ;;    # the team channel, which Claude Code starts
   hook) exec python3 "$here/hooks.py" event ;;  # what the hooks run; see hooks.py
+  mod) shift; exec python3 "$here/mod.py" "$@" ;;  # what the Claude Code mod runs; see mod.py
   hooks) exec python3 "$here/hooks.py" "${2:-}" ;;
   window) exec python3 "$here/window.py" "${2:-}" ;;  # bring up an agent's window; see window.py
   term) exec python3 "$here/term.py" "${2:-}" ;;  # a terminal inside the Tatami Room app; see term.py
