@@ -56,7 +56,7 @@ The installer:
 4. Puts two shortcuts on your desktop and in the Start menu: **Tatami Room** (the desk) and **Claude Waifu** (a new Claude window). Right-click either one and choose **Pin to taskbar** to keep it handy.
 5. Installs the Tatami Room app. It downloads Electron's runtime once, a release at least a week old, and checks it against the checksum Electron published.
 
-To update later, run `git pull` in the folder. Everything is linked, not copied, so there's nothing else to do. Installer options are in [Window looks](LOOKS.md).
+To update later, run `git pull` in the folder. Everything is linked, not copied, so there's nothing else to do: an open desk loads its new page by itself, and **F5** in the app loads it again by hand without touching its terminals. Installer options are in [Window looks](LOOKS.md).
 
 ## Everyday use
 

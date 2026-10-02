@@ -149,6 +149,14 @@ def agents():
             for rec in channel.live_agents()]
 
 
+def page_version():
+    """Which board.html is on disk. An open desk loads the page again when this changes."""
+    try:
+        return str(os.stat(os.path.join(HERE, "board.html")).st_mtime_ns)
+    except OSError:
+        return None
+
+
 def state():
     people = agents()
     colors = channel.room_colors(channel.live_rooms(people))  # oldest room first, so rooms stay put
@@ -159,7 +167,8 @@ def state():
                       "members": [a for a in people if a["room"] == name],
                       "recent": [{"from": m["from"], "to": m.get("to"), "text": clip(m["text"]),
                                   "ts": m["ts"]} for m in msgs]})
-    return {"rooms": rooms, "alone": [a for a in people if not a["room"]], "now": time.time(), "usage": usage()}
+    return {"rooms": rooms, "alone": [a for a in people if not a["room"]], "now": time.time(), "usage": usage(),
+            "page": page_version()}
 
 
 def usage():
@@ -293,9 +302,10 @@ class Board(BaseHTTPRequestHandler):
             return self.send(403, {"error": "forbidden"})
         path = urlparse(self.path).path
         if path == "/":
-            nonce = secrets.token_urlsafe(16)
+            nonce, version = secrets.token_urlsafe(16), page_version() or ""
             with open(os.path.join(HERE, "board.html"), encoding="utf-8") as f:
-                page = f.read().replace("__TOKEN__", self.server.token).replace("__NONCE__", nonce)
+                page = f.read().replace("__TOKEN__", self.server.token).replace("__NONCE__", nonce) \
+                    .replace("__PAGE__", version)
             return self.send(200, page.encode(), "text/html; charset=utf-8", nonce)
         if path == "/api/state":
             looked_at()

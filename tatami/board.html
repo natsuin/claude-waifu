@@ -913,6 +913,20 @@ async function change(path, body) {
 function show(s) {
   state = s;
   if (!held) render(s);
+  freshen(s);
+}
+
+// When the desk's own page changes on disk (an update, or an agent working on it), it loads the
+// new one by itself, once you're not carrying a card or typing.
+const PAGE = "__PAGE__";
+let reloading = false;
+function freshen(s) {
+  if (reloading || !s.page || s.page === PAGE) return;
+  reloading = true;
+  const busy = () => held || drag || document.querySelector(".agent.carried, .agent.lifted, .agent.landing")
+    || document.activeElement?.matches("input, textarea, [contenteditable]");
+  const go = () => busy() ? setTimeout(go, 1500) : location.reload();
+  go();
 }
 
 function release(moved) {

@@ -244,6 +244,13 @@ function toggleKey(event, input) {
   else if (lastShown && sessions.has(lastShown)) showSession(lastShown);
 }
 
+// F5 or Ctrl+R on the desk loads it again. The terminals beside it, and Claude in them, carry on.
+function reloadKey(event, input) {
+  if (input.type !== "keyDown" || !(input.key === "F5" || (input.control && input.key.toLowerCase() === "r"))) return;
+  event.preventDefault();
+  win.webContents.reload();
+}
+
 function fromPanel(event) {
   return panel && event.sender === panel.webContents;
 }
@@ -331,6 +338,8 @@ function createWindow(background) {
     try { if (new URL(to).origin !== board.origin) e.preventDefault(); } catch { e.preventDefault(); }
   });
   win.webContents.on("before-input-event", toggleKey);
+  win.webContents.on("before-input-event", reloadKey);
+  win.webContents.on("did-finish-load", () => layout());   // a reloaded desk hears where the panel is
   win.loadURL(board.href);
   // Show it once the desk has painted. On a first start Chromium sets up its caches and that
   // signal can go missing, so the page finishing, or a few seconds, will do as well.
