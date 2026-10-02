@@ -24,6 +24,11 @@ test('room mail shows above the prompt until the agent reads it', async ($, on) 
     return { value: { exitCode: 0, stdout: JSON.stringify(snap), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('session.start', async (_$, e) => ({ cwd: e.cwd }))
+  const tags: (string | undefined)[] = []
+  on('ui.status', async (_$, e) => {
+    tags.push(e.text)
+    return { value: undefined }
+  })
   on('ui.render', async ($r, e) => { // stands for the engine's own band
     const { Text } = $r.ui.resolve(e)
     return h(Text, {}, 'engine') as RenderElement
@@ -31,6 +36,7 @@ test('room mail shows above the prompt until the agent reads it', async ($, on) 
   await $.session.start({ cwd: '/home/test', surface: 'terminal', isInteractive: true })
   await clock.advance(0)
   expect(runs[0]).toEqual(['/home/test/.local/bin/tatami', 'mod', 'poll'])
+  expect(tags).toEqual(['claude-grape · Yixuan · sakura']) // the name tag, set once
 
   const ui = await $.ui.mount(BAND)
   expect(await ui.find({ type: 'Text', text: /2 unread/ })).toBeDefined()
@@ -44,4 +50,5 @@ test('room mail shows above the prompt until the agent reads it', async ($, on) 
   expect(await quiet.find({ type: 'Text', text: /unread/ })).toBeUndefined()
   expect(await quiet.find({ type: 'Text', text: 'engine' })).toBeDefined()
   await quiet.unmount()
+  expect(tags).toEqual(['claude-grape · Yixuan · sakura']) // unchanged: not set again
 })

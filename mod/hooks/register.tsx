@@ -16,6 +16,30 @@ let wake = false // the "Wake on room mail" option
 let busy = false // a turn is running: room mail reaches it through the status hooks instead
 let polling = false
 let last = ''
+let tag: string | undefined
+
+/** 'Furina, Nahida, Raiden Shogun, Yae Miko' -> 'Furina, Nahida +2': whole names, kept short. */
+function people(names: string): string {
+  const all = names.split(', ')
+  const kept: string[] = []
+  for (const one of all) {
+    if (kept.length > 0 && [...kept, one].join(', ').length > 24) {
+      break
+    }
+    kept.push(one.length > 24 ? `${one.slice(0, 23)}…` : one)
+  }
+  const rest = all.length - kept.length
+  return kept.join(', ') + (rest > 0 ? ` +${rest}` : '')
+}
+
+/** The window's name tag on the status line: its desk name, who's in its picture, and its room. */
+export function nameTag(s: Snapshot): string | undefined {
+  if (!s.id) {
+    return undefined // a session without the Tatami Room channel
+  }
+  const who = s.character ? ` · ${people(s.character)}` : ''
+  return `${s.id}${who} · ${s.room ?? 'on its own'}`
+}
 
 async function poll($: EngineInterface, withWake: boolean): Promise<Snapshot | null> {
   const ran = await $.process.run([tatamiPath(await $.env.get('HOME')), 'mod', 'poll', ...(withWake ? ['--wake'] : [])],
@@ -41,6 +65,11 @@ async function tick($: EngineInterface) {
       return
     }
     sawMail(s.unread)
+    const now = nameTag(s)
+    if (now !== tag) {
+      tag = now
+      $.ui.status(now)
+    }
     const shown = JSON.stringify({ ...s, wake: null })
     if (shown !== last) {
       last = shown
