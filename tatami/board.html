@@ -1387,7 +1387,48 @@ const sky = (() => {
     const ph = moonPhase(), [, ja, en] = MOONS.find(([upto]) => ph < upto);
     return { ja, en, lit: Math.round((1 - Math.cos(ph * TAU)) / 2 * 100) };
   }
-  const moonAt = () => ({ x: VW * .8, y: clamp(H * .2, top + 70, 230), r: clamp(VW * .021, 17, 32) });
+  // The moon hangs high on the right, in a gap in the branch: the nearest spot to where it would
+  // like to be that keeps clear of every bough and blossom, even while a gust shakes them.
+  let moonSpot = null;
+  function moonAt() {
+    const key = `${VW} ${H} ${top}`;
+    if (moonSpot?.key === key) return moonSpot;
+    const r = clamp(VW * .021, 17, 32), wantX = VW * .8, wantY = clamp(H * .2, top + 70, 230);
+    const { boughs, clusters, k } = branchShape();
+    // From a point to the nearest bark or petal, giving up once it's closer than `need`.
+    const roomAt = (px, py, need = -Infinity) => {
+      let room = Infinity;
+      for (const { pts, wid } of boughs) {
+        for (let i = 1; i < pts.length; i++) {
+          const [ax, ay] = pts[i - 1], [bx, by] = pts[i], dx = bx - ax, dy = by - ay;
+          const t = clamp(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1), 0, 1);
+          room = Math.min(room, Math.hypot(px - ax - t * dx, py - ay - t * dy) - wid / 2);
+          if (room < need) return room;
+        }
+      }
+      for (const [cx, cy] of clusters) {
+        room = Math.min(room, Math.hypot(px - cx, py - cy) - 28 * k);
+        if (room < need) return room;
+      }
+      return room;
+    };
+    // The moon, some air round it, and how far a gust swings the branch about its corner there.
+    const needs = (x, y) => r * 1.5 + 8 + Math.hypot(W - x, H * .1 - y) * .035;
+    const spots = [];
+    for (let y = top + r + 24; y <= Math.max(top + r + 24, Math.min(H * .42, top + 300)); y += 6) {
+      for (let x = Math.max(r + 24, VW * .4); x <= VW - r - 24; x += 6) spots.push([x, y, Math.hypot(x - wantX, y - wantY)]);
+    }
+    spots.sort((a, b) => a[2] - b[2]);
+    let spot = spots.find(([x, y]) => { const need = needs(x, y); return roomAt(x, y, need) >= need; });
+    if (!spot) {   // nowhere quite clear: the roomiest spot there is
+      let most = -Infinity;
+      for (const s of spots) {
+        const room = roomAt(s[0], s[1]) - needs(s[0], s[1]);
+        if (room > most) [most, spot] = [room, s];
+      }
+    }
+    return (moonSpot = { key, x: spot[0], y: spot[1], r });
+  }
 
   function drawMoon(x, { x: cx, y: cy, r }) {
     const ph = moonPhase(), k = Math.cos(ph * TAU), lit = (1 - k) / 2;
@@ -1426,29 +1467,25 @@ const sky = (() => {
   }
 
   function drawStars() {
-    const x = g.stars, k = Math.min(devicePixelRatio || 1, 2), rnd = seeded(7), m = moonAt();
+    const x = g.stars, k = Math.min(devicePixelRatio || 1, 2), rnd = seeded(7), m = prefs.branch && moonAt();
     x.setTransform(1, 0, 0, 1, 0, 0);
     x.clearRect(0, 0, cv.stars.width, cv.stars.height);
     x.setTransform(k, 0, 0, k, 0, 0);
     for (let i = 0, n = Math.round(VW * H / 16000); i < n; i++) {
       const sx = rnd() * VW, sy = rnd() * H * .65, r = .35 + rnd() ** 3 * 1.1, a = (.12 + rnd() * .4).toFixed(2), hue = rnd();
-      if (prefs.branch && Math.hypot(sx - m.x, sy - m.y) < m.r * 2.2) continue;
+      if (m && Math.hypot(sx - m.x, sy - m.y) < m.r * 2.2) continue;
       x.fillStyle = hue < .5 ? `rgba(255, 228, 244, ${a})` : hue < .8 ? `rgba(220, 230, 255, ${a})` : `rgba(255, 200, 225, ${a})`;
       x.beginPath(); x.arc(sx, sy, r, 0, TAU); x.fill();
     }
-    if (prefs.branch) drawMoon(x, m);
+    if (m) drawMoon(x, m);
   }
 
   // A cherry branch reaching in from the right, under the bar: boughs that wander, droop and fork,
   // dressed for the season. Blossom in spring, red maple in autumn, snow (and a few plum flowers)
   // in winter, bare for the fireflies. Petals and leaves fall from where it's dressed.
-  function drawBranch() {
-    const x = g.branch, k0 = Math.min(devicePixelRatio || 1, 2);
-    x.setTransform(1, 0, 0, 1, 0, 0);
-    x.clearRect(0, 0, cv.branch.width, cv.branch.height);
-    blossoms = [];
-    if (!prefs.branch) return;
-    x.setTransform(k0, 0, 0, k0, 0, 0);
+  // It grows the same for a size of window, so the moon can find a gap in it before it's drawn,
+  // and the random numbers that grew it go on to dress it.
+  function branchShape() {
     const rnd = seeded(1704), k = clamp(Math.min(VW / 1400, H / 820), .45, 1);
     const boughs = [], clusters = [];
     const grow = (px, py, a, len, wid, depth) => {
@@ -1469,7 +1506,17 @@ const sky = (() => {
       }
     };
     grow(VW + 40, top + 24 + 30 * k, Math.PI - .2, 180 * k, 20 * k, 0);
+    return { boughs, clusters, rnd, k };
+  }
 
+  function drawBranch() {
+    const x = g.branch, k0 = Math.min(devicePixelRatio || 1, 2);
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.clearRect(0, 0, cv.branch.width, cv.branch.height);
+    blossoms = [];
+    if (!prefs.branch) return;
+    x.setTransform(k0, 0, 0, k0, 0, 0);
+    const { boughs, clusters, rnd, k } = branchShape();
     x.lineCap = x.lineJoin = "round";
     const snowy = prefs.season === "yuki";
     for (const pass of ["bark", "moonlight", ...(snowy ? ["snow"] : [])]) {
