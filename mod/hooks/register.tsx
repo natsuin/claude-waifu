@@ -6,6 +6,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Snapshot } from '../types'
 import { band } from './band'
+import { pane, ROOM_COMMAND } from './pane'
 import { tatamiPath } from './room'
 import { sawMail, status } from './status'
 
@@ -87,6 +88,11 @@ export const register: Register = (on, options) => {
   wake = options.wake === true
 
   on('session.start', async ($, e, next) => {
+    try {
+      await $.command.register(ROOM_COMMAND)
+    } catch {
+      // no slash commands here: the rest still works
+    }
     void tick($)
     $.clock.every(EVERY_MS, () => void tick($))
     return next(e)
@@ -103,5 +109,6 @@ export const register: Register = (on, options) => {
   })
 
   band(on)
+  pane(on)
   status(on, options.chime !== false)
 }

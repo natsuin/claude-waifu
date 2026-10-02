@@ -95,7 +95,8 @@ def poll(want_wake):
     rooms = channel.live_rooms(live)
     out["roomColor"] = PALETTE.get(channel.room_colors(rooms).get(room))
     msgs = channel.load_jsonl(os.path.join(channel.ROOMS, room + ".jsonl"))
-    unread = channel.unread(agent, room, msgs)
+    # What the agent hasn't read, less what the user typed: that's no news to the person looking.
+    unread = [m for m in channel.unread(agent, room, msgs) if m.get("from") != channel.USER]
     out["unread"] = len(unread)
     if unread:
         out["latest"] = {"from": name(unread[-1]), "text": unread[-1].get("text", "")[:300]}

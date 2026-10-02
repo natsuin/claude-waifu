@@ -40,6 +40,7 @@ export type Snapshot = {
 
 declare module 'claude-code' {
   interface PluginState {
-    tatami: { snap: Snapshot | null }
+    /** snap: the newest poll; draft: what's typed in the /room pane's line, kept across redraws */
+    tatami: { snap: Snapshot | null; draft: string }
   }
 }

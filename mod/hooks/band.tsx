@@ -3,7 +3,8 @@
 import { atom, read } from 'claude-code'
 import type { On } from 'claude-code'
 
-import { line, PANE } from './room'
+import { PANE } from './pane'
+import { line } from './room'
 
 const snap = atom({ plugin: 'tatami', key: 'snap' } as const, null)
 

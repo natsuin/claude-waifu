@@ -1,7 +1,6 @@
 // Small things every part of the mod shares. The window's Tatami Room state is the atom
 // tatami.snap, which register.tsx keeps fresh from `tatami mod poll` (tatami/mod.py); each file
 // that reads it declares it itself, as the plugin scanner wants.
-export const PANE = 'tatami-room'
 
 /** `tatami` through its link, so moving the repo can't break the mod. */
 export const tatamiPath = (home: string | undefined) => `${home ?? ''}/.local/bin/tatami`

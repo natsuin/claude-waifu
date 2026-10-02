@@ -1987,7 +1987,7 @@ function line(m) {
   li.dataset.from = m.from;
   li.dataset.key = `${m.ts}|${m.from}`;
   li.classList.toggle("is-open", opened.has(li.dataset.key));
-  $("b", li).textContent = m.from;
+  $("b", li).textContent = m.from === "user" ? "you" : m.from;  // typed in a window's /room pane
   $(".to", li).textContent = m.to ? `to ${m.to}` : "";
   $("time", li).textContent = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   $("time", li).dateTime = when.toISOString();

@@ -24,6 +24,7 @@ test('room mail shows above the prompt until the agent reads it', async ($, on) 
     return { value: { exitCode: 0, stdout: JSON.stringify(snap), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('session.start', async (_$, e) => ({ cwd: e.cwd }))
+  on('command.register', async () => ({ value: undefined }))
   const tags: (string | undefined)[] = []
   on('ui.status', async (_$, e) => {
     tags.push(e.text)
