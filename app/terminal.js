@@ -69,7 +69,7 @@ function apply(look) {
   const girl = document.getElementById("girl");
   if (look.girl && girl.dataset.src !== look.girl) {
     girl.dataset.src = look.girl;
-    girl.onload = () => { girl.hidden = false; };
+    girl.onload = () => { girl.hidden = false; fade(); };
     girl.onerror = () => { girl.hidden = true; };
     girl.src = look.girl;
   } else if (!look.girl) {
@@ -82,6 +82,17 @@ function fitCurrent() {
   if (!t) return;
   t.fit.fit();
   T.resize(current, t.term.cols, t.term.rows);
+  fade();
+}
+
+// The dot picture is stretched to cover the panel, so in a big panel every dot is drawn bigger
+// beside the same-size letters; they fade in step with their size, like in Claude Waifu windows
+// (waifu's FADE_FROM and FADE_FLOOR; it draws the dots in 12 x 24 px cells).
+function fade() {
+  const t = terms.get(current), girl = document.getElementById("girl");
+  if (!t || !girl.naturalWidth) return;
+  const scale = Math.max(t.term.cols * 12 / girl.naturalWidth, t.term.rows * 24 / girl.naturalHeight);
+  girl.style.setProperty("--fade", Math.max(.4, Math.min(1, .8 / scale)));
 }
 
 T.onShow((key, look) => {

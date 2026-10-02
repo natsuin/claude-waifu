@@ -177,7 +177,7 @@ function ensurePanel() {
   panel = new WebContentsView({ webPreferences: {
     preload: path.join(__dirname, "terminal-preload.js"), contextIsolation: true, sandbox: true,
     nodeIntegration: false, spellcheck: false, backgroundThrottling: false } });
-  panel.setBackgroundColor("#1f1726");
+  panel.setBackgroundColor("#110c17");
   panel.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   panel.webContents.on("will-navigate", (e) => e.preventDefault());
   panel.webContents.once("did-finish-load", () => {
@@ -313,10 +313,11 @@ function createWindow(background) {
   panelWidth = Number.isInteger(b.panel) ? b.panel : null;
   win = new BrowserWindow({
     x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 440, minHeight: 360,
-    title: "Tatami Room", icon: ICON, show: false, backgroundColor: "#1f1726",
-    // The desk's own header is the title bar; Windows draws the buttons over its right end.
+    title: "Tatami Room", icon: ICON, show: false, backgroundColor: "#110c17",
+    // The desk's own header is the title bar; Windows draws the buttons over its right end, on
+    // the colour the header's frosted glass comes out as there.
     titleBarStyle: "hidden",
-    titleBarOverlay: { color: "#1f1726", symbolColor: "#f5e6f0", height: 64 },
+    titleBarOverlay: { color: "#14101f", symbolColor: "#f7e9f2", height: 64 },
     webPreferences: {
       preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true,
       nodeIntegration: false, spellcheck: false,

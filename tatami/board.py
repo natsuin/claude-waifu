@@ -27,9 +27,18 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TOKEN_FILE = os.path.join(channel.HOME, "board.token")
 SEEN_FILE = os.path.join(channel.HOME, "board.seen")  # touched while a desk window is open (tatami hold)
 WAIFU_CONFIG = os.path.expanduser("~/.config/waifu/config.json")
-TINTS = {"red": "#411010", "amber": "#412910", "olive": "#414110", "lime": "#294110",
-         "green": "#104110", "jade": "#104129", "teal": "#104141", "sky": "#102941",
-         "blue": "#101041", "violet": "#291041", "magenta": "#411041", "rose": "#411029"}
+TINTS = {"cherry": "#4c112c", "rouge": "#491a1f", "wine": "#340417", "plum": "#360d30",
+         "mauve": "#4d303e", "orchid": "#42194d", "grape": "#2a1748", "iris": "#161141",
+         "indigo": "#051032", "dusk": "#0f2e4d", "haze": "#313955", "matcha": "#15361b"}
+# The colours windows were dealt before the sakura palette, for windows still open from then.
+OLD_TINTS = {"red": "#411010", "amber": "#412910", "olive": "#414110", "lime": "#294110",
+             "green": "#104110", "jade": "#104129", "teal": "#104141", "sky": "#102941",
+             "blue": "#101041", "violet": "#291041", "magenta": "#411041", "rose": "#411029"}
+
+
+def tint(color):
+    """A window's background colour, by the name waifu dealt it."""
+    return TINTS.get(color or "") or OLD_TINTS.get(color or "", "#2a2233")
 
 
 def token():
@@ -62,7 +71,7 @@ def agents():
         return len(channel.unread(rec, rec["room"], rooms[rec["room"]]))
     return [{"id": rec["id"], "agent": rec.get("agent", "claude"), "room": rec["room"],
              "unread": unread(rec), "helper_of": rec.get("invited_by"),
-             "color": rec.get("color"), "tint": TINTS.get(rec.get("color") or "", "#2a2233"),
+             "color": rec.get("color"), "tint": tint(rec.get("color")),
              "folder": "~" if rec.get("cwd") == home else os.path.basename(rec.get("cwd", "")),
              "seen": rec.get("seen", 0), "girl": bool(rec.get("girl")) and not hidden,
              "status": channel.load(os.path.join(channel.HOME, "status", rec["id"] + ".json"), {}).get("state"),

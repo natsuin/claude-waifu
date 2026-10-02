@@ -8,12 +8,14 @@ import os
 import sys
 import time
 
-MINT, AMBER, CORAL = "\x1b[38;2;126;232;181m", "\x1b[38;2;255;195;138m", "\x1b[38;2;255;107;139m"
+# The desk's usage colours: dusk blue while there's plenty left, persimmon past half, crimson
+# past four fifths.
+SKY, AMBER, CORAL = "\x1b[38;2;142;203;255m", "\x1b[38;2;255;195;138m", "\x1b[38;2;255;107;139m"
 DIM, RESET = "\x1b[38;2;168;143;174m", "\x1b[0m"
 
 
 def colour(pct):
-    return MINT if pct < 50 else AMBER if pct < 80 else CORAL
+    return SKY if pct < 50 else AMBER if pct < 80 else CORAL
 
 
 def bar(pct, width=10):

@@ -5,67 +5,102 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <title>Tatami Room</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3E%3Crect x='.6' y='.6' width='18.8' height='8.8' rx='1.2' fill='%23ff85c0'/%3E%3Crect x='20.6' y='.6' width='8.8' height='18.8' rx='1.2' fill='%23c3a6ff'/%3E%3Crect x='10.6' y='20.6' width='18.8' height='8.8' rx='1.2' fill='%237ee8b5'/%3E%3Crect x='.6' y='10.6' width='8.8' height='18.8' rx='1.2' fill='%238ecbff'/%3E%3Crect x='10.6' y='10.6' width='8.8' height='8.8' rx='1.2' fill='%23f5e6f0' fill-opacity='.35'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3E%3Crect x='.6' y='.6' width='18.8' height='8.8' rx='1.2' fill='%23ff85c0'/%3E%3Crect x='20.6' y='.6' width='8.8' height='18.8' rx='1.2' fill='%23c3a6ff'/%3E%3Crect x='10.6' y='20.6' width='18.8' height='8.8' rx='1.2' fill='%23ffc38a'/%3E%3Crect x='.6' y='10.6' width='8.8' height='18.8' rx='1.2' fill='%238ecbff'/%3E%3Crect x='10.6' y='10.6' width='8.8' height='8.8' rx='1.2' fill='%23f5e6f0' fill-opacity='.35'/%3E%3C/svg%3E">
 <style nonce="__NONCE__">
 /* Tatami Room desk. Every agent is a card that looks like its own window: the window's colour
    with its girl drawn in dots, as Terminal shows her. A team's cards sit together on a stage of
    frosted glass in the room's colour. Things move on springs: whatever changes glides to its
-   new place instead of jumping. */
+   new place instead of jumping, and a card you carry has weight. */
 :root {
-  --bg: #120d17;               /* night, a shade of the terminals' Sakura Night plum */
-  --text: #f5e6f0;             /* the dot colour of the terminal girls */
-  --muted: #a59cb0;
-  --hairline: rgba(255, 255, 255, .08);
-  --pink: #ff85c0;
-  --lavender: #c3a6ff;
-  --mint: #7ee8b5;
-  --amber: #ffc38a;
-  --red: #ff6b8b;
+  /* Yozakura, cherry blossoms at night: a plum-black sky, sakura pink for whatever needs you,
+     wisteria and dusk blue around it, persimmon and crimson only as warnings. The same colours
+     as the Sakura theme and the window looks; no greens. */
+  --bg: #110c17;
+  --text: #f7e9f2;
+  --muted: #ab9db6;
+  --hairline: rgba(255, 228, 244, .08);
+  --glass: rgba(29, 21, 37, .58);
+  --sakura: #ff85c0;          /* the accent, and anything waiting on you */
+  --sakura-ink: #2b1321;      /* text on sakura */
+  --fuji: #c3a6ff;            /* wisteria: an agent at work */
+  --sora: #8ecbff;            /* dusk sky: your turn, usage that's fine */
+  --kaki: #ffc38a;            /* persimmon: usage running high */
+  --beni: #ff6b8b;            /* crimson: usage nearly gone, something wrong */
   --ui: "Segoe UI Variable Text", "Segoe UI Variable", -apple-system, "SF Pro Text", system-ui, "Segoe UI", sans-serif;
   --display: "Segoe UI Variable Display", "Segoe UI Variable", -apple-system, "SF Pro Display", system-ui, "Segoe UI", sans-serif;
   --card-w: 296px;
   --card-h: 182px;
   --gutter: clamp(16px, 3vw, 40px);
-  /* Springs, sampled into easing curves. glide: settles without overshoot (things changing
-     place). bounce: overshoots a little (things answering your hand). */
+  /* Springs, sampled into easing curves for CSS. glide: settles without overshoot (things changing
+     place). bounce: overshoots a little (things answering your hand). A carried card runs on real
+     springs instead (see "carrying a card"). */
   --glide: linear(0, 0.011, 0.041, 0.085, 0.138, 0.197, 0.26, 0.323, 0.387, 0.448, 0.507, 0.563, 0.615, 0.662, 0.706, 0.746, 0.782, 0.814, 0.843, 0.868, 0.89, 0.909, 0.926, 0.94, 0.952, 0.962, 0.971, 0.978, 0.984, 0.989, 0.993, 0.997, 0.999, 1.001, 1);
   --bounce: linear(0, 0.022, 0.079, 0.161, 0.258, 0.363, 0.47, 0.573, 0.67, 0.757, 0.834, 0.9, 0.954, 0.997, 1.03, 1.054, 1.07, 1.079, 1.083, 1.083, 1.079, 1.073, 1.065, 1.056, 1.047, 1.039, 1.03, 1.023, 1.016, 1.01, 1.005, 1.001, 0.998, 0.996, 1);
-  scrollbar-color: rgba(255, 255, 255, .16) transparent;
+  scrollbar-color: rgba(255, 228, 244, .16) transparent;
 }
+/* Animatable, so a card waiting on you can breathe its glow in and out. */
+@property --glow { syntax: "<number>"; inherits: true; initial-value: 0; }
 * { box-sizing: border-box; }
-html { background: var(--bg); }
+html {   /* the night sky: sakura glow from the top left, dusk at the right, wisteria at the floor */
+  min-height: 100%;
+  background:
+    radial-gradient(1100px 640px at 6% -14%, rgba(255, 133, 192, .14), transparent 62%),
+    radial-gradient(900px 620px at 100% 0%, rgba(142, 203, 255, .07), transparent 60%),
+    radial-gradient(1300px 820px at 50% 122%, rgba(195, 166, 255, .11), transparent 62%),
+    linear-gradient(#130d1a, var(--bg) 40%) fixed;
+  background-color: var(--bg);
+}
 body {
   margin: 0;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background:   /* the room's light: soft and still, in the colours of the window looks */
-    radial-gradient(1100px 640px at 8% -12%, rgba(255, 133, 192, .11), transparent 62%),
-    radial-gradient(900px 620px at 100% 6%, rgba(149, 211, 255, .07), transparent 60%),
-    radial-gradient(1200px 820px at 50% 118%, rgba(195, 166, 255, .08), transparent 62%),
-    var(--bg) fixed;
   color: var(--text);
   font: 15px/1.45 var(--ui);
   -webkit-font-smoothing: antialiased;
 }
 button, input { font: inherit; color: inherit; }
-:focus-visible { outline: 2px solid var(--pink); outline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--sakura); outline-offset: 3px; }
 .sr-only {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
   overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
 }
 .defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 
+/* A few petals drifting down behind everything, slow and faint. */
+.petals { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.petal {
+  position: absolute;
+  top: 0;
+  left: var(--x);
+  width: var(--s);
+  height: calc(var(--s) * .8);
+  border-radius: 0 72% 0 72%;
+  background: linear-gradient(135deg, #ffe1ef, #ff9fcd 70%);
+  opacity: var(--o);
+  filter: blur(var(--blur));
+  animation: fall var(--d) linear var(--delay) infinite, flutter calc(var(--d) / 5) linear var(--delay) infinite;
+}
+@keyframes fall {
+  0% { translate: 0 -5vh; }
+  25% { translate: var(--sway) 22vh; }
+  50% { translate: calc(var(--sway) * -.4) 50vh; }
+  75% { translate: var(--sway) 78vh; }
+  100% { translate: calc(var(--sway) * .3) 106vh; }
+}
+@keyframes flutter { from { rotate: var(--axis) 0deg; } to { rotate: var(--axis) 360deg; } }
+
 /* ---- the bar along the top: frosted glass over whatever scrolls beneath ---- */
 .bar {
   position: sticky;
   top: 0;
   z-index: 10;
+  container: bar / inline-size;
   display: flex;
   align-items: center;
   gap: 10px 22px;
   padding: 12px var(--gutter);
-  background: rgba(18, 13, 23, .6);
+  background: rgba(17, 12, 23, .66);
   backdrop-filter: saturate(170%) blur(22px);
   border-bottom: 1px solid var(--hairline);
 }
@@ -76,76 +111,118 @@ button, input { font: inherit; color: inherit; }
 /* ...and the panel takes the right side under the bar: the desk makes room. */
 .app main, .app .lobby, .app .empty { margin-right: var(--panel, 0px); }
 .brand { display: flex; align-items: center; gap: 11px; flex: none; }
-.brand svg { width: 26px; height: 26px; }
+.brand svg { width: 26px; height: 26px; flex: none; }
 h1 { margin: 0; font: 650 1.2rem/1 var(--display); letter-spacing: -.02em; white-space: nowrap; }
-.summary { margin: 0; color: var(--muted); font-size: .84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.summary { flex: 0 100 auto; margin: 0; color: var(--muted); font-size: .84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .status {
   display: inline-flex; align-items: center; gap: 7px; margin: 0;
   padding: 4px 11px 4px 9px; border-radius: 999px;
   background: rgba(255, 107, 139, .12); color: var(--text); font-size: .76rem; white-space: nowrap;
 }
-.status i { width: 7px; height: 7px; border-radius: 50%; background: var(--red); animation: breathe 1.6s ease-in-out infinite; }
+.status i { width: 7px; height: 7px; border-radius: 50%; background: var(--beni); animation: breathe 1.6s ease-in-out infinite; }
 .status[data-kind="wait"] { background: rgba(255, 255, 255, .06); color: var(--muted); }
 .status[data-kind="wait"] i { background: var(--muted); animation: none; }
 .status[data-kind="live"] { display: none; }   /* only speak up when something is wrong */
 @keyframes breathe { 50% { opacity: .35; transform: scale(.8); } }
 
-/* Your Claude usage, like Activity rings: the outer ring is the 5-hour window, the inner one the week. */
+/* Your Claude usage, like Activity rings: the outer ring is the 5-hour window (dusk blue), the
+   inner one the week (wisteria). Either turns persimmon past half, crimson past four fifths. */
 .usage { display: flex; align-items: center; gap: 9px; flex: none; }
 .usage[hidden] { display: none; }
 .rings { width: 34px; height: 34px; flex: none; transform: rotate(-90deg); }
 .rings circle { fill: none; stroke-width: 4.2; }
-.rings .track { stroke: rgba(255, 255, 255, .09); }
+.rings .track { stroke: rgba(255, 228, 244, .09); }
 .rings .ring {
-  --lvl: var(--mint);
   stroke: var(--lvl);
   stroke-linecap: round;
   stroke-dasharray: 100;
   stroke-dashoffset: 100;
   transition: stroke-dashoffset .9s var(--glide), stroke .3s ease;
 }
-.rings .ring[data-level="high"] { --lvl: var(--amber); }
-.rings .ring[data-level="full"] { --lvl: var(--red); }
+.rings .ring:nth-of-type(2) { --lvl: var(--sora); }
+.rings .ring:nth-of-type(4) { --lvl: var(--fuji); }
+.rings .ring[data-level="high"] { --lvl: var(--kaki); }
+.rings .ring[data-level="full"] { --lvl: var(--beni); }
 .rings .ring[hidden], .rings .track[hidden] { display: none; }
-.usage-text { display: grid; color: var(--muted); font-size: .72rem; line-height: 1.3; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.usage-text {
+  display: grid;
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transition: max-width .45s var(--glide), opacity .25s ease;
+}
 .usage-text b { color: var(--text); font-weight: 600; }
-.usage-text span[data-level="ok"] em { color: var(--mint); }
-.usage-text span[data-level="high"] em { color: var(--amber); }
-.usage-text span[data-level="full"] em { color: var(--red); }
 .usage-text em { font-style: normal; font-weight: 600; }
+.usage-text span:first-child em { color: var(--sora); }
+.usage-text span:last-child em { color: var(--fuji); }
+.usage-text span[data-level="high"] em { color: var(--kaki); }
+.usage-text span[data-level="full"] em { color: var(--beni); }
 
-.newroom { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
+.newroom { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
 .newroom input {
+  flex: 0 1 auto;
+  min-width: 0;
   width: 0;
   padding: 8px 0;
   opacity: 0;
   border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, .08);
+  background: rgba(255, 228, 244, .07);
+  box-shadow: inset 0 0 0 1px rgba(255, 228, 244, .1);
   font-size: .86rem;
-  transition: width .5s var(--bounce), padding .5s var(--glide), opacity .2s ease;
+  transition: width .5s var(--bounce), padding .5s var(--glide), opacity .2s ease, box-shadow .2s ease;
 }
 .newroom input::placeholder { color: var(--muted); }
-.newroom.open input { width: min(190px, 40vw); padding: 8px 15px; opacity: 1; }
+.newroom input:focus-visible { outline: none; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sakura) 70%, transparent), 0 0 0 4px rgba(255, 133, 192, .14); }
+.newroom.is-open input { width: 190px; min-width: 72px; padding: 8px 15px; opacity: 1; }
+.newroom.shake input { animation: shake .42s var(--glide); }
+@keyframes shake { 20% { translate: -6px 0; } 40% { translate: 5px 0; } 60% { translate: -3px 0; } 80% { translate: 2px 0; } }
 .add {
   flex: none;
   padding: 8px 17px;
   border: 0;
   border-radius: 999px;
-  background: var(--pink);
-  color: #2b1321;
+  background: linear-gradient(180deg, #ff9fcf, var(--sakura));
+  color: var(--sakura-ink);
   font-weight: 650;
   font-size: .86rem;
   letter-spacing: -.005em;
   text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
-  box-shadow: 0 10px 24px -12px rgba(255, 133, 192, .95), inset 0 1px 0 rgba(255, 255, 255, .35);
-  transition: scale .5s var(--bounce), background .2s ease, filter .2s ease;
+  box-shadow: 0 10px 24px -12px rgba(255, 133, 192, .95), inset 0 1px 0 rgba(255, 255, 255, .4);
+  transition: scale .5s var(--bounce), background .2s ease, filter .2s ease, box-shadow .3s ease;
 }
-.add:hover { filter: brightness(1.07); }
-.add:active { scale: .94; transition-duration: .12s; }
-.add.quiet { background: rgba(255, 255, 255, .08); color: var(--text); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
-.add.quiet:hover { background: rgba(255, 255, 255, .12); filter: none; }
+.add:hover { filter: brightness(1.06); box-shadow: 0 12px 30px -10px rgba(255, 133, 192, 1), inset 0 1px 0 rgba(255, 255, 255, .4); }
+.add:active { scale: .93; transition-duration: .1s; }
+.add.quiet { background: rgba(255, 228, 244, .08); color: var(--text); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
+.add.quiet:hover { background: rgba(255, 228, 244, .13); filter: none; }
+/* When the bar runs short, the usage words give way first (the rings stay), then the summary,
+   the title, the rings and the mark, and last the name box narrows: the buttons never slide under
+   the window's own. Naming a room needs more room, so it makes way sooner. */
+@container bar (max-width: 930px) {
+  .bar:has(.newroom.is-open) .usage-text { max-width: 0; opacity: 0; }
+}
+@container bar (max-width: 760px) {
+  .summary { display: none; }
+  .usage-text { max-width: 0; opacity: 0; }
+}
+@container bar (max-width: 680px) {
+  .bar:has(.newroom.is-open) h1 { display: none; }
+}
+@container bar (max-width: 520px) {
+  .bar:has(.newroom.is-open) .usage { display: none; }
+}
+@container bar (max-width: 480px) {
+  h1 { display: none; }
+}
+@container bar (max-width: 420px) {
+  .usage, .bar:has(.newroom.is-open) .brand { display: none; }
+}
 
 /* ---- sections: agents on their own along the top, then a stage per room ---- */
 .section-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; margin: 0 4px 12px; min-width: 0; }
@@ -159,11 +236,11 @@ h1 { margin: 0; font: 650 1.2rem/1 var(--display); letter-spacing: -.02em; white
 .lobby .cards {
   padding: 14px;
   border-radius: 30px;
-  background: rgba(255, 255, 255, .025);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+  background: rgba(255, 228, 244, .025);
+  box-shadow: inset 0 0 0 1px rgba(255, 228, 244, .05);
   transition: box-shadow .35s var(--glide), background .35s var(--glide);
 }
-.lobby.is-target .cards { background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .22); }
+.lobby.is-target .cards { background: rgba(255, 228, 244, .05); box-shadow: inset 0 0 0 1.5px rgba(255, 228, 244, .26); }
 .lobby .cards:empty { min-height: 0; }
 .lobby .cards:empty::before { content: "Drop one here to take it off its team"; width: 100%; height: 44px; }
 
@@ -178,7 +255,7 @@ main {   /* rooms sized to their cards, side by side as they fit */
   transition: opacity .4s ease, filter .4s ease;
 }
 body.stale main { opacity: .5; filter: saturate(.4); }
-.room { --room: var(--lavender); position: relative; flex: 0 1 auto; min-width: min(100%, 340px); max-width: 100%; }
+.room { --room: var(--fuji); position: relative; flex: 0 1 auto; min-width: min(100%, 340px); max-width: 100%; }
 .room .section-head h2::before {   /* the room's colour, as on its windows' tabs */
   content: "";
   display: inline-block;
@@ -189,28 +266,44 @@ body.stale main { opacity: .5; filter: saturate(.4); }
   background: var(--room);
   box-shadow: 0 0 14px color-mix(in srgb, var(--room) 70%, transparent);
 }
+.kanji {   /* a flower room's name as the inn would write it */
+  color: color-mix(in srgb, var(--room) 70%, var(--muted));
+  font: 500 .95rem/1 "Yu Gothic UI", "Yu Gothic", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  letter-spacing: .08em;
+}
+.kanji:empty { display: none; }
 .stage {
   position: relative;
   padding: 16px;
   border-radius: 32px;
   background:
-    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--room) 13%, transparent), transparent 60%),
-    rgba(34, 27, 42, .55);
+    radial-gradient(130% 100% at 0% 0%, color-mix(in srgb, var(--room) 17%, transparent), transparent 58%),
+    radial-gradient(120% 120% at 100% 100%, color-mix(in srgb, var(--room) 6%, transparent), transparent 60%),
+    var(--glass);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--room) 20%, rgba(255, 255, 255, .05)),
-    inset 0 1px 0 rgba(255, 255, 255, .06),
+    inset 0 0 0 1px color-mix(in srgb, var(--room) 22%, rgba(255, 255, 255, .05)),
+    inset 0 1px 0 color-mix(in srgb, var(--room) 30%, rgba(255, 255, 255, .08)),
     0 40px 70px -40px rgba(0, 0, 0, .9);
   transition: box-shadow .45s var(--glide), scale .55s var(--bounce);
 }
 .room.is-target .stage {
-  scale: 1.01;
+  scale: 1.012;
   box-shadow:
     inset 0 0 0 2px var(--room),
-    0 0 50px -12px color-mix(in srgb, var(--room) 65%, transparent),
+    0 0 54px -12px color-mix(in srgb, var(--room) 70%, transparent),
     0 40px 70px -40px rgba(0, 0, 0, .9);
 }
 .room.flash .stage { animation: flash 1.4s var(--glide); }
 @keyframes flash { from { box-shadow: inset 0 0 0 2px var(--room), 0 0 70px -6px color-mix(in srgb, var(--room) 80%, transparent); } }
+.fx { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.ripple {   /* where a card landed, spreading out over the stage */
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  margin: -30px 0 0 -30px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, transparent 55%, color-mix(in srgb, var(--room) 55%, transparent) 75%, transparent);
+}
 .room-remove {
   margin-left: auto;
   flex: none;
@@ -218,7 +311,7 @@ body.stale main { opacity: .5; filter: saturate(.4); }
   height: 28px;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, .06);
+  background: rgba(255, 228, 244, .06);
   color: var(--muted);
   font-size: 1rem;
   line-height: 1;
@@ -226,7 +319,7 @@ body.stale main { opacity: .5; filter: saturate(.4); }
   transition: background .2s ease, color .2s ease, scale .5s var(--bounce);
 }
 .room-remove:hover { background: rgba(255, 107, 139, .16); color: var(--text); }
-.room-remove:active { scale: .9; }
+.room-remove:active { scale: .88; transition-duration: .1s; }
 .room-remove[hidden] { display: none; }
 .cards:empty::before {   /* where the first card will go */
   content: "Drop an agent here to start a team";
@@ -243,30 +336,63 @@ body.stale main { opacity: .5; filter: saturate(.4); }
   text-align: center;
 }
 
-/* ---- an agent: a small copy of its window ---- */
+/* ---- an agent: a small copy of its window ----
+   The card itself only holds its place and moves (carried, landing, gliding); its face is what
+   you see, and leans toward the pointer and catches the light where it is. */
 .agent {
   --tint: #2a2233;
-  --hue: var(--lavender);
+  --hue: var(--fuji);
   --accent: transparent;       /* a ring in the colour of the team it's about to join */
+  --rx: 0deg;                  /* the face's lean toward the pointer */
+  --ry: 0deg;
+  --lift: 0px;
+  --grow: 1;
+  --air: 0;                    /* how high it's held: 0 resting, 1 carried. Its shadow follows */
   position: relative;
   flex: none;
   width: var(--card-w);
   max-width: 100%;
   height: var(--card-h);
-  overflow: hidden;
   border-radius: 22px;
-  background: linear-gradient(155deg, color-mix(in oklab, var(--tint), white 9%), var(--tint) 70%);
   color: var(--text);
   cursor: grab;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+}
+.face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: linear-gradient(155deg, color-mix(in oklab, var(--tint), white 10%), var(--tint) 70%);
   box-shadow:
     0 0 0 2px var(--accent),
+    0 0 calc(34px * var(--glow)) -4px rgba(255, 133, 192, calc(.75 * var(--glow))),
     inset 0 0 0 1px rgba(255, 255, 255, .09),
-    0 2px 6px rgba(0, 0, 0, .3),
-    0 22px 38px -22px rgba(0, 0, 0, .9);
-  transition: translate .6s var(--bounce), scale .6s var(--bounce), box-shadow .35s var(--glide), opacity .3s ease;
+    inset 0 1px 0 rgba(255, 255, 255, .07),
+    0 calc(2px + 8px * var(--air)) calc(6px + 16px * var(--air)) rgba(0, 0, 0, .3),
+    0 calc(22px + 26px * var(--air)) calc(38px + 34px * var(--air)) -22px rgba(0, 0, 0, .92);
+  transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(var(--lift)) scale(var(--grow));
+  transition: transform .6s var(--bounce), box-shadow .35s var(--glide), background .3s ease, outline-color .2s ease;
+}
+.face::before {   /* the light, where the pointer is */
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(380px circle at var(--mx, 50%) var(--my, 0%), rgba(255, 240, 248, .13), transparent 46%);
+  opacity: 0;
+  transition: opacity .35s ease;
+}
+.face::after {   /* shade under the name, so it reads over any girl */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to top, color-mix(in oklab, var(--tint), black 38%) 0%, transparent 58%);
+  transition: opacity .2s ease;
 }
 .agent .girl {   /* drawn bigger than the window draws her, so the dots read as dots */
   position: absolute;
@@ -279,16 +405,10 @@ body.stale main { opacity: .5; filter: saturate(.4); }
   transform-origin: 50% 30%;
   opacity: .62;
   pointer-events: none;
+  transition: opacity .2s ease;
 }
 .agent .girl[hidden] { display: none; }
-.agent::after {   /* shade under the name, so it reads over any girl */
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(to top, color-mix(in oklab, var(--tint), black 35%) 0%, transparent 58%);
-}
-.agent > span, .agent > strong { position: absolute; z-index: 1; }
+.face > span, .face > strong { position: absolute; z-index: 1; transition: opacity .2s ease, translate .45s var(--bounce); }
 .chips { top: 12px; left: 12px; right: 52px; display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
   display: inline-flex;
@@ -312,15 +432,16 @@ body.stale main { opacity: .5; filter: saturate(.4); }
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--lavender);
+  background: var(--fuji);
 }
+.agent[data-status="working"] .state { color: var(--fuji); }
 .agent[data-status="working"] .state::before { animation: breathe 1.8s ease-in-out infinite; }
-.agent[data-status="done"] .state { color: var(--mint); }
-.agent[data-status="done"] .state::before { background: var(--mint); }
-.agent[data-status="asking"] .state { background: var(--pink); color: #2b1321; }
-.agent[data-status="asking"] .state::before { background: #2b1321; }
-.agent[data-status="asking"] { --accent: var(--pink); animation: asking 2s ease-in-out infinite; }
-@keyframes asking { 50% { box-shadow: 0 0 0 2px rgba(255, 133, 192, .35), inset 0 0 0 1px rgba(255, 255, 255, .09), 0 0 30px -6px rgba(255, 133, 192, .6), 0 22px 38px -22px rgba(0, 0, 0, .9); } }
+.agent[data-status="done"] .state { color: var(--sora); }
+.agent[data-status="done"] .state::before { background: var(--sora); box-shadow: 0 0 8px var(--sora); }
+.agent[data-status="asking"] .state { background: var(--sakura); color: var(--sakura-ink); }
+.agent[data-status="asking"] .state::before { background: var(--sakura-ink); }
+.agent[data-status="asking"] { --accent: var(--sakura); animation: asking 2.2s ease-in-out infinite; }
+@keyframes asking { 50% { --glow: 1; } }
 /* Room messages it hasn't read, like an app's badge. Waiting for you, it can't read them until
    you talk to it: then the badge glows. */
 .badge {
@@ -332,8 +453,8 @@ body.stale main { opacity: .5; filter: saturate(.4); }
   display: grid;
   place-items: center;
   border-radius: 999px;
-  background: var(--pink);
-  color: #2b1321;
+  background: var(--sakura);
+  color: var(--sakura-ink);
   font: 700 .74rem/1 var(--ui);
   font-variant-numeric: tabular-nums;
   box-shadow: 0 4px 10px -3px rgba(0, 0, 0, .6);
@@ -342,8 +463,8 @@ body.stale main { opacity: .5; filter: saturate(.4); }
 .agent[data-status="done"] .badge { box-shadow: 0 0 0 3px rgba(255, 133, 192, .3), 0 0 18px rgba(255, 133, 192, .7); }
 .label { left: 16px; right: 16px; bottom: 13px; display: grid; gap: 1px; }
 .name { font: 650 1.06rem/1.2 var(--display); letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 8px rgba(0, 0, 0, .5); }
-.folder { color: rgba(245, 230, 240, .7); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.open {   /* a click brings up the agent's own window */
+.folder { color: rgba(247, 233, 242, .7); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jump {   /* a click brings up the agent's own window */
   right: 12px;
   bottom: 13px;
   padding: 4px 11px;
@@ -354,15 +475,28 @@ body.stale main { opacity: .5; filter: saturate(.4); }
   font-weight: 600;
   opacity: 0;
   translate: 0 4px;
-  transition: opacity .2s ease, translate .45s var(--bounce);
 }
-.agent:hover { translate: 0 -3px; scale: 1.015; }
-.agent:hover .open, .agent:focus-visible .open { opacity: 1; translate: 0 0; }
-.agent:active { scale: .975; transition-duration: .15s; }
+.agent:hover { --lift: -3px; --grow: 1.015; --air: .3; }
+.agent:hover .face::before { opacity: 1; }
+.agent:hover .jump, .agent:focus-visible .jump { opacity: 1; translate: 0 0; }
+.agent:active { --grow: .975; --air: .1; }
+.agent:active .face { transition-duration: .15s; }
+.agent.tracking .face { transition: transform .2s ease-out, box-shadow .35s var(--glide), background .3s ease; }
 .agent:focus-visible { outline-offset: 4px; }
-.agent.is-target { --accent: var(--pink); scale: 1.035; }   /* on its own, about to team up with the one carried */
-.agent.lifted { opacity: .28; scale: .94; }   /* the gap the carried one left */
-.agent.carried { --accent: var(--pink); translate: 0 -5px; scale: 1.035; }
+.agent.is-target { --accent: var(--sakura); --grow: 1.04; --air: .4; }   /* on its own, about to team up with the one carried */
+.agent.carried { --accent: var(--sakura); --lift: -6px; --grow: 1.04; --air: .8; }   /* picked up with the keyboard */
+/* The place a carried card left: an empty outline where it will come back if you let go. */
+.agent.lifted .face {
+  background: rgba(255, 228, 244, .02);
+  box-shadow: none;
+  outline: 1.5px dashed rgba(255, 228, 244, .2);
+  outline-offset: -1.5px;
+  --grow: .97;
+}
+.agent.lifted .face > *, .agent.lifted .face::after, .agent.lifted .face::before { opacity: 0; }
+.agent.landing { z-index: 30; }
+.hosting { position: relative; z-index: 5; }   /* the room or strip a card is landing in stays over the rest (under the bar) */
+.agent.landing .face, .agent.landing .face > *, .agent.landing .face::after { transition: none; }
 .ghost {
   position: fixed;
   left: 0;
@@ -370,20 +504,25 @@ body.stale main { opacity: .5; filter: saturate(.4); }
   z-index: 50;
   margin: 0;
   pointer-events: none;
-  cursor: grabbing;
-  transition: scale .6s var(--bounce), box-shadow .35s var(--glide);
-  box-shadow:
-    0 0 0 2px var(--accent),
-    inset 0 0 0 1px rgba(255, 255, 255, .12),
-    0 44px 70px -24px rgba(0, 0, 0, .95);
+  will-change: transform;
 }
-.ghost.up { scale: 1.07; }
-.ghost .open { display: none; }
+.ghost .face { --rx: 0deg; --ry: 0deg; --lift: 0px; --grow: 1; transition: box-shadow .35s var(--glide); }
+.ghost .jump { display: none; }
 body.dragging, body.dragging * { cursor: grabbing !important; }
+.burst {   /* petals thrown up where a card lands in a room */
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 55;
+  width: 10px;
+  height: 8px;
+  border-radius: 0 72% 0 72%;
+  pointer-events: none;
+}
 
 /* ---- what the team said, as message bubbles in each speaker's colour ---- */
 .talk { list-style: none; margin: 18px 2px 2px; padding: 0; display: grid; gap: 10px; contain: inline-size; }   /* as wide as the cards, never wider */
-.talk li { --who: var(--lavender); display: grid; justify-items: start; gap: 3px; max-width: 72ch; }
+.talk li { --who: var(--fuji); display: grid; justify-items: start; gap: 3px; max-width: 72ch; }
 .talk .who { display: flex; align-items: baseline; gap: 8px; padding: 0 12px; font-size: .74rem; }
 .talk .who b { color: var(--who); font-weight: 650; }
 .talk .to { color: var(--muted); }
@@ -393,7 +532,8 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   padding: 9px 14px;
   border-radius: 20px 20px 20px 7px;
   background: color-mix(in srgb, var(--who) 13%, rgba(255, 255, 255, .045));
-  color: rgba(245, 230, 240, .94);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+  color: rgba(247, 233, 242, .94);
   font-size: .88rem;
   line-height: 1.45;
   white-space: pre-wrap;
@@ -403,8 +543,10 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   -webkit-line-clamp: 3;
   overflow: hidden;
   cursor: pointer;
+  transition: background .2s ease;
 }
-.talk li.open .text { display: block; }
+.talk .text:hover { background: color-mix(in srgb, var(--who) 18%, rgba(255, 255, 255, .06)); }
+.talk li.is-open .text { display: block; }
 .talk li.quiet { padding: 0 12px; color: var(--muted); font-size: .8rem; }
 
 /* ---- empty desk, toast ---- */
@@ -418,7 +560,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   text-align: center;
 }
 .empty[hidden] { display: none; }
-.empty svg { width: 64px; height: 64px; margin-bottom: 10px; }
+.empty svg { width: 64px; height: 64px; margin-bottom: 10px; filter: drop-shadow(0 10px 30px rgba(255, 133, 192, .35)); }
 .empty h2 { margin: 0; font: 650 1.6rem var(--display); letter-spacing: -.02em; }
 .empty p { margin: 0; max-width: 32em; color: var(--muted); }
 .toast {
@@ -430,7 +572,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   margin: 0;
   padding: 11px 18px;
   border-radius: 18px;
-  background: rgba(44, 35, 54, .78);
+  background: rgba(42, 31, 52, .8);
   backdrop-filter: saturate(170%) blur(22px);
   box-shadow: inset 0 0 0 1px var(--hairline), 0 24px 50px -20px rgba(0, 0, 0, .9);
   font-size: .86rem;
@@ -439,11 +581,11 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 .toast[hidden] { display: none; }
 @media (max-width: 720px) {
   :root { --card-w: 100%; }
-  .summary, .usage-text { display: none; }
   .bar:not(.app .bar) { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+  .petals { display: none; }
 }
 </style>
 </head>
@@ -452,11 +594,12 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   <symbol id="mark" viewBox="0 0 30 30">
     <rect x=".6" y=".6" width="18.8" height="8.8" rx="1.2" fill="#ff85c0"/>
     <rect x="20.6" y=".6" width="8.8" height="18.8" rx="1.2" fill="#c3a6ff"/>
-    <rect x="10.6" y="20.6" width="18.8" height="8.8" rx="1.2" fill="#7ee8b5"/>
+    <rect x="10.6" y="20.6" width="18.8" height="8.8" rx="1.2" fill="#ffc38a"/>
     <rect x=".6" y="10.6" width="8.8" height="18.8" rx="1.2" fill="#8ecbff"/>
     <rect x="10.6" y="10.6" width="8.8" height="8.8" rx="1.2" fill="#f5e6f0" fill-opacity=".35"/>
   </symbol>
 </svg>
+<div class="petals" id="petals" aria-hidden="true"></div>
 
 <header class="bar">
   <div class="brand">
@@ -473,8 +616,8 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
     <span class="usage-text"><span></span><span></span></span>
   </div>
   <form class="newroom" id="newroom" autocomplete="off">
-    <input id="roomname" maxlength="60" spellcheck="false" placeholder="Room name" aria-label="New room name" tabindex="-1">
-    <button class="add quiet" type="submit">+ Room</button>
+    <input id="roomname" maxlength="60" spellcheck="false" placeholder="Name the room" aria-label="New room name" tabindex="-1">
+    <button class="add quiet" id="room-button" type="submit">+ Room</button>
     <a class="add" id="new-claude" href="tatami-room:new" title="Open a new Claude window">+ Claude</a>
   </form>
 </header>
@@ -503,10 +646,12 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   <section class="room">
     <header class="section-head">
       <h2></h2>
+      <span class="kanji" lang="ja"></span>
       <span class="count"></span>
       <button class="room-remove" type="button" aria-label="Remove this empty room" title="Remove this empty room">&times;</button>
     </header>
     <div class="stage">
+      <div class="fx"></div>
       <div class="cards" role="list"></div>
       <ol class="talk"></ol>
     </div>
@@ -514,11 +659,13 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 </template>
 <template id="tpl-agent">
   <div class="agent" role="listitem" tabindex="0" aria-describedby="how">
-    <img class="girl" alt="" draggable="false" hidden>
-    <span class="chips"><span class="chip state"></span><span class="chip kind"></span></span>
-    <span class="badge" hidden></span>
-    <span class="label"><strong class="name"></strong><span class="folder"></span></span>
-    <span class="open" aria-hidden="true">Open</span>
+    <div class="face">
+      <img class="girl" alt="" draggable="false" hidden>
+      <span class="chips"><span class="chip state"></span><span class="chip kind"></span></span>
+      <span class="badge" hidden></span>
+      <span class="label"><strong class="name"></strong><span class="folder"></span></span>
+      <span class="jump" aria-hidden="true">Open</span>
+    </div>
   </div>
 </template>
 <template id="tpl-line">
@@ -539,6 +686,10 @@ APP?.onPanel?.((width) => {   // the desk makes room for the terminal panel, and
 if (APP) document.getElementById("new-claude").title = "Start Claude in a terminal beside the desk";
 const COMPANIES = { claude: "Claude", gemini: "Gemini", codex: "Codex" };
 const STATUS = { working: "Working", done: "Your turn", asking: "Needs your OK" };   // from the hooks
+// Rooms the board names after flowers, as an inn would write them.
+const KANJI = { sakura: "桜", momo: "桃", nadeshiko: "撫子", ajisai: "紫陽花", asagao: "朝顔", kikyo: "桔梗",
+                fuji: "藤", sumire: "菫", ayame: "菖蒲", momiji: "紅葉", mikan: "蜜柑", kaki: "柿",
+                tsubaki: "椿", ume: "梅", zakuro: "柘榴", yamabuki: "山吹", kiku: "菊", yuzu: "柚子" };
 const HEX = /^#[0-9a-f]{6}$/i;
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const css = getComputedStyle(document.documentElement);
@@ -546,6 +697,7 @@ const GLIDE = css.getPropertyValue("--glide").trim() || "ease-out";
 const BOUNCE = css.getPropertyValue("--bounce").trim() || "ease-out";
 
 const $ = (sel, root = document) => root.querySelector(sel);
+const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 const roomsEl = $("#rooms");
 const lobbyEl = $("#lobby"), lobbyCards = $("#lobby-cards");   // the agents on their own
 const tpl = (id) => $(id).content.firstElementChild;
@@ -685,6 +837,119 @@ function vanish(el) {
                 { duration: 260, easing: "ease-in", fill: "forwards" }).onfinish = () => ghost.remove();
 }
 
+// One clock for everything that runs on real springs: each frame, every running motion steps
+// forward by the time that passed, and drops out once it returns false.
+const motions = new Set();
+let lastTick = 0;
+function every(fn) {
+  if (!motions.size) {
+    lastTick = performance.now();
+    requestAnimationFrame(tick);
+  }
+  motions.add(fn);
+}
+function tick(now) {
+  const dt = clamp((now - lastTick) / 1000, 0, 1 / 20);   // a hitch doesn't fling anything
+  lastTick = now;
+  for (const fn of [...motions]) if (fn(dt) === false) motions.delete(fn);
+  if (motions.size) requestAnimationFrame(tick);
+}
+
+// A damped spring pulling s.x toward `to`, s.v its speed. stiffness: how hard it pulls; damping:
+// 1 settles without overshoot, lower swings past and back. Small fixed steps keep it steady at
+// any frame rate.
+function pull(s, to, stiffness, damping, dt) {
+  const c = 2 * damping * Math.sqrt(stiffness);
+  for (let left = dt; left > 1e-6; left -= 1 / 240) {
+    const h = Math.min(left, 1 / 240);
+    s.v += (-stiffness * (s.x - to) - c * s.v) * h;
+    s.x += s.v * h;
+  }
+}
+const resting = (s, to, near) => Math.abs(s.x - to) < near && Math.abs(s.v) < near * 8;
+
+// ---- petals ----
+
+// A dozen petals drifting down behind the desk, each with its own size, speed, sway and depth.
+function scatterPetals() {
+  if (REDUCED) return;
+  const sky = $("#petals");
+  for (let i = 0; i < 12; i++) {
+    const p = document.createElement("i");
+    const near = Math.random();   // nearer petals are bigger, quicker and softer
+    const d = 34 - near * 16;
+    p.className = "petal";
+    for (const [k, v] of Object.entries({
+      "--x": `${Math.random() * 100}%`, "--s": `${7 + near * 7}px`, "--o": (0.16 + near * 0.3).toFixed(2),
+      "--blur": `${near > 0.75 ? 1.2 : 0}px`, "--d": `${d}s`, "--delay": `${-Math.random() * d}s`,
+      "--sway": `${(Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 70)}px`,
+      "--axis": `${(0.4 + Math.random()).toFixed(2)} ${(Math.random() - 0.3).toFixed(2)} ${(Math.random() * 0.6).toFixed(2)}`,
+    })) p.style.setProperty(k, v);
+    sky.append(p);
+  }
+}
+
+// A handful of petals thrown up from (x, y) in a room's colour: the desk's way of saying "done".
+function bloom(x, y, color, n = 8) {
+  if (REDUCED) return;
+  for (let i = 0; i < n; i++) {
+    const p = document.createElement("i");
+    p.className = "burst";
+    p.style.background = `linear-gradient(135deg, #fff2f8, ${color})`;
+    document.body.append(p);
+    const a = (-90 + (i / n - 0.5) * 150 + (Math.random() - 0.5) * 24) * Math.PI / 180;   // a fan, mostly upward
+    const speed = 170 + Math.random() * 150, vx = Math.cos(a) * speed, vy = Math.sin(a) * speed;
+    const spin = (Math.random() < 0.5 ? -1 : 1) * (240 + Math.random() * 360), s = 0.7 + Math.random() * 0.6;
+    const frames = [], T = 0.95 + Math.random() * 0.35;
+    for (let k = 0; k <= 12; k++) {   // thrown, then falling and slowing like a petal does
+      const t = (k / 12) * T, drag = 1 - Math.exp(-2.6 * t);
+      frames.push({
+        transform: `translate(${x + vx * drag / 2.6}px, ${y + vy * drag / 2.6 + 160 * t * t}px) rotate(${spin * t}deg) scale(${s})`,
+        opacity: k < 2 ? 1 : 1 - (k / 12) ** 2,
+      });
+    }
+    p.animate(frames, { duration: T * 1000, easing: "linear", fill: "forwards" }).onfinish = () => p.remove();
+  }
+}
+
+// A new room blooms once it has grown in and the page has stopped scrolling to it (the petals
+// fly over the window, not the page, so they'd drift off a room still on its way).
+function blossom(room, n) {
+  if (REDUCED) return;
+  const start = performance.now();
+  let y = scrollY, still = 0;
+  const wait = () => {
+    still = scrollY === y ? still + 1 : 0;
+    y = scrollY;
+    if (still < 3 || performance.now() - start < 380) return requestAnimationFrame(wait);
+    if (!room.isConnected) return;
+    const r = $(".stage", room).getBoundingClientRect();
+    bloom(r.left + r.width / 2, r.top + r.height * 0.4, room.style.getPropertyValue("--room"), n);
+  };
+  requestAnimationFrame(wait);
+}
+
+// A card landing in a room: the stage gives a little under it, a ring spreads from where it
+// touched down, and petals fly up in the room's colour.
+function impact(card) {
+  const room = card.closest(".room");
+  const r = card.getBoundingClientRect();
+  const x = r.left + r.width / 2, y = r.top + r.height / 2;
+  if (!room) return bloom(x, y, "#ffd6ea", 5);
+  const color = room.style.getPropertyValue("--room") || "#c3a6ff";
+  bloom(x, y - r.height * 0.3, color);
+  if (REDUCED) return;
+  const stage = $(".stage", room), fx = $(".fx", room), s = stage.getBoundingClientRect();
+  const ring = document.createElement("i");
+  ring.className = "ripple";
+  ring.style.left = `${x - s.left}px`;
+  ring.style.top = `${y - s.top}px`;
+  fx.append(ring);
+  ring.animate([{ opacity: 0.9, transform: "scale(.5)" }, { opacity: 0, transform: "scale(14)" }],
+               { duration: 900, easing: "cubic-bezier(.2, .7, .3, 1)", fill: "forwards" }).onfinish = () => ring.remove();
+  stage.animate([{ scale: "1" }, { scale: "1.014" }, { scale: "1" }], { duration: 460, easing: "cubic-bezier(.3, .7, .4, 1)" });
+}
+
 // ---- drawing ----
 
 function render(s) {
@@ -772,6 +1037,7 @@ function fillRoom(el, r, hues) {
   el.style.setProperty("--room", color);
   el.setAttribute("aria-label", `Room ${r.name}`);
   $("h2", el).textContent = r.name;
+  $(".kanji", el).textContent = KANJI[r.name.replace(/-\d+$/, "")] || "";   // sakura-2 is still 桜
   $(".count", el).textContent = n ? `${n} ${n === 1 ? "agent" : "agents"}` : "Empty";
   $(".room-remove", el).hidden = n > 0;
 
@@ -809,7 +1075,7 @@ function line(m) {
   const when = new Date(m.ts * 1000);
   li.dataset.from = m.from;
   li.dataset.key = `${m.ts}|${m.from}`;
-  li.classList.toggle("open", opened.has(li.dataset.key));
+  li.classList.toggle("is-open", opened.has(li.dataset.key));
   $("b", li).textContent = m.from;
   $(".to", li).textContent = m.to ? `to ${m.to}` : "";
   $("time", li).textContent = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -879,67 +1145,82 @@ function lightHue(hex) {
   const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
   if (!d) return "#c3a6ff";
   const h = max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  return `hsl(${Math.round(h * 60)} 75% 78%)`;
+  return `hsl(${Math.round(h * 60)} 75% 80%)`;
 }
 
 // ---- moving agents ----
 
 // Where a card can go: into a room (it joins that team), onto the strip along the top (it leaves
-// its team), or onto a card that's on its own (the two of them become a new team).
-function act(card, t) {
+// its team), or onto a card that's on its own (the two of them become a new team). Says which it
+// was, or false for no change. A card carried by hand lands by itself (see land); one moved with
+// the keyboard glides over with the rest.
+function act(card, t, byHand) {
+  const skip = byHand ? card : null;
   if (t.classList.contains("room")) {
     if (t.dataset.name === card.dataset.room) return false;
-    moveTo(card, t);
-  } else if (t.classList.contains("agent")) {
-    teamUp(card, t);
-  } else {
-    if (!card.dataset.room) return false;
-    goAlone(card);
+    moveTo(card, t, skip);
+    return "room";
   }
-  return true;
+  if (t.classList.contains("agent")) {
+    teamUp(card, t, skip);
+    return "team";   // its new room blooms once the board has made it
+  }
+  if (!card.dataset.room) return false;
+  goAlone(card, skip);
+  return "alone";
 }
 
-// Put a card down right away (the rest make room for it); the board confirms, and the next
-// update corrects it if not.
-function moveTo(card, room) {
+// Put a card down right away, where the board will list it (the rest make room for it); the
+// board confirms, and the next update corrects it if not.
+function moveTo(card, room, skip) {
   const id = card.dataset.id, to = room.dataset.name;
   const at = snapshot();
-  $(".cards", room).append(card);
-  glide(at, card);
+  putAmong($(".cards", room), card);
+  glide(at, skip);
   card.dataset.room = to;
   announce(`${id} moved to ${to}.`);
   change("/api/move", { agent: id, room: to });
 }
 
-function goAlone(card) {
+function goAlone(card, skip) {
   const at = snapshot();
-  lobbyCards.append(card);
-  glide(at, card);
+  putAmong(lobbyCards, card);
+  glide(at, skip);
   card.dataset.room = "";
   announce(`${card.dataset.id} is on its own now.`);
   change("/api/move", { agent: card.dataset.id, room: null });
 }
 
-async function teamUp(card, other) {
+// The board lists agents by id (their files' names), so a card goes straight to that place.
+const sortKey = (el) => `${el.dataset.id}.json`;
+function putAmong(cards, card) {
+  const next = [...cards.children].find((c) => c !== card && sortKey(c) > sortKey(card));
+  cards.insertBefore(card, next || null);
+}
+
+async function teamUp(card, other, skip) {
   const focused = document.activeElement === card;
   const at = snapshot();
-  other.after(card);   // side by side while the board names their room
-  glide(at, card);
+  if (sortKey(card) < sortKey(other)) other.before(card); else other.after(card);   // side by side while the board names their room
+  glide(at, skip);
   const s = await change("/api/team", { agent: card.dataset.id, with: other.dataset.id });
   const room = s?.rooms.find((r) => r.members.some((a) => a.id === card.dataset.id));
   if (!room) return;
   announce(`${card.dataset.id} and ${other.dataset.id} are a team now, in ${room.name}.`);
   const el = roomEls.get(room.name);
-  el?.classList.add("flash");
-  el?.scrollIntoView({ block: "nearest", behavior: REDUCED ? "auto" : "smooth" });
+  if (el) {
+    el.classList.add("flash");
+    el.scrollIntoView({ block: "nearest", behavior: REDUCED ? "auto" : "smooth" });
+    blossom(el, 14);   // a new team: a bigger bloom
+  }
   if (focused) card.focus();
 }
 
-// The ring a carried card shows: the colour of the room it's over, pink over a card it would
-// team up with, none over the strip.
+// The ring a carried card shows: the colour of the room it's over, sakura over a card it would
+// team up with, white over the strip.
 function accentOf(t) {
   if (!t) return "transparent";
-  if (t.classList.contains("agent")) return "var(--pink)";
+  if (t.classList.contains("agent")) return "var(--sakura)";
   return t.classList.contains("room") ? t.style.getPropertyValue("--room") : "rgba(255, 255, 255, .5)";
 }
 
@@ -950,65 +1231,108 @@ function aim(t, preview) {
   target = t;
   t?.classList.add("is-target");
   if (preview) preview.style.setProperty("--accent", accentOf(t));
+  if (t && drag?.size) drag.size.v += 0.9;   // over somewhere new: a small bump, like a detent
 }
 
-// Mouse, pen and touch: press, drag past a few pixels, and let go over a room or a card. The
-// card lifts, follows your hand, and leans into the way it's moving.
+// ---- carrying a card ----
+
+// Mouse, pen and touch: press, drag past a few pixels, and let go over a room or a card. The card
+// lifts with a little pop, its place left as an outline. It hangs from where you hold it, so it
+// swings the way you move it, as a card held at one point would, and settles when you stop. Let
+// go and it carries on with your hand's speed into its new place, lands with a soft bump, and
+// the room it lands in answers.
+const LEAN = 0.0075;    // degrees of lean per px/s of movement, before the clamp
 let drag = null;
 document.addEventListener("pointerdown", (e) => {
   const card = e.target.closest?.(".agent");
   if (!card || card.classList.contains("ghost") || e.button !== 0 || carry || drag) return;
-  drag = { card, pid: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, ghost: null };
+  drag = { card, pid: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, trail: [], ghost: null };
+  follow(e);
   card.setPointerCapture(e.pointerId);
 });
 document.addEventListener("pointermove", (e) => {
-  if (!drag || e.pointerId !== drag.pid) return;
-  drag.x = e.clientX;
-  drag.y = e.clientY;
+  if (!drag) return tilt(e);
+  if (e.pointerId !== drag.pid) return;
+  follow(e);
   if (!drag.ghost && Math.hypot(drag.x - drag.x0, drag.y - drag.y0) >= 5) lift();
 });
 document.addEventListener("pointerup", (e) => { if (drag && e.pointerId === drag.pid) drop(true); });
 document.addEventListener("pointercancel", (e) => { if (drag && e.pointerId === drag.pid) drop(false); });
 document.addEventListener("lostpointercapture", (e) => { if (drag?.ghost && e.pointerId === drag.pid) drop(false); });
 
+// Where the pointer is, and the last few moments of where it was, for its speed.
+function follow(e) {
+  const events = e.getCoalescedEvents?.() || [];
+  for (const c of events.length ? events : [e]) drag.trail.push([c.timeStamp, c.clientX, c.clientY]);
+  while (drag.trail.length > 2 && e.timeStamp - drag.trail[0][0] > 90) drag.trail.shift();
+  drag.x = e.clientX;
+  drag.y = e.clientY;
+}
+
+// The pointer's speed in px/s over the last tenth of a second; nothing if it has stopped.
+function speed(d) {
+  const tr = d.trail;
+  if (tr.length < 2) return [0, 0];
+  const [t0, x0, y0] = tr[0], [t1, x1, y1] = tr[tr.length - 1];
+  if (performance.now() - t1 > 70 || t1 - t0 < 6) return [0, 0];
+  return [(x1 - x0) / (t1 - t0) * 1000, (y1 - y0) / (t1 - t0) * 1000];
+}
+
 function lift() {
   held = true;
-  const r = drag.card.getBoundingClientRect();
-  const ghost = drag.card.cloneNode(true);
-  ghost.style.width = `${r.width}px`;
-  ghost.style.height = `${r.height}px`;
+  const card = drag.card, r = card.getBoundingClientRect();
+  untilt();
+  const ghost = card.cloneNode(true);
   ghost.classList.add("ghost");
+  ghost.classList.remove("is-target", "tracking");
   ghost.removeAttribute("tabindex");
   ghost.removeAttribute("role");
+  ghost.removeAttribute("id");
   ghost.setAttribute("aria-hidden", "true");
+  ghost.style.width = `${r.width}px`;
+  ghost.style.height = `${r.height}px`;
+  const dx = drag.x0 - r.left, dy = drag.y0 - r.top;
+  ghost.style.transformOrigin = `${dx}px ${dy}px`;   // it hangs from where you hold it
   document.body.append(ghost);
-  Object.assign(drag, { ghost, dx: drag.x0 - r.left, dy: drag.y0 - r.top, px: drag.x, tilt: 0 });
-  place();
-  requestAnimationFrame(() => ghost.classList.add("up"));   // the lift springs up from where it was
-  drag.card.classList.add("lifted");
+  Object.assign(drag, {
+    ghost, dx, dy,
+    // which way it swings: from where you hold it to its middle, -1 to 1 each way
+    arm: [clamp((r.width / 2 - dx) / (r.width / 2), -1, 1), clamp((r.height / 2 - dy) / (r.height / 2), -1, 1)],
+    lean: { x: 0, v: 0 },
+    size: { x: 0.975, v: 0 },   // from pressed, up past where it's held, and back
+  });
+  card.classList.add("lifted");
   document.body.classList.add("dragging");
-  requestAnimationFrame(frame);
+  if (REDUCED) drag.size.x = 1.045;
+  carrying(0);
+  every(carrying);
 }
 
-function place() {
-  drag.ghost.style.transform = `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px) rotate(${drag.tilt}deg)`;
-}
-
-// Each frame while carrying: follow the pointer, lean with its speed (and straighten when it
-// stops), find what's underneath, and scroll near the top or bottom edge.
-function frame() {
-  if (!drag?.ghost) return;
-  const lean = REDUCED ? 0 : Math.max(-9, Math.min(9, (drag.x - drag.px) * 0.45));
-  drag.tilt += (lean - drag.tilt) * 0.2;
-  drag.px = drag.x;
-  place();
-  const under = document.elementFromPoint(drag.x, drag.y);
+// Each frame while carrying: hang under the pointer, swing with its speed, find what's
+// underneath, and scroll near the top or bottom edge.
+function carrying(dt) {
+  const d = drag;
+  if (!d?.ghost) return false;
+  const [vx, vy] = speed(d);
+  // A card held at one point swings as the air pushes on its middle: held at the top and moved
+  // right, its bottom trails left. Held in the middle it barely swings, so it leans a little anyway.
+  const [ax, ay] = d.arm;
+  const want = REDUCED ? 0 : clamp(LEAN * ((0.7 * ay + 0.3) * vx - ax * vy), -12, 12);
+  pull(d.lean, want, 190, 0.5, dt);
+  pull(d.size, 1.045, 420, 0.5, dt);
+  draw(d.ghost, d.x - d.dx, d.y - d.dy, d.lean.x, d.size.x);
+  const under = document.elementFromPoint(d.x, d.y);
   const card = under?.closest("#lobby .agent");
-  aim(card && card !== drag.card ? card : under?.closest(".room, #lobby") || null, drag.ghost);
-  const edge = 56, y = drag.y;
-  const v = y < edge ? -(edge - y) / 3 : y > innerHeight - edge ? (y - innerHeight + edge) / 3 : 0;
-  if (v) scrollBy(0, v);
-  requestAnimationFrame(frame);
+  aim(card && card !== d.card ? card : under?.closest(".room, #lobby") || null, d.ghost);
+  const edge = 64, y = d.y;
+  const v = y < edge ? -(edge - y) / edge : y > innerHeight - edge ? (y - innerHeight + edge) / edge : 0;
+  if (v) scrollBy(0, v * 1100 * dt);
+  return true;
+}
+
+function draw(el, x, y, lean, size) {
+  el.style.transform = `translate(${x}px, ${y}px) rotate(${lean}deg) scale(${size})`;
+  el.style.setProperty("--air", clamp((size - 1) / 0.045, 0, 1.3).toFixed(3));
 }
 
 function drop(ok) {
@@ -1021,33 +1345,81 @@ function drop(ok) {
   const t = ok ? target : null;
   aim(null);
   document.body.classList.remove("dragging");
-  const moving = !!t && act(d.card, t);
-  settle(d.ghost, d.card, d.tilt);
+  const [vx, vy] = speed(d);
+  d.card.classList.remove("lifted");
+  d.card.style.setProperty("--accent", d.ghost.style.getPropertyValue("--accent") || "transparent");
+  const moving = !!t && act(d.card, t, true);
+  land(d.card, { x: d.x - d.dx, y: d.y - d.dy, vx, vy, dx: d.dx, dy: d.dy, lean: d.lean, size: d.size }, moving);
+  d.ghost.remove();
   release(moving);
 }
 
-// The carried card springs down into its place, straightening as it lands.
-function settle(ghost, card, tilt) {
-  let done = false;
-  const finish = () => {
-    if (done) return;
-    done = true;
-    ghost.remove();
-    card.classList.remove("lifted");
+// The card itself takes over from the one in your hand, right where that one was, and springs
+// into its place: with your hand's speed, swinging straight, and with a little bump as it lands.
+// Whatever else moves meanwhile (its room gliding as others make way) adds on top.
+function land(card, from, moved) {
+  let host = null;   // its room or the strip, kept over the others while the card comes down
+  const done = () => {
+    card.classList.remove("landing");
+    host?.classList.remove("hosting");
+    for (const k of ["transform", "transform-origin", "--air", "--accent"]) card.style.removeProperty(k);
   };
-  if (REDUCED) return finish();
+  if (REDUCED) return done();
   const r = card.getBoundingClientRect();
-  const from = ghost.style.transform;
-  ghost.style.setProperty("--accent", card.style.getPropertyValue("--accent") || "transparent");
-  ghost.style.transform = `translate(${r.left}px, ${r.top}px) rotate(0deg)`;
-  ghost.classList.remove("up");
-  card.classList.remove("lifted");
-  card.style.opacity = "0";   // the ghost stands in for it until it lands
-  const move = ghost.animate([{ transform: from }, { transform: ghost.style.transform }],
-                             { duration: 520, easing: GLIDE });
-  move.onfinish = () => { card.style.opacity = ""; finish(); };
-  setTimeout(() => { card.style.opacity = ""; finish(); }, 800);
+  const x = { x: from.x - r.left, v: from.vx }, y = { x: from.y - r.top, v: from.vy };
+  const lean = { ...from.lean }, size = { ...from.size };
+  card.classList.add("landing");
+  card.style.transformOrigin = `${from.dx}px ${from.dy}px`;
+  draw(card, x.x, y.x, lean.x, size.x);
+  let landed = false, time = 0;
+  every((dt) => {
+    time += dt;
+    const h = card.closest(".room, .lobby");   // a new team's room appears under it mid-flight
+    if (h !== host) {
+      host?.classList.remove("hosting");
+      host = h;
+      host?.classList.add("hosting");
+    }
+    pull(x, 0, 300, 0.78, dt);
+    pull(y, 0, 300, 0.78, dt);
+    pull(lean, 0, 240, 0.42, dt);
+    pull(size, 1, 520, 0.45, dt);
+    if (!landed && Math.hypot(x.x, y.x) < 14) {   // touching down
+      landed = true;
+      size.v -= 0.9;
+      card.style.setProperty("--accent", "transparent");
+      if (moved && moved !== "team") impact(card);
+    }
+    draw(card, x.x, y.x, lean.x, size.x);
+    const still = resting(x, 0, 0.3) && resting(y, 0, 0.3) && resting(lean, 0, 0.03) && resting(size, 1, 0.0008);
+    if (still || time > 2) return done(), false;
+    return true;
+  });
 }
+
+// Hovering a card with a mouse leans its face toward the pointer, and the light follows.
+let tilted = null;
+function tilt(e) {
+  if (e.pointerType !== "mouse" || REDUCED || carry) return;
+  const card = e.target.closest?.(".agent:not(.ghost):not(.lifted):not(.landing)");
+  if (tilted && tilted !== card) untilt();
+  if (!card) return;
+  tilted = card;
+  const r = card.getBoundingClientRect();
+  const px = clamp((e.clientX - r.left) / r.width, 0, 1), py = clamp((e.clientY - r.top) / r.height, 0, 1);
+  card.classList.add("tracking");
+  card.style.setProperty("--rx", `${((0.5 - py) * 6).toFixed(2)}deg`);
+  card.style.setProperty("--ry", `${((px - 0.5) * 8).toFixed(2)}deg`);
+  card.style.setProperty("--mx", `${(px * 100).toFixed(1)}%`);
+  card.style.setProperty("--my", `${(py * 100).toFixed(1)}%`);
+}
+function untilt() {
+  if (!tilted) return;
+  tilted.classList.remove("tracking");
+  for (const k of ["--rx", "--ry"]) tilted.style.removeProperty(k);
+  tilted = null;
+}
+document.documentElement.addEventListener("pointerleave", untilt);
 
 // Keyboard: Enter brings up the agent's window. Space picks a card up, arrows choose where it
 // goes, Space puts it down, Escape cancels.
@@ -1072,6 +1444,7 @@ document.addEventListener("focusout", (e) => { if (carry && e.target === carry.c
 
 function pickUp(card) {
   held = true;
+  untilt();
   const spots = [...roomsEl.children, lobbyEl, ...[...lobbyCards.children].filter((c) => c !== card)];
   const home = card.dataset.room ? roomEls.get(card.dataset.room) : lobbyEl;
   carry = { card, spots, i: Math.max(0, spots.indexOf(home)) };
@@ -1096,9 +1469,13 @@ function putDown() {
   aim(null, c.card);
   c.card.classList.remove("carried");
   c.card.style.removeProperty("--accent");
-  const moving = act(c.card, t);
-  if (moving) c.card.focus();
-  else announce("Put back.");
+  const moving = act(c.card, t, false);
+  if (moving) {
+    c.card.focus();
+    if (moving !== "team") setTimeout(() => impact(c.card), 420);   // once it has glided over
+  } else {
+    announce("Put back.");
+  }
   release(moving);
 }
 
@@ -1131,6 +1508,7 @@ function go(link) {
 
 async function jump(card) {
   announce(`Bringing up ${card.dataset.id}'s window.`);
+  if (!REDUCED) $(".face", card).animate([{ scale: "1" }, { scale: ".965" }, { scale: "1" }], { duration: 320, easing: BOUNCE });
   if (!APP) return go(`tatami-room:focus/${encodeURIComponent(card.dataset.id)}`);
   if (await APP.focus(card.dataset.id) === 2) toast("This agent has no window of its own to bring up.");
 }
@@ -1142,18 +1520,21 @@ $("#new-claude").addEventListener("click", (e) => {
 
 // ---- rooms, messages, notices ----
 
-const form = $("#newroom"), input = $("#roomname");
+// + Room opens a name box beside it and becomes Create. Create with no name nudges the box;
+// Escape, or leaving it empty, closes it again.
+const form = $("#newroom"), input = $("#roomname"), roomButton = $("#room-button");
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!form.classList.contains("open")) {
-    form.classList.add("open");
+  if (!form.classList.contains("is-open")) {
+    form.classList.add("is-open");
+    roomButton.textContent = "Create";
     input.tabIndex = 0;
     input.focus();
     return;
   }
   const name = input.value.trim();
-  if (!name) return closeForm();
-  if (!/[\p{L}\p{N}]/u.test(name)) return toast("A room name needs at least one letter or number.");
+  if (!name) return nudge();
+  if (!/[\p{L}\p{N}]/u.test(name)) return nudge("A room name needs at least one letter or number.");
   const before = new Set(roomEls.keys());
   if (await change("/api/room", { room: name })) {
     closeForm();
@@ -1162,6 +1543,7 @@ form.addEventListener("submit", async (e) => {
     if (el) {
       el.classList.add("flash");
       el.scrollIntoView({ block: "nearest", behavior: REDUCED ? "auto" : "smooth" });
+      blossom(el, 10);
     }
   }
 });
@@ -1169,8 +1551,17 @@ input.addEventListener("keydown", (e) => { if (e.key === "Escape") closeForm(); 
 input.addEventListener("blur", () => setTimeout(() => {
   if (!input.value.trim() && document.activeElement !== input) closeForm();
 }, 150));
+function nudge(msg) {
+  form.classList.remove("shake");
+  void form.offsetWidth;   // start the shake again if it's still going
+  form.classList.add("shake");
+  input.focus();
+  if (msg) toast(msg);
+}
+form.addEventListener("animationend", () => form.classList.remove("shake"));
 function closeForm() {
-  form.classList.remove("open");
+  form.classList.remove("is-open");
+  roomButton.textContent = "+ Room";
   input.value = "";
   input.tabIndex = -1;
 }
@@ -1178,8 +1569,8 @@ function closeForm() {
 roomsEl.addEventListener("click", (e) => {
   const li = e.target.closest(".talk li[data-key]");
   if (!li || getSelection().toString()) return;   // selecting text isn't a click
-  li.classList.toggle("open");
-  if (li.classList.contains("open")) opened.add(li.dataset.key); else opened.delete(li.dataset.key);
+  li.classList.toggle("is-open");
+  if (li.classList.contains("is-open")) opened.add(li.dataset.key); else opened.delete(li.dataset.key);
 });
 
 let toastTimer = 0;
@@ -1204,6 +1595,7 @@ function announce(msg) {
   $("#live").textContent = msg;
 }
 
+scatterPetals();
 if (TOKEN.startsWith("__")) {
   setStatus("denied");
   toast("Open the desk with the tatami launcher, not as a file.");

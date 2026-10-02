@@ -4,8 +4,8 @@ Tatami Room's design touch: every Claude window gets a background color no other
 
 ## What you get
 
-- **A different color per window.** Twelve dark hues are dealt like a shuffled deck, so every color is used before any repeats, and no two open windows share one. Windows on the same team also share a tab color (see the [README](README.md)).
-- **A different girl per window**, from Genshin Impact, Honkai: Star Rail or Zenless Zone Zero, redrawn as faint negative braille dots: only the line art and dark areas get dots, so your code stays easy to read. Prefer the real picture? `waifu style image`.
+- **A different color per window.** Twelve dark shades that sit with the sakura look (cherry, rouge, wine, plum, mauve, orchid, grape, iris, indigo, dusk, haze and matcha green) are dealt like a shuffled deck, so every color is used before any repeats, and no two open windows share one. Windows on the same team also share a tab color (see the [README](README.md)).
+- **A different girl per window**, from Genshin Impact, Honkai: Star Rail or Zenless Zone Zero, redrawn as faint negative braille dots: only the line art and dark areas get dots, so your code stays easy to read. The picture is stretched to fill the window, so a big or full-screen window draws every dot bigger; the dots fade as it grows (down to 40% of their usual strength), and come back when it shrinks. Prefer the real picture? `waifu style image`.
 - **Official art only**, pulled from Danbooru's `official_art` tag. Pieces must be wide, safe-rated and girls only: no male characters, and no event posters covered in text.
 - **Windows that stay as they are.** Open windows never change; only new windows get the next girl. Fresh wallpapers download quietly every day.
 

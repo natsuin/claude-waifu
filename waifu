@@ -24,7 +24,8 @@ drawn as faint braille dots so your text stays readable. Open windows never chan
 How the per-window part works: Windows Terminal draws the background per profile. Setup
 adds ten hidden profiles ("slots"). The Claude Waifu shortcut opens a new window on the
 slot that already holds the next girl and colour, starts Claude in it, and runs
-`waifu advance` to load the slot after that for the next window.
+`waifu advance` to load the slot after that for the next window. Each slot window runs Claude
+through `waifu fade`, which watches the window's size and fades its dots as it grows.
 
 Drop your own .png/.jpg wallpapers into the wallpaper folder and they join the rotation.
 """
@@ -34,8 +35,10 @@ import json
 import os
 import random
 import shutil
+import struct
 import subprocess
 import sys
+import termios
 import time
 import urllib.parse
 import urllib.request
@@ -74,11 +77,13 @@ DISTRO = CONF.get("distro") or os.environ.get("WSL_DISTRO_NAME", "Ubuntu")
 SLOTS = 10  # windows that can hold different girls at once before the oldest is reused
 SLOT_GUIDS = ["{7a1f0c3e-5eed-4b1e-9a1f-%012d}" % i for i in range(SLOTS)]
 # Every shortcut window gets its own background colour, so windows can be told apart at a
-# glance: twelve hues 30 degrees apart at the same darkness (HSL lightness 16%, saturation
-# 60%), all dark enough for light text.
-TINTS = {"red": "#411010", "amber": "#412910", "olive": "#414110", "lime": "#294110",
-         "green": "#104110", "jade": "#104129", "teal": "#104141", "sky": "#102941",
-         "blue": "#101041", "violet": "#291041", "magenta": "#411041", "rose": "#411029"}
+# glance: night-sakura shades, from cherry and plum through wisteria to dusk blue, and one
+# matcha green (no olives or browns), spread over hue and darkness so neighbours still differ,
+# all dark enough for light text. There must be at least SLOTS of them, so no two open windows
+# share one.
+TINTS = {"cherry": "#4c112c", "rouge": "#491a1f", "wine": "#340417", "plum": "#360d30",
+         "mauve": "#4d303e", "orchid": "#42194d", "grape": "#2a1748", "iris": "#161141",
+         "indigo": "#051032", "dusk": "#0f2e4d", "haze": "#313955", "matcha": "#15361b"}
 BOORU = "https://danbooru.donmai.us"
 GAMES = {"genshin_impact": "Genshin Impact", "honkai:_star_rail": "Honkai: Star Rail",
          "zenless_zone_zero": "Zenless Zone Zero"}
@@ -90,6 +95,10 @@ STYLES = {"dots": 35, "image": 25}  # style -> default opacity percent
 EXTS = (".png", ".jpg", ".jpeg")
 COLS, CW, CH = 160, 12, 24   # braille cells across a 1920px canvas, and the cell size
 DOT = (245, 230, 240)        # a soft white, for a two-colour look
+# Terminal stretches the dot picture to fill the window, so in a big window every dot is drawn
+# bigger beside the same-size letters and starts to crowd them. Once a dot cell is drawn bigger
+# than FADE_FROM of a letter cell, the dots fade in step with their size, to no less than FADE_FLOOR.
+FADE_FROM, FADE_FLOOR = 0.8, 0.4
 # No males, two ways: Danbooru's head-count tags, plus a name list in case a post is under-tagged.
 BOYS = {"1boy", "2boys", "3boys", "4boys", "5boys", "6+boys", "multiple_boys", "male_focus"}
 MALES = {
@@ -464,6 +473,27 @@ def opacity(state):
     return state.get("opacity", {}).get(style(state), STYLES[style(state)])
 
 
+def fade(size, name):
+    """How much of their opacity girl `name`'s dots keep in a window `size` = [cols, rows]
+    letters big: all of it in a small window, less as the window grows (see FADE_FROM)."""
+    try:
+        with open(dots_path(name), "rb") as f:
+            w, h = struct.unpack(">II", f.read(24)[16:])  # the picture's size, from its PNG header
+    except (OSError, struct.error):
+        return 1
+    scale = max(size[0] * CW / w, size[1] * CH / h)  # a dot cell as drawn, beside a letter cell
+    return max(FADE_FLOOR, min(1, FADE_FROM / scale))
+
+
+def strength(state, where, name):
+    """The opacity percent girl `name` gets in one place: the style's own, with the dots faded
+    to suit the window's size once its `waifu fade` has reported it."""
+    size = state.get("sizes", {}).get(str(where))
+    if style(state) != "dots" or not size:
+        return opacity(state)
+    return round(opacity(state) * fade(size, name))
+
+
 def load_wt():
     with open(WT_SETTINGS, encoding="utf-8-sig") as f:
         try:
@@ -482,7 +512,7 @@ def slot_template():
     """What every slot profile looks like, minus its girl and colour."""
     command = f"wsl.exe -d {DISTRO} --cd ~"
     if CONF.get("start_claude", True):  # start Claude straight away, then drop to a shell
-        command += ' -- bash -lic "claude; exec bash"'
+        command += f' -- {waifu_path()} fade bash -lic "claude; exec bash"'
     tpl = {"commandline": command, "hidden": True, **CONF.get("look", {})}
     if CONF.get("start_claude", True):
         tpl["tabTitle"] = "Claude"
@@ -522,7 +552,8 @@ def paint(wt, state, where, name):
         else:
             path = os.path.join(POOL, name)
         prof.update({"backgroundImage": win_path(path), "backgroundImageStretchMode": "uniformToFill",
-                     "backgroundImageAlignment": "center", "backgroundImageOpacity": opacity(state) / 100})
+                     "backgroundImageAlignment": "center",
+                     "backgroundImageOpacity": strength(state, where, name) / 100})
     state.setdefault("shown", {})[str(where)] = name
 
 
@@ -560,6 +591,7 @@ def prepare_next(wt, state):
     """Load the next slot with a girl and a colour, and tell the shortcut about it."""
     prev = state.get("slot", -1)
     nxt = (prev + 1) % SLOTS
+    state.get("sizes", {}).pop(str(nxt), None)  # the window that had this slot; the new one reports its own
     if not state.get("off"):
         paint(wt, state, nxt, choose(state))
     tint(wt, state, nxt)
@@ -623,6 +655,54 @@ def here(state):
     the default one."""
     profile = os.environ.get("WT_PROFILE_ID", "").lower()
     return next((i for i, g in enumerate(SLOT_GUIDS) if g.lower() == profile), "default")
+
+
+def watch():
+    """Fade this slot window's dots as it grows: a quiet background process that reads the
+    window's size off its terminal 20 times a second and, as soon as it changes, sets the dots'
+    opacity in the slot's profile to suit. It ends when the window closes (the terminal hangs up)."""
+    slot = here({})
+    if slot == "default" or not os.isatty(0) or os.fork():
+        return
+    try:
+        os.setsid()  # out of the window's job control, so Ctrl+C at the prompt can't stop it
+        tty = os.dup(0)
+        null = os.open(os.devnull, os.O_RDWR)
+        for fd in (0, 1, 2):
+            os.dup2(null, fd)
+        done, last = None, 0
+        while True:
+            time.sleep(0.05)
+            rows, cols = struct.unpack("HH", fcntl.ioctl(tty, termios.TIOCGWINSZ, bytes(8))[:4])
+            size = [cols, rows]
+            # Every settings write makes Terminal reload them in every window, so while the edge
+            # is being dragged, at most one each 0.1s; the size it ends on still gets applied.
+            if size != done and time.monotonic() - last >= 0.1 and resize(slot, size):
+                done, last = size, time.monotonic()
+    finally:  # the window closed (the ioctl failed), or anything else: never go on as the parent
+        os._exit(0)
+
+
+def resize(slot, size):
+    """Note a slot window's size and fade its dots to suit. False while another waifu command
+    holds the lock (a download can take minutes), so the watcher tries again shortly."""
+    with open(os.path.join(STATE_DIR, "lock"), "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+        state = load(STATE, {})
+        state.setdefault("sizes", {})[str(slot)] = size
+        save(STATE, state)
+        name = state.get("shown", {}).get(str(slot))
+        wt = load_wt()
+        prof = next((p for p in wt["profiles"]["list"] if p.get("guid") == SLOT_GUIDS[slot]), {})
+        # Only this slot's own dots: not while they're off, in the image style, or after `waifu show`
+        if name and style(state) == "dots" and prof.get("backgroundImage") == win_path(dots_path(name)):
+            if prof.get("backgroundImageOpacity") != strength(state, slot, name) / 100:
+                prof["backgroundImageOpacity"] = strength(state, slot, name) / 100
+                save_wt(wt)
+        return True
 
 
 def get(url):
@@ -779,7 +859,7 @@ def _mark(dst):
     im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     for x, y, w, h, fill in ((.6, .6, 18.8, 8.8, (255, 133, 192, 255)), (20.6, .6, 8.8, 18.8, (195, 166, 255, 255)),
-                             (10.6, 20.6, 18.8, 8.8, (126, 232, 181, 255)), (.6, 10.6, 8.8, 18.8, (142, 203, 255, 255)),
+                             (10.6, 20.6, 18.8, 8.8, (255, 195, 138, 255)), (.6, 10.6, 8.8, 18.8, (142, 203, 255, 255)),
                              (10.6, 10.6, 8.8, 8.8, (245, 230, 240, 90))):
         d.rounded_rectangle((x * u, y * u, (x + w) * u, (y + h) * u), radius=1.2 * u, fill=fill)
     im.save(dst, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (256, 256)])
@@ -997,6 +1077,15 @@ def main():
     if cmd in ("-h", "--help", "help"):
         print(__doc__)
         return
+    if cmd == "fade":  # how a slot window starts: watch its size in the background, then run CMD...
+        try:
+            if CONF:
+                watch()
+        except Exception:  # fading is a nicety; the window's own command must start regardless
+            pass
+        if len(args) > 1:
+            os.execvp(args[1], args[1:])
+        return
     if cmd == "setup":
         setup(args[1:])
         return
@@ -1027,7 +1116,8 @@ def main():
                 slot_profiles(wt)
                 if cmd == "launch":
                     # The slot's own look; with DIR CMD..., its command line swapped for that one
-                    run = ["wsl.exe", "-d", DISTRO, "--cd", args[1], "--", *args[2:]] if len(args) > 2 else []
+                    run = (["wsl.exe", "-d", DISTRO, "--cd", args[1], "--", waifu_path(), "fade", *args[2:]]
+                           if len(args) > 2 else [])
                     subprocess.Popen([WT_EXE, "-w", "new", "-p", SLOT_GUIDS[state.get("slot", 0) % SLOTS], *run],
                                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                      stderr=subprocess.DEVNULL, start_new_session=True)

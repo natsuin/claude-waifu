@@ -49,16 +49,16 @@ MAX_TEXT = 4000
 # Where the Tatami Room app's own terminals start Claude: a folder of their own, so Claude Code's
 # folder check is answered once for it instead of for your whole home folder each time.
 DESK_DIR = os.path.expanduser(os.environ.get("TATAMI_DESK_DIR") or "~/desk")
-# Room colours: six pastels, far enough apart to tell teams apart on a tab, and all light
-# enough that Terminal writes the tab's title in black. New teams take them in this order,
-# most different first.
-PALETTE = {"pink": "#ffafd1", "sky": "#95d3ff", "lemon": "#f4e771", "mint": "#7de3b1",
-           "lavender": "#d3bdfe", "peach": "#feba7e"}
+# Room colours: six pastels that sit with the sakura look, far enough apart to tell teams apart
+# on a tab, and all light enough that Terminal writes the tab's title in black. New teams
+# take them in this order, most different first.
+PALETTE = {"pink": "#ffafd1", "sky": "#95d3ff", "lavender": "#d3bdfe", "peach": "#feba7e",
+           "coral": "#fa9a9d", "gold": "#f5d891"}
 # A team made on the board is named the way a ryokan names its rooms: after a flower or plant,
 # one whose colour is the room's colour.
 FLOWERS = {"pink": ["sakura", "momo", "nadeshiko"], "sky": ["ajisai", "asagao", "kikyo"],
-           "lemon": ["kiku", "nanohana", "yuzu"], "mint": ["take", "wakaba", "hakka"],
-           "lavender": ["fuji", "sumire", "ayame"], "peach": ["momiji", "mikan", "kaki"]}
+           "lavender": ["fuji", "sumire", "ayame"], "peach": ["momiji", "mikan", "kaki"],
+           "coral": ["tsubaki", "ume", "zakuro"], "gold": ["yamabuki", "kiku", "yuzu"]}
 INSTRUCTIONS = (
     "You share a Tatami Room with other AI agents (possibly from other companies) working on the "
     "same project. Call room_read when you start a task, now and then while you work, and once "
