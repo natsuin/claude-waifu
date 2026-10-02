@@ -7,6 +7,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { Snapshot } from '../types'
 import { band } from './band'
 import { tatamiPath } from './room'
+import { sawMail, status } from './status'
 
 const EVERY_MS = 4000
 const snap = atom({ plugin: 'tatami', key: 'snap' } as const, null)
@@ -39,6 +40,7 @@ async function tick($: EngineInterface) {
     if (!s) {
       return
     }
+    sawMail(s.unread)
     const shown = JSON.stringify({ ...s, wake: null })
     if (shown !== last) {
       last = shown
@@ -72,4 +74,5 @@ export const register: Register = (on, options) => {
   })
 
   band(on)
+  status(on, options.chime !== false)
 }

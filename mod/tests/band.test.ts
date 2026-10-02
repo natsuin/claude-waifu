@@ -1,3 +1,4 @@
+import type { RenderElement } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
 import type { Snapshot } from '../types'
@@ -25,7 +26,7 @@ test('room mail shows above the prompt until the agent reads it', async ($, on) 
   on('session.start', async (_$, e) => ({ cwd: e.cwd }))
   on('ui.render', async ($r, e) => { // stands for the engine's own band
     const { Text } = $r.ui.resolve(e)
-    return h(Text, { key: 'engine' }, 'engine')
+    return h(Text, {}, 'engine') as RenderElement
   })
   await $.session.start({ cwd: '/home/test', surface: 'terminal', isInteractive: true })
   await clock.advance(0)
