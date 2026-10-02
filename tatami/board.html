@@ -25,6 +25,8 @@
   --fuji: #c3a6ff;            /* wisteria: an agent at work */
   --sora: #8ecbff;            /* dusk sky: your turn, usage that's fine */
   --kaki: #ffc38a;            /* persimmon: usage running high */
+  --aka: #ff4d5e;             /* red: an agent that needs your OK */
+  --aka-ink: #2b0d12;         /* text on aka */
   --beni: #ff6b8b;            /* crimson: usage nearly gone, something wrong */
   --ui: "Segoe UI Variable Text", "Segoe UI Variable", -apple-system, "SF Pro Text", system-ui, "Segoe UI", sans-serif;
   --display: "Segoe UI Variable Display", "Segoe UI Variable", -apple-system, "SF Pro Display", system-ui, "Segoe UI", sans-serif;
@@ -448,7 +450,7 @@ body.stale main { opacity: .5; filter: saturate(.4); }
   background: linear-gradient(155deg, color-mix(in oklab, var(--tint), white 10%), var(--tint) 70%);
   box-shadow:
     0 0 0 2px var(--accent),
-    0 0 calc(34px * var(--glow)) -4px rgba(255, 133, 192, calc(.75 * var(--glow))),
+    0 0 calc(30px * var(--glow)) calc(3px * var(--glow)) rgb(var(--halo) / calc(.7 * var(--glow))),
     inset 0 0 0 1px rgba(255, 255, 255, .09),
     inset 0 1px 0 rgba(255, 255, 255, .07),
     0 calc(2px + 8px * var(--air)) calc(6px + 16px * var(--air)) rgba(0, 0, 0, .3),
@@ -518,10 +520,19 @@ body.stale main { opacity: .5; filter: saturate(.4); }
 .agent[data-status="working"] .state::before { animation: breathe 1.8s ease-in-out infinite; }
 .agent[data-status="done"] .state { color: var(--sora); }
 .agent[data-status="done"] .state::before { background: var(--sora); box-shadow: 0 0 8px var(--sora); }
-.agent[data-status="asking"] .state { background: var(--sakura); color: var(--sakura-ink); }
-.agent[data-status="asking"] .state::before { background: var(--sakura-ink); }
-.agent[data-status="asking"] { --accent: var(--sakura); animation: asking 2.2s ease-in-out infinite; }
-@keyframes asking { 50% { --glow: 1; } }
+.agent[data-status="asking"] .state { background: var(--aka); color: var(--aka-ink); }
+.agent[data-status="asking"] .state::before { background: var(--aka-ink); }
+/* Waiting on you, a card glows: softly and slowly in sky blue when it's your turn, and quickly in
+   red when it needs your OK. The glow's colour is --halo, as r g b. */
+.agent { --halo: 255 133 192; }
+.agent[data-status="done"] {
+  --halo: 142 203 255;
+  --accent: rgb(var(--halo) / calc(.12 + .5 * var(--glow)));   /* its ring breathes with it */
+  animation: your-turn 4.5s ease-in-out infinite;
+}
+@keyframes your-turn { 0%, 100% { --glow: .15; } 50% { --glow: 1; } }
+.agent[data-status="asking"] { --halo: 255 77 94; --accent: var(--aka); animation: asking 1.1s ease-in-out infinite; }
+@keyframes asking { 0%, 100% { --glow: .35; } 50% { --glow: 1.15; } }
 /* Room messages it hasn't read, like an app's badge. Waiting for you, it can't read them until
    you talk to it: then the badge glows. */
 .badge {
@@ -685,6 +696,8 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+  .agent[data-status="done"] { --glow: .7; }
+  .agent[data-status="asking"] { --glow: 1; }
 }
 </style>
 </head>
@@ -848,7 +861,6 @@ const tpl = (id) => $(id).content.firstElementChild;
 const roomEls = new Map();    // room name -> its <section>, kept between updates
 const agentEls = new Map();   // agent id -> its card, kept between updates (moved, never rebuilt)
 const opened = new Set();     // messages clicked open
-const cheers = new Set();     // cards whose agent just finished its turn: petals once they're drawn
 const arrivals = new Set();   // cards of agents that just turned up
 
 let state = null;            // the latest answer from /api/state
@@ -1799,8 +1811,8 @@ function bloom(x, y, color, n = 8, flower = "") {
   sky.burst(x, y, color, n, flower);
 }
 
-// An agent that has finished its turn, or just arrived, throws up a few petals in its own colour,
-// so you notice from across the desk.
+// An agent that has just arrived throws up a few petals in its own colour, so you notice from
+// across the desk. (One that finishes its turn glows instead.)
 function cheer(card, n) {
   if (!card.isConnected) return;
   const r = card.getBoundingClientRect();
@@ -1948,9 +1960,7 @@ function render(s) {
   $("#empty").hidden = rooms > 0 || n > 0;
   showUsage(s.usage || {});
   glide(at);
-  for (const card of cheers) requestAnimationFrame(() => cheer(card, 9));
   for (const card of arrivals) setTimeout(() => cheer(card, 6), 420);   // once it has grown in
-  cheers.clear();
   arrivals.clear();
   firstPaint = false;
 }
@@ -2099,7 +2109,6 @@ function fillCard(card, a) {
   card.dataset.name = name;
   $(".folder", card).textContent = a.folder ? `${a.folder}/` : "";
   const status = STATUS[a.status];
-  if (!firstPaint && card.dataset.status === "working" && a.status === "done") cheers.add(card);   // its turn is over
   card.dataset.status = status ? a.status : "";
   $(".state", card).textContent = status || "";
   card.setAttribute("aria-label", `${name}, ${company}${a.model ? ` ${a.model}` : ""} agent, `
