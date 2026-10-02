@@ -23,6 +23,9 @@ const PANE = {
   viewport: { columns: 160, rows: 40 },
 } as const
 
+// How the person's Enter runs a command in a fullscreen terminal 160 columns wide.
+const TYPED = { origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } } as const
+
 test('/room shows the team and its messages, and posts as the user', async ($, on) => {
   const clock = mock.clock(on)
   mock.env(on, { HOME: '/home/test' })
@@ -37,7 +40,7 @@ test('/room shows the team and its messages, and posts as the user', async ($, o
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('session.start', async (_$, e) => ({ cwd: e.cwd }))
-  on('command.register', async () => ({ value: undefined }))
+  on('command.register', async (_$, e) => ({ value: { command: e.name } }))
   on('ui.status', async () => ({ value: undefined }))
   on('ui.open', async (_$, e) => {
     opened.push(e.id)
@@ -50,7 +53,7 @@ test('/room shows the team and its messages, and posts as the user', async ($, o
   await $.session.start({ cwd: '/home/test', surface: 'terminal', isInteractive: true })
   await clock.advance(0)
 
-  const opening = await $.command.run({ command: 'room' })
+  const opening = await $.command.run({ ...TYPED, command: 'room', args: '' })
   expect(opening.text).toBe('The sakura pane is open (Esc closes it).')
   expect(opened).toEqual(['tatami-room'])
 
@@ -65,7 +68,7 @@ test('/room shows the team and its messages, and posts as the user', async ($, o
   expect(await ui.find({ type: 'Text', text: /you → claude-sky: please pause/ })).toBeDefined()
   await ui.unmount()
 
-  const direct = await $.command.run({ command: 'room', args: 'hello all' })
+  const direct = await $.command.run({ ...TYPED, command: 'room', args: 'hello all' })
   expect(direct.text).toBe("Posted to room 'sakura'.")
   expect(posts.at(-1)).toBe('hello all')
 
