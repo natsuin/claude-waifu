@@ -91,10 +91,10 @@ ALONE = ("You're on your own right now, not in a room, so there's no one to talk
 TOOLS = [
     {"name": "room_post",
      "description": "Post a short message to your Tatami Room: an update, a hand-off, or a question. "
-                    "Set `to` to address one member by id (everyone in the room can still read it).",
+                    "Set `to` to address one member of your room by id (everyone in the room can still read it).",
      "inputSchema": {"type": "object", "properties": {
          "text": {"type": "string", "description": "The message"},
-         "to": {"type": "string", "description": "Optional: a member id from room_members"}},
+         "to": {"type": "string", "description": "Optional: the id of an agent in your room, from room_members"}},
          "required": ["text"]}},
     {"name": "room_read",
      "description": "Read messages in your Tatami Room that you haven't seen yet. "
@@ -433,11 +433,18 @@ def answer(agent, name, args, room):
         if not text:
             return "Nothing to post: text was empty.", True
         msg = {"ts": time.time(), "from": agent.id, "text": text}
+        others = [r for r in live_agents() if r["room"] == room and r["id"] != agent.id]
         if args.get("to"):
             msg["to"] = safe_name(str(args["to"]))
+            # Rooms are the teams the user made: an agent talks to its own room, not across them.
+            # The user (the /room pane) is in every room.
+            if msg["to"] != USER and msg["to"] not in {r["id"] for r in others}:
+                here = ", ".join(r["id"] for r in others) or "no one else"
+                return (f"Not posted: {msg['to']} isn't in room '{room}', and you can only talk to your "
+                        f"own room. In it now: {here}. Only the user can bring another agent in, by "
+                        f"dragging it into this room on the board."), True
         msgs = agent.messages(room)  # before this one: who has read what you said earlier
         post(room, msg)
-        others = [r for r in live_agents() if r["room"] == room and r["id"] != agent.id]
         if msg.get("to"):
             others = [r for r in others if r["id"] == msg["to"]] or others
         notes = [f"{r['id']} {reading(r, room, msgs, agent.id)}." for r in others]
