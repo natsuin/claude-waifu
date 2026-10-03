@@ -447,6 +447,7 @@ def forget_the_gone():
         path = os.path.join(AGENTS, fn)
         if fn.endswith(".json") and not alive(load(path, {})):
             os.remove(path)
+            work.retire(fn[:-5])  # its claims, unfinished tasks and worktrees aren't the next one's
     status = os.path.join(HOME, "status")  # what the hooks noted about each agent
     for fn in os.listdir(status) if os.path.isdir(status) else []:
         if not os.path.exists(os.path.join(AGENTS, fn)):

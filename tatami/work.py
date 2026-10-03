@@ -223,7 +223,9 @@ def claim(agent_id, room, paths, task=None, auto=False):
             taken.append((name, other))
             continue
         kept = [c for c in kept if not (c["agent"] == agent_id and c["path"] == name)]
-        kept.append({"path": name, "agent": agent_id, "room": room, "task": task, "auto": auto, "ts": time.time()})
+        where = repo_of(name.rstrip("/"))
+        kept.append({"path": name, "agent": agent_id, "room": room, "task": task, "auto": auto, "ts": time.time(),
+                     "repo": where[0] if where else None})
     channel.save(CLAIMS, kept)
     return taken
 
@@ -347,6 +349,36 @@ def drop_tree(agent_id, main, force=False):
     return True
 
 
+def retire(agent_id):
+    """An agent has closed: its claims go, its unfinished tasks go back on the plan for someone
+    else, and its worktrees are kept under a name of their own ("dusk.1791000123"), so a later
+    agent that gets the same id doesn't take over its work. Finished work in them still waits
+    to land; tidy takes away the ones with nothing in them. Call it holding locked()."""
+    release(agent_id)
+    all_trees = trees()
+    left = {}
+    for main, rec in all_trees.pop(agent_id, {}).items():
+        left[main] = f"{agent_id}.{int(rec['made'])}"
+        all_trees.setdefault(left[main], {})[main] = rec
+    if left:
+        channel.save(WORKTREES, all_trees)
+    for fn in os.listdir(TASKS) if os.path.isdir(TASKS) else []:
+        room = fn[:-5] if fn.endswith(".json") else None
+        items = tasks(room) if room else []
+        changed = False
+        for t in items:
+            if t.get("owner") != agent_id:
+                continue
+            if t["status"] in OPEN:
+                t.update(owner=None, status="open", note=f"{agent_id} closed before finishing it", updated=time.time())
+                changed = True
+            elif t["status"] == "done" and t.get("branch") and left:
+                t.update(owner=next(iter(left.values())), updated=time.time())  # so room_land finds its branch
+                changed = True
+        if changed:
+            save_tasks(room, items)
+
+
 def tidy(live_ids):
     """The worktrees of agents that have closed: each one goes if nothing in it is waiting; one
     with work left stays, for the desk to show and an orchestrator or the user to land."""
@@ -406,9 +438,10 @@ def guard(agent, path, live=None):
     with channel.locked():
         other = holder(path, agent["id"], agent["room"])
         if not other:
-            items = tasks(agent["room"])
-            mine = current(items, agent["id"])
-            claim(agent["id"], agent["room"], [path], task=mine["id"] if mine else None, auto=True)
+            if where:  # a project's file is claimed as it's edited; scratch files and notes aren't anyone's
+                items = tasks(agent["room"])
+                mine = current(items, agent["id"])
+                claim(agent["id"], agent["room"], [path], task=mine["id"] if mine else None, auto=True)
             return None
     c, t = other
     return (f"Tatami Room: {tilde(canonical(path))} isn't yours to edit: {held(c, t)}. Ask {c['agent']} in "
@@ -663,7 +696,7 @@ def land_tool(agent, args, room):
                 + (" Waiting to land: " + "; ".join(waiting) + "." if waiting else ""))
     if whose != agent.id:
         owner = next((a for a in live if a["id"] == whose), None)
-        if lead != agent.id:
+        if lead != agent.id and (owner or lead):  # a closed agent's work: anyone may land it when no one leads
             raise Refused(f"Only the room's orchestrator lands someone else's work{f' ({lead})' if lead else ''}.")
         if owner and owner["room"] != room:
             raise Refused(f"{whose} isn't in your room.")
@@ -691,7 +724,7 @@ def waiting_trees(room, live):
         for main, rec in repos.items():
             if os.path.isdir(rec["path"]) and ahead(rec):
                 out.append(f"{aid}'s {rec['branch']} ({ahead(rec)} commits) into {tilde(main)}"
-                           + ("" if aid in ids else ", left by an agent that has closed"))
+                           + ("" if aid in ids else f", left by an agent that has closed (room_land agent={aid})"))
     return out
 
 

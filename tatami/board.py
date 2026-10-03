@@ -213,9 +213,10 @@ def plan_of(name, people):
     for c in work.claims():
         if c["room"] != name:
             continue
-        where = work.repo_of(c["path"].rstrip("/"))
-        claims.append({"agent": c["agent"], "path": c["path"], "task": c.get("task"),
-                       "short": (where[2] + ("/" if c["path"].endswith("/") else "")) if where else os.path.basename(c["path"].rstrip("/")) or c["path"]})
+        repo = c.get("repo")  # named inside its repository; no git here, this runs several times a second
+        short = os.path.relpath(c["path"], repo) + ("/" if c["path"].endswith("/") else "") if repo \
+            else os.path.basename(c["path"].rstrip("/")) or c["path"]
+        claims.append({"agent": c["agent"], "path": c["path"], "task": c.get("task"), "short": short})
     return {"tasks": [{"id": t["id"], "title": clip(t["title"], 120), "owner": t.get("owner"),
                        "status": t["status"], "note": clip(t.get("note") or "", 200),
                        "done_when": clip(t.get("done_when") or "", 200), "branch": t.get("branch")} for t in shown],

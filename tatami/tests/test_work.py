@@ -154,10 +154,37 @@ class Room(Team):
         rose = self.agent("rose", "fuji")
         outside = os.path.join(SCRATCH, "notes.md")
         self.assertIsNone(work.guard(sky, outside))
+        self.assertEqual(work.claims(), [])  # a file outside any repository isn't claimed as it's edited
+        with channel.locked():
+            work.claim("sky", "fuji", [outside])  # but it can be claimed on purpose
         self.assertIn("isn't yours", work.guard(rose, outside))
         self.agent("sky", "ume")  # dragged to another room
         self.agent("pine", "fuji")  # rose still has a teammate
         self.assertIsNone(work.guard(rose, outside))
+
+    def test_a_closed_agents_work_isnt_the_next_ones(self):
+        self.agent("lead", "fuji")
+        rose = self.agent("rose", "fuji")
+        self.lead("fuji", "lead")
+        f = os.path.join(self.repo, "a.txt")
+        work.answer(Who("lead"), "room_task", {"action": "add", "title": "Fix a", "owner": "rose", "files": [f]}, "fuji")
+        work.answer(Who("lead"), "room_task", {"action": "add", "title": "Fix b", "owner": "rose"}, "fuji")
+        work.answer(Who("rose"), "room_task", {"action": "take", "id": "t1"}, "fuji")
+        work.guard(rose, f)
+        self.commit(os.path.join(work.tree_of("rose", self.repo)["path"], "a.txt"), "A\n")
+        work.answer(Who("rose"), "room_task", {"action": "done", "id": "t1", "note": "done"}, "fuji")
+        work.answer(Who("rose"), "room_task", {"action": "take", "id": "t2"}, "fuji")
+        with channel.locked():
+            work.retire("rose")  # rose's window closed
+        self.assertIsNone(work.tree_of("rose", self.repo))  # a new rose starts without it
+        self.assertEqual(work.claims(), [])
+        t1, t2 = work.find(work.tasks("fuji"), "t1"), work.find(work.tasks("fuji"), "t2")
+        self.assertEqual((t2["owner"], t2["status"]), (None, "open"))
+        self.assertTrue(t1["owner"].startswith("rose."))
+        text, err = work.answer(Who("lead"), "room_land", {"agent": t1["owner"]}, "fuji")  # its finished work still lands
+        self.assertFalse(err, text)
+        self.assertEqual(contents(f), "A\n")
+        self.assertEqual(work.find(work.tasks("fuji"), "t1")["status"], "landed")
 
     def test_bash_git_in_the_checkout(self):
         self.agent("sky", "fuji")
@@ -319,7 +346,7 @@ class ModGuard(Team):
     def test_guard_command(self):
         here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         other = subprocess.Popen(["sleep", "60"])  # a teammate's process
-        self.addCleanup(other.kill)
+        self.addCleanup(lambda: (other.kill(), other.wait()))
         channel.save(os.path.join(channel.AGENTS, "sky.json"),
                      {"id": "sky", "agent": "claude", "cwd": SCRATCH, "room": "fuji", "pid": other.pid,
                       "started": channel.proc_start(other.pid), "seen": time.time(), "read_upto": {}})

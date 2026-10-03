@@ -42,8 +42,10 @@ class Terminal(unittest.TestCase):
                         pass
 
     def attach(self, session):
-        return subprocess.Popen([sys.executable, TERM, session, "claude"], env=self.env,
-                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen([sys.executable, TERM, session, "claude"], env=self.env,
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        self.addCleanup(lambda: (proc.stdin.close(), proc.stdout.close(), proc.wait(10)))
+        return proc
 
     def read_until(self, proc, text, timeout=15):
         got, end = b"", time.time() + timeout
