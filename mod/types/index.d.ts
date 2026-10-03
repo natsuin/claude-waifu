@@ -38,9 +38,21 @@ export type Snapshot = {
   wake: string | null
 }
 
+/** The "your turn" box above the prompt, after Claude finishes. */
+export type Finished = {
+  /** after "Your turn ·": 'Claude finished in 1m 15s' */
+  text: string
+  /** until when its border breathes (a clock time in ms); then it holds still */
+  breatheUntil: number
+}
+
 declare module 'claude-code' {
   interface PluginState {
-    /** snap: the newest poll; draft: what's typed in the /room pane's line, kept across redraws */
-    tatami: { snap: Snapshot | null; draft: string }
+    /**
+     * snap: the newest poll; draft: what's typed in the /room pane's line, kept across redraws;
+     * finished: the "your turn" box; asking: the tool call waiting for your OK; beat: how far
+     * the glows' borders have stepped through their shades
+     */
+    tatami: { snap: Snapshot | null; draft: string; finished: Finished | null; asking: string; beat: number }
   }
 }

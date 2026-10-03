@@ -1,7 +1,7 @@
 {
   "name": "tatami",
   "version": "0.1.0",
-  "description": "Tatami Room inside Claude Code: room mail above the prompt, desk status, a name tag and a /room pane",
+  "description": "Tatami Room inside Claude Code: room mail above the prompt, desk status, a name tag, a /room pane, and glows for your turn and for what needs your OK",
   "types": "./types/index.d.ts",
   "userConfig": {
     "wake": {
@@ -14,6 +14,12 @@
       "type": "boolean",
       "title": "Chime when Claude needs your OK",
       "description": "Play a soft two-note chime on Windows when this window starts waiting for a permission answer",
+      "default": true
+    },
+    "glow": {
+      "type": "boolean",
+      "title": "Glow for your turn and for what needs your OK",
+      "description": "When Claude finishes, a box above the prompt breathes in sky blue; when it asks before running a tool, that tool's row pulses in red until you answer",
       "default": true
     }
   }
