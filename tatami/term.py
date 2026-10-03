@@ -113,6 +113,7 @@ def hold(session, kind):
     sock_path, rec_path = paths(session)
     os.makedirs(TERMS, mode=0o700, exist_ok=True)
     signal.signal(signal.SIGHUP, signal.SIG_IGN)  # the app's wsl.exe going away is no reason to stop
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))  # but a kill tidies up and hangs up the agent
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     if os.path.exists(sock_path):
         os.remove(sock_path)
