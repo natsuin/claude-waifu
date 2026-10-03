@@ -1,5 +1,6 @@
 """Tests for what keeps a room's plan in step with who's in it: the desk telling a room who it
-brought in, and the orchestrator hearing who's on no task.
+brought in, the orchestrator hearing who's on no task, and what agents write never being cut
+short without them knowing.
 
   python3 -m unittest discover -s tatami/tests
 """
@@ -101,6 +102,59 @@ class Idle(Team):
         work.answer(Who("wine"), "room_task", {"action": "add", "title": "Desk", "owner": "rouge"}, "fuji")
         [(text, _)] = serve("wine", [{"name": "room_members"}])
         self.assertTrue(text.endswith("\nNot on any task: cherry. Give it a piece of the plan, or tell it to wait."))
+
+
+class NotCutShort(Team):
+    """Too long is refused, with what to do instead; up to the limit, it's kept whole."""
+
+    def setUp(self):
+        super().setUp()
+        for aid in ("wine", "rouge"):
+            self.agent(aid, "fuji")
+
+    def test_done_when(self):
+        spec = "Check it with screenshots, then commit on your branch. " * 25  # about 1400 characters
+        text, err = work.answer(Who("wine"), "room_task", {"action": "add", "title": "Desk", "owner": "rouge",
+                                                            "done_when": spec}, "fuji")
+        self.assertFalse(err, text)
+        self.assertEqual(work.tasks("fuji")[0]["done_when"], spec.strip())
+        self.assertIn(spec.strip() + ".", self.msgs("fuji")[-1]["text"])  # the hand-off has all of it too
+        text, err = work.answer(Who("wine"), "room_task", {"action": "add", "title": "Pane", "owner": "rouge",
+                                                            "done_when": "x" * 2001}, "fuji")
+        self.assertTrue(err)
+        self.assertIn("Not added: done_when is 2001 characters, and it can be at most 2000.", text)
+        self.assertEqual(len(work.tasks("fuji")), 1)
+
+    def test_title(self):
+        text, err = work.answer(Who("wine"), "room_task", {"action": "add", "title": "x" * 201}, "fuji")
+        self.assertTrue(err)
+        self.assertIn("at most 200", text)
+
+    def test_note_changes_nothing_when_refused(self):
+        work.answer(Who("wine"), "room_task", {"action": "add", "title": "Desk", "owner": "rouge"}, "fuji")
+        text, err = work.answer(Who("rouge"), "room_task", {"action": "update", "id": "t1", "status": "blocked",
+                                                             "note": "y" * 2001}, "fuji")
+        self.assertTrue(err)
+        self.assertEqual(work.tasks("fuji")[0]["status"], "open")
+        text, err = work.answer(Who("rouge"), "room_task", {"action": "done", "id": "t1", "note": "y" * 2001}, "fuji")
+        self.assertTrue(err)
+        self.assertIn("Not done: the note on t1 is 2001 characters", text)
+
+    def test_hand_off_says_where_the_rest_is(self):
+        files = [f"/home/someone/a/fairly/long/folder/name/for/a/file/number_{i:02d}.txt" for i in range(50)]
+        work.answer(Who("wine"), "room_task", {"action": "add", "title": "Many", "owner": "rouge",
+                                               "done_when": "z" * 2000, "files": files}, "fuji")
+        said = self.msgs("fuji")[-1]["text"]
+        self.assertLessEqual(len(said), channel.MAX_TEXT)
+        self.assertTrue(said.endswith("(cut short here: room_task list has all of it)"))
+
+    def test_room_post(self):
+        (long, err), (ok, err2) = serve("wine", [{"name": "room_post", "arguments": {"text": "w" * 4001}},
+                                                  {"name": "room_post", "arguments": {"text": "w" * 4000}}])
+        self.assertTrue(err)
+        self.assertIn("Not posted: the message is 4001 characters", long)
+        self.assertFalse(err2, ok)
+        self.assertEqual([len(m["text"]) for m in self.msgs("fuji")], [4000])
 
 
 if __name__ == "__main__":

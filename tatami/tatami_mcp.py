@@ -142,7 +142,7 @@ TOOLS = [
      "description": "Post a short message to your Tatami Room: an update, a hand-off, or a question. "
                     "Set `to` to address one member of your room by id (everyone in the room can still read it).",
      "inputSchema": {"type": "object", "properties": {
-         "text": {"type": "string", "description": "The message"},
+         "text": {"type": "string", "description": f"The message (at most {MAX_TEXT} characters)"},
          "to": {"type": "string", "description": "Optional: the id of an agent in your room, from room_members"}},
          "required": ["text"]}},
     {"name": "room_read",
@@ -550,9 +550,12 @@ def answer(agent, name, args, room):
     if name in ("room_post", "room_read") and not room:
         return ALONE, False
     if name == "room_post":
-        text = str(args.get("text", "")).strip()[:MAX_TEXT]
+        text = str(args.get("text", "")).strip()
         if not text:
             return "Nothing to post: text was empty.", True
+        if len(text) > MAX_TEXT:  # refused, not cut short: no one reads half a message thinking it's all
+            return (f"Not posted: the message is {len(text)} characters, and one can be at most {MAX_TEXT}. "
+                    "Split it into two posts."), True
         msg = {"ts": time.time(), "from": agent.id, "text": text}
         others = [r for r in live_agents() if r["room"] == room and r["id"] != agent.id]
         if args.get("to"):
@@ -614,7 +617,11 @@ def answer(agent, name, args, room):
         return (f"Room '{room}':\n" + "\n".join(lines) + "\n" + role + "\n\n" + work.plan(room)
                 + work.idle(agent.id, room, people)), False
     if name == "room_invite":
-        return invite(agent, str(args.get("task", "")).strip()[:MAX_TEXT], room)
+        task = str(args.get("task", "")).strip()
+        if len(task) > MAX_TEXT:
+            return (f"No helper brought in: the task is {len(task)} characters, and it can be at most {MAX_TEXT}. "
+                    "Shorten it, and name files the helper can read for the rest."), True
+        return invite(agent, task, room)
     if name in {t["name"] for t in work.TOOLS}:
         return work.answer(agent, name, args, room)
     return f"Unknown tool: {name}", True

@@ -31,6 +31,7 @@ TREES = os.path.expanduser(os.environ.get("TATAMI_WORKTREES") or "~/.local/share
 OPEN = ("open", "doing", "blocked")  # not finished yet
 HELD = ("doing", "blocked", "done")  # its owner still has its files: done isn't in your checkout yet
 INVITED = "invite:"  # a task's owner while the helper it went to is still starting
+TITLE, LONGEST = 200, 2000  # a task's title, and its done_when or a note: longer is refused, never cut short
 TOOLS = [
     {"name": "room_task",
      "description": "Your Tatami Room's plan: a list of tasks, each with one owner, the files it covers and "
@@ -43,14 +44,15 @@ TOOLS = [
          "action": {"type": "string", "enum": ["add", "take", "update", "done", "list"]},
          "id": {"type": "string", "description": "The task's id, like t3 (take, update, done)"},
          "title": {"type": "string", "description": "add: the task in a few words"},
-         "done_when": {"type": "string", "description": "add: what done looks like, so its owner knows when to stop"},
+         "done_when": {"type": "string", "description": "add: what done looks like, so its owner knows when to stop "
+                                                        f"(at most {LONGEST} characters)"},
          "files": {"type": "array", "items": {"type": "string"},
                    "description": "add: the files or folders (ending in /) it covers, as absolute paths. "
                                   "They become its owner's, so no teammate edits them meanwhile"},
          "owner": {"type": "string", "description": "add, update: the agent id it goes to"},
          "status": {"type": "string", "enum": ["doing", "blocked", "open"], "description": "update"},
          "note": {"type": "string", "description": "update: why it's blocked, or news; done: what changed "
-                                                   "and how you checked it"}},
+                                                   f"and how you checked it (at most {LONGEST} characters)"}},
          "required": ["action"]}},
     {"name": "room_claim",
      "description": "Say which files you're working on, so your teammates' edits to them are refused until you "
@@ -488,7 +490,11 @@ def answer(agent, name, args, room):
 
 
 def say(room, frm, text, to=None):
-    msg = {"ts": time.time(), "from": frm, "text": text[:channel.MAX_TEXT]}
+    """Post what the tools tell the room. These are about the plan, so a long one says where the rest is."""
+    if len(text) > channel.MAX_TEXT:
+        tail = " … (cut short here: room_task list has all of it)"
+        text = text[:channel.MAX_TEXT - len(tail)] + tail
+    msg = {"ts": time.time(), "from": frm, "text": text}
     if to:
         msg["to"] = to
     channel.post(room, msg)
@@ -517,6 +523,16 @@ def task_tool(agent, args, room):
     return out + idle(agent.id, room, live)
 
 
+def text_of(args, key, what):
+    """What an agent wrote for a task, all of it: too long is refused rather than cut short, so
+    no one works from half a spec without knowing."""
+    text = str(args.get(key) or "").strip()
+    if len(text) > LONGEST:
+        raise Refused(f"{what} is {len(text)} characters, and it can be at most {LONGEST}. Shorten it, or send "
+                      "the details with room_post.")
+    return text
+
+
 def idle(agent_id, room, live):
     """For the room's orchestrator, while there's work on the plan: its teammates on no unfinished
     task, so it doesn't plan around someone it hasn't noticed. Empty for everyone else."""
@@ -543,9 +559,13 @@ def files_of(args):
 
 
 def add_task(agent, args, room, items, here, lead):
-    title = str(args.get("title") or "").strip()[:200]
+    title = str(args.get("title") or "").strip()
     if not title:
         raise Refused("A task needs a title: what it is, in a few words.")
+    if len(title) > TITLE:
+        raise Refused(f"Not added: the title is {len(title)} characters, and it can be at most {TITLE}. Say the "
+                      "task in a few words and put the rest in done_when.")
+    done_when = text_of(args, "done_when", "Not added: done_when")
     owner = channel.safe_name(str(args["owner"])) if args.get("owner") else None
     if owner in ("me", agent.id):
         owner = agent.id
@@ -555,7 +575,7 @@ def add_task(agent, args, room, items, here, lead):
         raise Refused(f"{lead} is this room's orchestrator, so it hands out the work. Add the task without an "
                       f"owner (it goes on the plan for {lead} to give out), or ask {lead}.")
     n = max([int(t["id"][1:]) for t in items if t["id"][1:].isdigit()] + [0]) + 1
-    t = {"id": f"t{n}", "title": title, "done_when": str(args.get("done_when") or "").strip()[:1000],
+    t = {"id": f"t{n}", "title": title, "done_when": done_when,
          "files": files_of(args), "owner": owner, "by": agent.id, "status": "doing" if owner == agent.id else "open",
          "note": "", "branch": None, "created": time.time(), "updated": time.time()}
     items.append(t)
@@ -589,6 +609,7 @@ def take_task(agent, args, room, t, here, lead):
 
 def update_task(agent, args, room, t, here, lead):
     owner = channel.safe_name(str(args["owner"])) if args.get("owner") else None
+    note = text_of(args, "note", f"Not updated: the note on {t['id']}")
     mine = t.get("owner") == agent.id
     if not (mine or agent.id in (lead, t.get("by")) or not t.get("owner") or t["owner"] not in here):
         raise Refused(f"{t['id']} is {t['owner']}'s: only it, {('the orchestrator ' + lead) if lead else 'whoever added it'} "
@@ -612,8 +633,8 @@ def update_task(agent, args, room, t, here, lead):
         if status == "open" and not owner and t.get("owner"):  # handed back: anyone may take it
             release(t["owner"], task=t["id"])
             t["owner"] = None
-    if args.get("note"):
-        t["note"] = str(args["note"]).strip()[:1000]
+    if note:
+        t["note"] = note
         news.append(f"note: {t['note']}")
     if not news:
         return f"Nothing changed: {line(t)}."
@@ -627,7 +648,7 @@ def update_task(agent, args, room, t, here, lead):
 def done_task(agent, args, room, t, here, lead):
     if t.get("owner") != agent.id:
         raise Refused(f"{t['id']} is {t.get('owner') or 'no one'}'s, not yours: only its owner says it's done.")
-    note = str(args.get("note") or "").strip()[:1000]
+    note = text_of(args, "note", f"Not done: the note on {t['id']}")
     if not note:
         raise Refused("Say what changed and how you checked it (note), so whoever lands it knows what it's getting.")
     waiting = []
