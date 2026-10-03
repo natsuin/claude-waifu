@@ -17,7 +17,9 @@ os.environ["TATAMI_WORKTREES"] = os.path.join(SCRATCH, "trees")
 os.environ["TATAMI_DESK_DIR"] = os.path.join(SCRATCH, "desk")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import board  # noqa: E402
 import hooks  # noqa: E402
+import mod  # noqa: E402
 import tatami_mcp as channel  # noqa: E402
 import work  # noqa: E402
 
@@ -59,10 +61,13 @@ class Team(unittest.TestCase):
         sh("git", "commit", "-q", "-m", "start", cwd=self.repo)
         self.agents = {}
 
-    def agent(self, aid, room=None):
-        """A live agent record (this test's own process stands in for it)."""
+    def agent(self, aid, room=None, born=None):
+        """A live agent record (this test's own process stands in for it). `born` is when it
+        took its id; without one it's an agent from before agents noted that."""
         rec = {"id": aid, "agent": "claude", "cwd": SCRATCH, "room": room, "pid": os.getpid(),
                "started": channel.proc_start(os.getpid()), "seen": time.time(), "read_upto": {}}
+        if born:
+            rec["born"] = born
         channel.save(os.path.join(channel.AGENTS, aid + ".json"), rec)
         members = channel.load(channel.MEMBERS, {})
         members[aid] = room
@@ -386,6 +391,72 @@ class OnePath(unittest.TestCase):
             hooks.SETTINGS = was
         with open(settings) as f:
             self.assertEqual(json.load(f), {"model": "opus", "hooks": {"Stop": [{"hooks": [mine]}]}})
+
+
+class Namesake(Team):
+    """Ids are window colours, so a new agent can get the id an earlier agent in its room had.
+    What was said by or to that one isn't the new one's, and nobody should take it for it."""
+
+    def setUp(self):
+        super().setUp()
+        self.agent("wine", "fuji")
+        then = time.time() - 600  # the earlier rouge, gone now
+        channel.post("fuji", {"ts": then, "from": "rouge", "text": "I'll take the header."})
+        channel.post("fuji", {"ts": then + 1, "from": "wine", "to": "rouge", "text": "Thanks, t1 is yours."})
+
+    def test_not_its_own_and_no_wake(self):
+        rouge = self.agent("rouge", "fuji", born=time.time())
+        msgs = self.msgs("fuji")
+        self.assertEqual(len(channel.unread(rouge, "fuji", msgs)), 2)  # the earlier one's message is news to it
+        self.assertIsNone(mod.wake(rouge, "fuji", msgs))  # wine wrote to the earlier rouge, not this one
+        self.assertIsNone(StopGate.stop(self, "rouge"))
+        channel.post("fuji", {"ts": time.time(), "from": "wine", "to": "rouge", "text": "Welcome, rouge."})
+        self.assertIn("wine sent you a message", mod.wake(rouge, "fuji", self.msgs("fuji")))
+        os.remove(mod.status_path(rouge))  # waking it told it; the Stop gate would hold it up as well
+        self.assertEqual(StopGate.stop(self, "rouge")["decision"], "block")
+
+    def test_room_read_says_so(self):
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        env = dict(os.environ, TATAMI_ID="rouge", TATAMI_ROOM="fuji")
+        env.pop("WSL_INTEROP", None)  # no window to look for
+        calls = [{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+                 {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "room_read"}},
+                 {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "room_members"}},
+                 {"jsonrpc": "2.0", "id": 4, "method": "tools/call",
+                  "params": {"name": "room_post", "arguments": {"text": "Hi, I'm new here."}}}]
+        out = subprocess.run([sys.executable, os.path.join(here, "tatami_mcp.py")], env=env, cwd=SCRATCH,
+                             input="".join(json.dumps(c) + "\n" for c in calls), capture_output=True, text=True,
+                             timeout=30)
+        said = {r["id"]: r["result"]["content"][0]["text"] for r in map(json.loads, out.stdout.splitlines()) if r["id"] > 1}
+        self.assertIn("Another agent was called rouge before you", said[2])
+        self.assertIn("rouge (an earlier rouge, not you): I'll take the header.", said[2])
+        self.assertIn("wine -> rouge (an earlier rouge, not you): Thanks", said[2])
+        self.assertIn("you took the name at", said[3])
+        self.assertIn("wine hasn't read the room yet", said[4])  # not "your last 2 messages": one was the earlier rouge's
+
+        # wine sees the same: the rouge here now isn't the one it gave t1 to
+        births = {a["id"]: channel.born(a) for a in channel.live_agents()}
+        self.assertEqual(channel.fmt(self.msgs("fuji")[1], births, "wine")[8:],
+                         "wine -> rouge (an earlier rouge, not the one here now): Thanks, t1 is yours.")
+        self.assertTrue(channel.fmt(self.msgs("fuji")[2], births, "wine").endswith("rouge: Hi, I'm new here."))
+
+    def test_desk_and_pane_mark_it(self):
+        self.agent("rouge", "fuji", born=time.time())
+        recent = next(r for r in board.state()["rooms"] if r["name"] == "fuji")["recent"]
+        self.assertEqual([(m.get("earlier", False), m.get("to_earlier", False)) for m in recent],
+                         [(True, False), (False, True)])
+        was, mod.me = mod.me, lambda: self.me("rouge")
+        try:
+            shown = mod.poll(False)["messages"]
+        finally:
+            mod.me = was
+        self.assertEqual([(m["from"], m["to"], m["mine"]) for m in shown],
+                         [("rouge (earlier)", None, False), ("wine", "rouge (earlier)", False)])
+
+    def test_an_agent_from_before_births(self):
+        rouge = self.agent("rouge", "fuji")  # no born: nothing is marked, as before
+        self.assertEqual(channel.unread(rouge, "fuji", self.msgs("fuji"))[0]["to"], "rouge")
+        self.assertTrue(all("earlier" not in m for r in board.state()["rooms"] for m in r["recent"]))
 
 
 class StopGate(Team):

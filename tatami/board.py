@@ -180,7 +180,7 @@ def agents():
     return [{"id": rec["id"], "agent": rec.get("agent", "claude"), "room": rec["room"],
              "unread": unread(rec), "helper_of": rec.get("invited_by"),
              "task": task(rec), "worktree": worktree(rec["id"]),
-             "color": rec.get("color"), "tint": tint(rec.get("color")),
+             "color": rec.get("color"), "tint": tint(rec.get("color")), "born": channel.born(rec),
              "folder": "~" if rec.get("cwd") == home else os.path.basename(rec.get("cwd", "")),
              "seen": rec.get("seen", 0), "girl": bool(rec.get("girl")) and not hidden,
              # its window's handle, found by the agent itself, which the app uses to bring it up
@@ -268,6 +268,11 @@ def makers():
 def state():
     people = agents()
     colors = channel.room_colors(channel.live_rooms(people))  # oldest room first, so rooms stay put
+    births = {a["id"]: a["born"] for a in people}
+
+    def flags(m):   # an id said before its live agent took it was an earlier agent's
+        return ({"earlier": True} if channel.earlier(m["from"], m["ts"], births) else {}) \
+            | ({"to_earlier": True} if channel.earlier(m.get("to"), m["ts"], births) else {})
     rooms = []
     for name in colors:
         msgs = channel.load_jsonl(os.path.join(channel.ROOMS, name + ".jsonl"))
@@ -276,7 +281,7 @@ def state():
                       "lead": channel.lead_of(name, people),   # its orchestrator, if it has one
                       "plan": plan_of(name, people),
                       "recent": [{"from": m["from"], "to": m.get("to"), "text": m["text"][:channel.MAX_TEXT],
-                                  "ts": m["ts"]} for m in msgs[-TALK:]]})
+                                  "ts": m["ts"]} | flags(m) for m in msgs[-TALK:]]})
     return {"rooms": rooms, "alone": [a for a in people if not a["room"]], "now": time.time(), "usage": usage(),
             "page": page_version(), "app": app_code(),
             # the kinds of agent that are installed, which the desk offers to start

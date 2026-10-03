@@ -69,7 +69,7 @@ def wake(agent, room, msgs):
         return None
     upto = (agent.get("read_upto") or {}).get(room, 0)
     seen = max(upto, status.get("told", 0))
-    mine = [m for m in msgs if m.get("to") == agent["id"] and m["ts"] > seen]
+    mine = [m for m in msgs if channel.said_to(m, agent["id"], channel.born(agent)) and m["ts"] > seen]
     now = time.time()
     woke = [t for t in status.get("woke", []) if now - t < WAKE_WINDOW]
     if not mine or len(woke) >= WAKES:
@@ -86,8 +86,13 @@ def wake(agent, room, msgs):
             f"waking everyone up.")
 
 
-def name(m):
-    return "the user" if m.get("from") == channel.USER else m.get("from", "?")
+def name(m, births=None, key="from"):
+    """Who said it (or, with key "to", who it was to), as the pane shows it. An id a live agent
+    took after the message was an earlier agent's, and is marked so."""
+    who = m.get(key) or ("?" if key == "from" else None)
+    if who == channel.USER and key == "from":
+        return "the user"
+    return f"{who} (earlier)" if who and channel.earlier(who, m["ts"], births or {}) else who
 
 
 def poll(want_wake):
@@ -115,10 +120,11 @@ def poll(want_wake):
     # What the agent hasn't read, less what the user typed: that's no news to the person looking.
     unread = [m for m in channel.unread(agent, room, msgs) if m.get("from") != channel.USER]
     out["unread"] = len(unread)
+    births = {rec["id"]: channel.born(rec) for rec in live}
     if unread:
-        out["latest"] = {"from": name(unread[-1]), "text": unread[-1].get("text", "")[:300]}
-    out["messages"] = [{"ts": m["ts"], "from": name(m), "to": m.get("to"), "text": m.get("text", "")[:1000],
-                        "mine": m.get("from") == agent["id"]} for m in msgs[-SHOWN:]]
+        out["latest"] = {"from": name(unread[-1], births), "text": unread[-1].get("text", "")[:300]}
+    out["messages"] = [{"ts": m["ts"], "from": name(m, births), "to": name(m, births, "to"), "text": m.get("text", "")[:1000],
+                        "mine": channel.said_by(m, agent["id"], channel.born(agent))} for m in msgs[-SHOWN:]]
     lead = channel.lead_of(room, live)
     for rec in live:
         if rec["room"] != room:

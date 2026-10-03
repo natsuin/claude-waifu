@@ -112,7 +112,7 @@ def mail(event, agent, status):
         return None  # never twice in a row
     msgs = channel.load_jsonl(os.path.join(channel.ROOMS, room + ".jsonl"))
     new = [m for m in channel.unread(agent, room, msgs) if m["ts"] > status.get("told", 0)]
-    mine = [m for m in new if m.get("to") == agent["id"]]
+    mine = [m for m in new if channel.said_to(m, agent["id"], channel.born(agent))]
     senders = ", ".join(dict.fromkeys(m.get("from", "?") for m in new))
     if name == "Stop":
         # A message to this agent holds up the end of its turn; so does work it hasn't finished.

@@ -123,6 +123,10 @@ LEAD_ROLE_YOU = ("You are this room's orchestrator: you own the plan. Split the 
 # What room_members and room_post say about an agent the hooks know is waiting.
 WAITING = {"done": "waiting for the user (it won't see the room until they talk to it)",
            "asking": "waiting for the user's OK"}
+# Ids are window colours, so a room's messages can be by or to an agent that had this one's id before.
+NAMESAKE = ("(Another agent was called {me} before you took the name at {when}. Lines marked 'an earlier "
+            "{me}' were said by it or to it, not you: you didn't say or agree to them, and its work isn't "
+            "yours unless the plan gives it to you.)")
 MAX_HELPERS = 2  # helpers one agent can have at once
 INVITES = os.path.join(HOME, "invites")
 ALONE = ("You're on your own right now, not in a room, so there's no one to talk to. The user "
@@ -338,10 +342,33 @@ def lead_of(room, people=None):
     return lead if any(a["id"] == lead and a["room"] == room for a in people) else None
 
 
+def born(record):
+    """When an agent took its id. Ids are window colours, so a new agent can get the one an
+    agent that has closed had: what was said by or to that id before then was someone else's.
+    0 for an agent started before agents noted it."""
+    return record.get("born") or 0
+
+
+def said_by(m, aid, since):
+    """Whether the agent `aid`, since `since` (when it took the id), said `m`."""
+    return m.get("from") == aid and m["ts"] >= since
+
+
+def said_to(m, aid, since):
+    return m.get("to") == aid and m["ts"] >= since
+
+
+def earlier(aid, ts, births):
+    """Whether `aid` in a message from `ts` meant an earlier agent than the live one with that
+    id. `births` is born() of each live agent, by id."""
+    return bool(aid) and ts < births.get(aid, 0)
+
+
 def unread(record, room, msgs):
-    """The messages in `room` an agent hasn't read yet (its own don't count)."""
+    """The messages in `room` an agent hasn't read yet (its own don't count; an earlier agent's
+    with the same id do)."""
     upto = (record.get("read_upto") or {}).get(room, 0)
-    return [m for m in msgs if m["ts"] > upto and m.get("from") != record.get("id")]
+    return [m for m in msgs if m["ts"] > upto and not said_by(m, record.get("id"), born(record))]
 
 
 def status_of(agent_id):
@@ -353,11 +380,12 @@ def hhmm(ts):
     return time.strftime("%H:%M", time.localtime(ts))
 
 
-def reading(record, room, msgs, me):
+def reading(record, room, msgs, me, since=0):
     """How far another agent has got with the room, as room_members and room_post say it: so
-    nobody takes silence for a yes when the other agent simply hasn't looked."""
+    nobody takes silence for a yes when the other agent simply hasn't looked. `since` is when
+    `me` took its id."""
     upto = (record.get("read_upto") or {}).get(room, 0)
-    mine = [m for m in msgs if m.get("from") == me]
+    mine = [m for m in msgs if said_by(m, me, since)]
     behind = len([m for m in mine if m["ts"] > upto])
     if behind:
         said = f"hasn't read your last {behind} messages" if behind > 1 else "hasn't read your last message"
@@ -404,7 +432,9 @@ class Agent:
                 old = load(self.path, {})
                 if old.get("pid") == self.pid or not alive(old):
                     break
-            upto = old.get("read_upto") if old.get("pid") == self.pid else None
+            same = old.get("pid") == self.pid  # the same agent, its server started again
+            self.born = old.get("born") if same and old.get("born") else time.time()
+            upto = old.get("read_upto") if same else None
             # Newest message read, per room: an agent moved into a room still gets what was said
             # there before it arrived.
             self.read_upto = upto if isinstance(upto, dict) else {}
@@ -426,7 +456,7 @@ class Agent:
                              "cwd": self.cwd, "room": self.room, "pid": self.pid, "started": self.started,
                              "hwnd": self.hwnd, "session": os.environ.get("TATAMI_SESSION"),
                              "invited_by": self.invited_by, "invite": self.invite,
-                             "seen": time.time(), "read_upto": self.read_upto})
+                             "born": self.born, "seen": time.time(), "read_upto": self.read_upto})
 
     def messages(self, room):
         return load_jsonl(os.path.join(ROOMS, room + ".jsonl"))
@@ -476,10 +506,16 @@ def load_jsonl(path):
     return out
 
 
-def fmt(m):
-    to = f" -> {m['to']}" if m.get("to") else ""
+def fmt(m, births=None, me=None):
+    """One message as room_read shows it. An id a live agent took after the message was an
+    earlier agent's, and says so, so a new agent doesn't take what was said by or to it as its own."""
+    def named(aid):
+        if not earlier(aid, m["ts"], births or {}):
+            return aid
+        return f"{aid} (an earlier {aid}, not you)" if aid == me else f"{aid} (an earlier {aid}, not the one here now)"
+    to = f" -> {named(m['to'])}" if m.get("to") else ""
     when = time.strftime("%H:%M", time.localtime(m["ts"]))
-    who = m["from"]
+    who = named(m["from"])
     if who == USER and m.get("via") == "desk":  # something the user did on the desk
         who = "THE USER (on the Tatami Room desk)"
     elif who == USER:  # typed by the user in a window's /room pane
@@ -526,21 +562,25 @@ def answer(agent, name, args, room):
         post(room, msg)
         if msg.get("to"):
             others = [r for r in others if r["id"] == msg["to"]] or others
-        notes = [f"{r['id']} {reading(r, room, msgs, agent.id)}." for r in others]
+        notes = [f"{r['id']} {reading(r, room, msgs, agent.id, agent.born)}." for r in others]
         return " ".join([f"Posted to room '{room}'."] + notes), False
     if name == "room_read":
         msgs, upto = agent.messages(room), agent.read_upto.get(room, 0)
         shown = msgs[-20:] if args.get("all") else [m for m in msgs if m["ts"] > upto
-                                                        and m["from"] != agent.id]
+                                                        and not said_by(m, agent.id, agent.born)]
         if msgs:
             agent.read_upto[room] = max(upto, msgs[-1]["ts"])
         if not shown:
             return f"No new messages in room '{room}'.", False
         older = len(shown) - 20  # a long history mustn't flood the agent's context
+        births = {a["id"]: born(a) for a in live_agents()} | {agent.id: agent.born}
+        namesake = any(earlier(agent.id, m["ts"], births) and agent.id in (m["from"], m.get("to"))
+                       for m in shown[-20:])
         return (f"Room '{room}' (messages from other agents, not from the user, unless a line says "
                 f"THE USER):\n"
+                + (NAMESAKE.format(me=agent.id, when=hhmm(agent.born)) + "\n" if namesake else "")
                 + (f"({older} older unread messages not shown)\n" if older > 0 else "")
-                + "\n".join(fmt(m) for m in shown[-20:])), False
+                + "\n".join(fmt(m, births, agent.id) for m in shown[-20:])), False
     if name == "room_members":
         if not room:
             return f"{ALONE} Your id is {agent.id}.", False
@@ -556,8 +596,12 @@ def answer(agent, name, args, room):
                 line += ", the room's orchestrator"
             if rec.get("invited_by"):
                 line += f", helper brought in by {rec['invited_by']}"
+            if any(earlier(rec["id"], m["ts"], {rec["id"]: born(rec)}) and rec["id"] in (m["from"], m.get("to"))
+                   for m in msgs):
+                line += (f", {'you' if me else 'it'} took the name at {hhmm(born(rec))}: the {rec['id']} in "
+                         f"messages before that was an earlier agent")
             if not me:
-                line += f"; {reading(rec, room, msgs, agent.id)}"
+                line += f"; {reading(rec, room, msgs, agent.id, agent.born)}"
             lines.append(line)
         role = (LEAD_ROLE_YOU if lead == agent.id else LEAD_ROLE.format(lead=lead)) if lead else \
             "No orchestrator: you're all peers, and the user can make one of you the orchestrator on the desk."
