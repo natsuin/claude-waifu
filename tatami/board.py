@@ -72,50 +72,79 @@ def model_name(model):
 # What's been read of each Claude transcript so far, so each poll reads only what was added.
 TRANSCRIPTS = {}
 reading = threading.Lock()
+EFFORTS = ("low", "medium", "high", "xhigh", "max")   # Claude Code's /effort levels
+NO_SESSION = {"model": None, "effort": None, "summary": None}
+
+
+def said(content, what):
+    """What a /model or /effort command said it set: 'Set model to `Opus 5.5` and saved as your
+    default...', 'Set effort level to max (this session only): ...'."""
+    if not isinstance(content, str) or not content.startswith("<local-command-stdout>Set " + what + " to "):
+        return None
+    words = re.sub(r"\x1b\[[0-9;]*m|`", "", content).split(" to ", 1)[1]
+    return re.match(r"[A-Z][a-z]+ \d+(?:\.\d+)?\b" if what == "model" else r"\w+", words)
 
 
 def session_of(rec):
-    """What Claude Code says about a Claude agent's session: the model that answered last
-    ('Opus 5.5') and the session's title, a few words on what it's for (the one /rename gave
-    it, else the one Claude Code wrote after its first prompt). Claude Code keeps a file per
-    running Claude process saying which session it's in; the transcript says the rest."""
+    """What Claude Code says about a Claude agent's session: the model it's on ('Opus 5.5'), its
+    effort level ('xhigh'), and the session's title, a few words on what it's for (the one
+    /rename gave it, else the one Claude Code wrote after its first prompt). Claude Code keeps a
+    file per running Claude process saying which session it's in; the transcript says the rest.
+    The model shows from the first prompt on, effort from the first reply, and both change as
+    soon as /model or /effort does."""
     started = rec.get("started")
     s = channel.load(os.path.join(CLAUDE_DIR, "sessions", f"{rec.get('pid')}.json"), {})
     sid = str(s.get("sessionId", ""))
     if not re.fullmatch(r"[0-9a-f-]{36}", sid) or (started is not None and str(s.get("procStart")) != str(started)):
-        return None, None  # no session file, or one left by an earlier process with this pid
+        return NO_SESSION  # no session file, or one left by an earlier process with this pid
     with reading:
         seen = next((t for t in TRANSCRIPTS.values() if t["sid"] == sid), None)
         if not seen:
             path = next(iter(glob.glob(os.path.join(CLAUDE_DIR, "projects", "*", sid + ".jsonl"))), None)
             if not path:
-                return None, None
-            seen = TRANSCRIPTS[path] = {"sid": sid, "path": path, "at": 0, "model": None, "title": None, "named": None}
+                return NO_SESSION
+            seen = TRANSCRIPTS[path] = {"sid": sid, "path": path, "at": 0, "model": None, "effort": None,
+                                        "title": None, "named": None}
         try:
             with open(seen["path"], "rb") as f:
                 f.seek(seen["at"])
                 added = f.read()
         except OSError:
-            return None, None
+            return NO_SESSION
         whole = added[:added.rfind(b"\n") + 1]  # a line still being written waits for the next poll
         seen["at"] += len(whole)
         for line in whole.splitlines():
-            if b'"assistant"' not in line and b'"ai-title"' not in line and b'"custom-title"' not in line:
+            if not any(w in line for w in (b'"assistant"', b'"type":"model"', b"Set model to", b"Set effort level to",
+                                           b'"ai-title"', b'"custom-title"')):
                 continue
             try:
                 d = json.loads(line)
             except ValueError:
                 continue
             kind = d.get("type")
-            if kind == "assistant" and not d.get("isSidechain"):
+            if d.get("isSidechain"):
+                continue
+            if kind == "assistant":   # a reply says which model wrote it and at what effort
                 model = (d.get("message") or {}).get("model")
                 if isinstance(model, str) and model.startswith("claude"):  # not '<synthetic>'
                     seen["model"] = model_name(model)
+                    seen["effort"] = d.get("effort") if d.get("effort") in EFFORTS else None  # Haiku has none
+            elif kind == "attachment":   # sent with a prompt, before the reply
+                model = ((d.get("attachment") or {}).get("identity") or {}).get("modelId")
+                if (d.get("attachment") or {}).get("type") == "model" and isinstance(model, str) and model.startswith("claude"):
+                    seen["model"] = model_name(model)
+            elif kind == "user":
+                content = (d.get("message") or {}).get("content")
+                if m := said(content, "model"):
+                    seen["model"] = m[0]
+                elif m := said(content, "effort level"):
+                    seen["effort"] = m[0] if m[0] in EFFORTS else None   # 'auto': known after the next reply
             elif kind == "ai-title" and isinstance(d.get("aiTitle"), str):
                 seen["title"] = d["aiTitle"]
             elif kind == "custom-title" and isinstance(d.get("customTitle"), str):
                 seen["named"] = d["customTitle"]
-        return seen["model"], clip(seen["named"] or seen["title"] or "", 60) or None
+        return {"model": seen["model"], "effort": seen["effort"],
+                "summary": clip(seen["named"] or seen["title"] or "", 60) or None}
 
 
 def girls_hidden():
@@ -146,7 +175,7 @@ def agents():
              "hwnd": rec["hwnd"] if isinstance(rec.get("hwnd"), int) else None,
              # set when the agent runs in a terminal inside the Tatami Room app
              "session": rec["session"] if re.fullmatch(r"[a-z0-9-]{1,40}", str(rec.get("session"))) else None}
-            | dict(zip(("model", "summary"), session_of(rec) if rec.get("agent", "claude") == "claude" else (None, None)))
+            | (session_of(rec) if rec.get("agent", "claude") == "claude" else NO_SESSION)
             for rec in channel.live_agents()]
 
 

@@ -554,8 +554,8 @@ body.stale main { opacity: .5; filter: saturate(.4); }
 .agent[data-status="done"] .badge { box-shadow: 0 0 0 3px rgba(255, 133, 192, .3), 0 0 18px rgba(255, 133, 192, .7); }
 .label { left: 16px; right: 16px; bottom: 13px; display: grid; gap: 1px; }
 /* Its name is its window's colour, written in that colour. Above it, in small capitals, the kind
-   of agent it is, with its maker's mark and the model it runs on; below it, in a few words, what
-   it's working on. */
+   of agent it is, with its maker's mark, the model it runs on and its effort; below it, in a few
+   words, what it's working on. */
 .maker {
   display: flex;
   align-items: center;
@@ -570,6 +570,18 @@ body.stale main { opacity: .5; filter: saturate(.4); }
 .model { color: rgba(247, 233, 242, .95); white-space: nowrap; }
 .model::before { content: "·"; margin-right: 5px; color: rgba(247, 233, 242, .45); }
 .model:empty { display: none; }
+.effort { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.effort::before { content: "·"; color: rgba(247, 233, 242, .45); }
+.effort:has(.effort-name:empty) { display: none; }
+/* Effort as five rising bars, lit in its maker's colour up to its level: low lights one, max all five. */
+.bars { display: inline-flex; align-items: flex-end; gap: 1.5px; height: 9px; }
+.bars i { width: 2px; border-radius: 1px; background: rgba(247, 233, 242, .2); }
+.bars i:nth-child(1) { height: 3px; }
+.bars i:nth-child(2) { height: 4.5px; }
+.bars i:nth-child(3) { height: 6px; }
+.bars i:nth-child(4) { height: 7.5px; }
+.bars i:nth-child(5) { height: 9px; }
+.bars i.on { background: var(--maker, var(--hue)); box-shadow: 0 0 4px color-mix(in srgb, var(--maker, var(--hue)) 60%, transparent); }
 .mark { flex: none; width: 11px; height: 11px; color: var(--maker, var(--hue)); filter: drop-shadow(0 0 4px color-mix(in srgb, var(--maker, var(--hue)) 55%, transparent)); }
 .mark path { fill: currentColor; }
 .mark.line path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
@@ -852,7 +864,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
       <img class="girl" alt="" draggable="false" hidden>
       <span class="chips"><span class="chip state"></span><span class="chip kind"></span></span>
       <span class="badge" hidden></span>
-      <span class="label"><span class="maker"><svg class="mark" viewBox="-12 -12 24 24" aria-hidden="true"><path></path></svg><span class="maker-name"></span><span class="model"></span></span><strong class="name"></strong><span class="summary"></span><span class="folder"></span></span>
+      <span class="label"><span class="maker"><svg class="mark" viewBox="-12 -12 24 24" aria-hidden="true"><path></path></svg><span class="maker-name"></span><span class="model"></span><span class="effort"><span class="effort-name"></span><span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></span></span><strong class="name"></strong><span class="summary"></span><span class="folder"></span></span>
       <span class="jump" aria-hidden="true">Open</span>
     </div>
   </div>
@@ -881,6 +893,7 @@ const MAKERS = {
   codex: { name: "Codex", color: "#e9e4ee", line: true, d: "M-8-6L-2 0L-8 6M1 7H9" },
 };
 const OTHER_MARK = { d: "M0-5A5 5 0 1 1 0 5A5 5 0 1 1 0-5Z" };
+const EFFORTS = ["low", "medium", "high", "xhigh", "max"];   // Claude Code's /effort levels
 // An agent's name on the desk: its window's colour ("dusk" → "Dusk", "dusk-2" → "Dusk 2").
 // Agents started before names lost their maker ("claude-dusk") read the same way.
 const MAKER_PREFIX = new RegExp(`^(${Object.keys(MAKERS).join("|")})-(?=.)`);
@@ -2169,7 +2182,10 @@ function fillCard(card, a) {
   // sits above its name.
   $(".kind", card).textContent = a.helper_of ? `Helper of ${nameOf(a.helper_of)}` : a.session ? "In the app" : "";
   $(".maker-name", card).textContent = company;
-  $(".model", card).textContent = a.model || "";   // the model that answered last, "Opus 5.5"
+  $(".model", card).textContent = a.model || "";   // "Opus 5.5", from its first prompt and right after /model
+  const effort = EFFORTS.indexOf(a.effort);   // "xhigh", from its first reply and right after /effort
+  $(".effort-name", card).textContent = effort < 0 ? "" : a.effort;
+  $(".bars", card).querySelectorAll("i").forEach((bar, k) => bar.classList.toggle("on", k <= effort));
   $(".summary", card).textContent = a.summary || "";   // its session's title, a few words
   const mark = $(".mark", card);
   mark.classList.toggle("line", !!maker?.line);
@@ -2182,6 +2198,7 @@ function fillCard(card, a) {
   card.dataset.status = status ? a.status : "";
   $(".state", card).textContent = status || "";
   card.setAttribute("aria-label", `${name}, ${company}${a.model ? ` ${a.model}` : ""} agent, `
+                                  + (effort < 0 ? "" : `${a.effort} effort, `)
                                   + (a.summary ? `working on ${a.summary}, ` : "") + `folder ${a.folder || "unknown"}, `
                                   + (a.room ? `in room ${a.room}` : "on its own") + (status ? `, ${status}` : "")
                                   + (a.helper_of ? `, helper of ${nameOf(a.helper_of)}` : "") + (unread ? `, ${letters}` : ""));
