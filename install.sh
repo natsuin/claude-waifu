@@ -33,4 +33,4 @@ fi
 "$HOME/.local/bin/waifu" setup "$@"
 echo
 echo "Tatami Room is ready. Open Claude Waifu from your desktop or Start menu: the desk opens with your first window."
-echo "Optional: run 'tatami hooks on' so the desk shows which agents are busy and which are waiting for you."
+echo "Next: run 'tatami mod on' so every Claude window shows its status on the desk and works with its team (open windows pick it up when they restart)."

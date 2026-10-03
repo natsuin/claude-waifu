@@ -26,9 +26,9 @@ One agent in one terminal is easy. Five agents in five terminals is a mess: whic
 - **An orchestrator, if you want one.** A room with two or more agents has an **Orchestrator** picker in its header. Pick one and it owns the overall plan: it splits the work into pieces, hands each to a teammate by name, keeps track of who's on what, and tells you when it's all done. The others take their work from it and report back. The room hears it from you, its card wears a gold *Orchestrator* chip, and `room_members` and `/room` mark it. Pick **No one** and they're peers again. An orchestrator you drag out of the room stops being one.
 - **Helpers.** Ask an agent to get help and it can bring a helper into its room: a new Claude window, with its own girl and color, that starts in the same folder with the piece of work it was handed and reports back in the room. Unlike a hidden subagent, you see the helper on the desk (marked *helper of* its agent) and can talk to it. Each agent can have two at a time, and helpers can't bring in more.
 - **Matching tab colors.** Windows on the same team get the same tab color, the one the desk shows for their room. No two teams share a color.
-- **Who needs you** (optional). Turn it on with `tatami hooks on` and each card says *working*, *your turn* or *needs your OK*. A card whose turn is over glows softly until you click it to bring it up, and one waiting on a permission prompt glows red and is counted in the desk's title. The hooks also tell a busy agent when room messages arrive, so it doesn't miss its team while it works.
-- **Tatami Room inside Claude** (optional). Turn it on with `tatami mod on` and every Claude window you open carries a bit of the desk: its name tag on the status line ("dusk · Firefly · ajisai"), a line above the prompt when room messages are waiting, and `/room`, a pane with the team, what each one is doing, how far each has read, and a line to post as yourself (`/room hello` posts straight away, `@dusk` sends to one agent). It also does what `tatami hooks on` does without touching Claude Code's settings, plays a soft chime when the window needs your OK, and can wake an idle agent when a teammate messages it (off by default; at most 3 times in 30 minutes). The window glows like its desk card: when Claude finishes, a "Your turn" box above the prompt breathes in sky blue for half a minute, and a tool waiting for your OK gets a red frame that pulses until you answer. All three switches are in `/config`.
-- **Unread badges.** A badge on an agent's card counts the room messages it hasn't read. An agent waiting for you can't read anything until you talk to it, so with the hooks on its badge glows pink.
+- **Who needs you.** With the mod on (below), each card says *working*, *your turn* or *needs your OK*. A card whose turn is over glows softly until you click it to bring it up, and one waiting on a permission prompt glows red and is counted in the desk's title. The same hooks tell a busy agent when room messages arrive, so it doesn't miss its team while it works. Gemini, which has no mod, gets them with `tatami hooks on`.
+- **Tatami Room inside Claude.** Turn it on with `tatami mod on` and every Claude window you open carries a bit of the desk: its name tag on the status line ("dusk · Firefly · ajisai"), a line above the prompt when room messages are waiting, and `/room`, a pane with the team, what each one is doing, how far each has read, and a line to post as yourself (`/room hello` posts straight away, `@dusk` sends to one agent). It's also how the window's status reaches the desk, from inside Claude Code without touching its settings; it plays a soft chime when the window needs your OK, and wakes an idle agent when a teammate messages it (at most 3 times in 30 minutes; off in `/config`). The window glows like its desk card: when Claude finishes, a "Your turn" box above the prompt breathes in sky blue for half a minute, and a tool waiting for your OK gets a red frame that pulses until you answer. All three switches are in `/config`.
+- **Unread badges.** A badge on an agent's card counts the room messages it hasn't read. An agent waiting for you can't read anything until you talk to it, so with the mod on its badge glows pink.
 - **Your usage.** The desk's header shows your 5-hour and weekly Claude usage, with reset times.
 - **Windows you can tell apart.** Every Claude window gets a background color no other open window has, and, as a design touch, an anime girl drawn behind the text as faint dots. See [Window looks](LOOKS.md).
 
@@ -70,13 +70,12 @@ To update later, run `git pull` in the folder. Everything is linked, not copied,
 | Command | What it does |
 | --- | --- |
 | `tatami` | Open the desk, or bring it to the front |
-| `tatami hooks on` | Show which agents are working, done, or waiting for your OK, get a notification when one needs your OK, and let busy agents hear about room messages (`tatami hooks off` removes it) |
-| `tatami hooks gemini on` | The same for Gemini (Antigravity's `agy`) alone, for when the mod does Claude's part: its card says *working* and *your turn*, and it hears about room messages. Gemini has no event for asking your OK, so it says *working* while it asks (`tatami hooks gemini off` removes it) |
-| `tatami mod on` | Bring the room into every Claude window you open: name tag, room mail above the prompt, `/room`, who-needs-you, a chime, glows for your turn and your OK (`tatami mod off` removes it) |
+| `tatami mod on` | Bring the room into every Claude window you open: who-needs-you on the desk, name tag, room mail above the prompt, `/room`, a chime, glows for your turn and your OK (`tatami mod off` removes it) |
+| `tatami hooks on` | The mod, plus the same status hooks for Gemini (Antigravity's `agy`), which has no mod: its card says *working* and *your turn*, and it hears about room messages. Gemini has no event for asking your OK, so it says *working* while it asks (`tatami hooks off` removes Gemini's; `tatami hooks gemini on/off` does only Gemini's) |
 | `tatami autostart off` | Don't open the desk with your first Claude window (`tatami autostart on` brings it back) |
 | `tatami stop` | Stop the desk's server; your agents keep running and don't need it |
 
-From inside Claude Code, put `!` in front of a command, like `! tatami hooks on`.
+From inside Claude Code, put `!` in front of a command, like `! tatami mod on`.
 
 ## How it works
 
@@ -115,8 +114,8 @@ Copy it to `~/.claude/statusline.py` and add this to `~/.claude/settings.json`:
 ## Uninstall
 
 ```bash
-tatami hooks off     # only if you turned them on
 tatami mod off       # only if you turned it on
+tatami hooks off     # Gemini's, if you turned them on
 waifu uninstall
 claude mcp remove tatami --scope user
 ```

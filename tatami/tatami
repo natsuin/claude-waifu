@@ -5,9 +5,10 @@
 #   tatami stop            stop the board (your agents keep running; they don't need it)
 #   tatami autostart off   don't open the desk with the first Claude Waifu window after WSL
 #                          starts (`tatami autostart on` turns it back on)
-#   tatami hooks on        let the board show which agents need you (adds Claude Code hooks;
-#                          `tatami hooks off` takes them out)
-#   tatami hooks gemini on the same for Gemini (agy) alone, beside the mod (`... off` takes them out)
+#   tatami mod on          bring the room into every Claude window: its status on the desk, room
+#                          mail, /room, and edits kept off teammates' files (`tatami mod off`)
+#   tatami hooks on        the mod, plus the same status hooks for Gemini (agy), which has no mod
+#                          (`tatami hooks off` takes Gemini's out)
 #
 # The shortcuts, the app and Claude Code also run `tatami start`, `tatami hold`, `tatami window`,
 # `tatami term`, `tatami helper`, `tatami hook`, `tatami mod` and `tatami mcp`. The board listens on this PC only.
@@ -78,7 +79,7 @@ case "${1:-open}" in
     if pkill -f "^python3 $here/board\.py --port "; then echo "Board stopped. Your agents are still running."
     else echo "The board wasn't running."; fi
     exit 0 ;;
-  *) sed -n '4,9s/^#  *//p' "$0"; exit 1 ;;
+  *) sed -n '4,11s/^#  *//p' "$0"; exit 1 ;;
 esac
 
 rc=0; start || rc=$?

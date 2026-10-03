@@ -224,7 +224,10 @@ MARK = "# tatami-mod"
 
 
 def switch(on):
-    """Add the line that loads the mod in every new Claude session (or take it out)."""
+    """Add the line that loads the mod in every new Claude session (or take it out). Turning it
+    on takes out the hooks earlier versions put in Claude Code's settings: the mod runs them."""
+    if on:
+        hooks.remove_settings_hooks()
     folder = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "mod")
     try:
         with open(BASHRC, encoding="utf-8") as f:

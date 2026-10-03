@@ -326,6 +326,26 @@ class ModGuard(Team):
         self.assertEqual(poll["worktrees"][0]["path"], tree)
 
 
+class OnePath(unittest.TestCase):
+    """Claude's status comes from the mod: the hooks earlier versions put in settings come out."""
+
+    def test_old_settings_hooks_come_out(self):
+        settings = os.path.join(SCRATCH, "settings.json")
+        mine = {"type": "command", "command": "python3 ~/my-hook.py"}
+        ours = {"type": "command", "command": '"$HOME/.local/bin/tatami" hook'}
+        with open(settings, "w") as f:
+            json.dump({"model": "opus", "hooks": {"Stop": [{"hooks": [ours, mine]}],
+                                                  "PostToolUse": [{"hooks": [ours]}]}}, f)
+        was, hooks.SETTINGS = hooks.SETTINGS, settings
+        try:
+            self.assertTrue(hooks.remove_settings_hooks())
+            self.assertFalse(hooks.remove_settings_hooks())  # nothing left of ours
+        finally:
+            hooks.SETTINGS = was
+        with open(settings) as f:
+            self.assertEqual(json.load(f), {"model": "opus", "hooks": {"Stop": [{"hooks": [mine]}]}})
+
+
 class StopGate(Team):
     """The status hooks hold up the end of a turn, once, for unfinished business."""
 

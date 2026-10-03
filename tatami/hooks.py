@@ -9,29 +9,34 @@ notes the agent's state in one small file (~/.local/state/tatami/status/<agent i
   done      it finished its turn: your turn
   asking    it's waiting for your OK (a permission prompt or a question)
 
-It always exits 0. Usually it prints nothing. The one thing it tells Claude is that room
-messages it hasn't read have arrived, once per message:
+It always exits 0. Usually it prints nothing. What it tells Claude is about its room:
 
   after a tool, or when you send a prompt   a short note: "2 new messages in room X"
-  when it's about to finish its turn        if one is addressed to it, it's asked to read
-                                            the room first (only once, never twice in a row)
+  when it's about to finish its turn        if a message is addressed to it, it's asked to
+                                            read the room first; if its task on the room's
+                                            plan is still in progress, or finished work is
+                                            waiting for it to land, it's reminded once
 
 So an agent busy with its work still hears its team, without checking the room every few
 minutes. One that's waiting for you can't hear anything until you talk to it; the board
 puts a badge on its card.
 
-Gemini, as Antigravity's CLI (agy), runs hooks too, from ~/.gemini/config/hooks.json. Its
-events are named differently and don't say which one they are, so its command names it:
-before each call to the model it's working, after a tool too, and when its loop stops it's
-your turn. It has no event for asking your OK, so its card says "working" while it asks.
+For Claude the Tatami Room mod runs these from inside Claude Code (tatami mod on: see
+mod.py), so they're the one way its status reaches the desk and nothing goes in Claude
+Code's settings. Gemini, as Antigravity's CLI (agy), has no mod, so it runs them from
+~/.gemini/config/hooks.json. Its events are named differently and don't say which one they
+are, so its command names it: before each call to the model it's working, after a tool too,
+and when its loop stops it's your turn. It has no event for asking your OK, so its card says
+"working" while it asks.
 
-  tatami hooks on     add the hooks to ~/.claude/settings.json (the first time, a backup
-                      is kept next to it as settings.json.before-tatami-hooks), and to
-                      Antigravity's hooks.json when it's installed
-  tatami hooks off    take them out again
+  tatami hooks on     the mod for Claude (tatami mod on), and Gemini's hooks when
+                      Antigravity is installed
+  tatami hooks off    Gemini's hooks off (tatami mod off turns Claude's part off)
   tatami hooks gemini on|off
-                      only Gemini's: the Tatami Room mod (tatami mod on) does Claude's part
-                      inside Claude, without its settings, but Gemini has no mod
+                      only Gemini's
+
+Earlier versions put Claude's hooks in ~/.claude/settings.json; on and off both take those
+out, so the mod and the settings never both run them.
 """
 import json
 import os
@@ -197,45 +202,52 @@ def ours(hook):
     return "tatami" in hook.get("command", "") and hook.get("command", "").rstrip().endswith(" hook")
 
 
-def install(on):
-    """Add our hook to each event in Claude Code's settings (or take it out), leaving every
-    other setting and hook as it was."""
+def remove_settings_hooks():
+    """Take the hooks earlier versions added to Claude Code's settings out again, leaving every
+    other setting and hook as it was. Returns whether there were any."""
     try:
         with open(SETTINGS, encoding="utf-8") as f:
             settings = json.load(f)
-    except FileNotFoundError:
-        settings = {}
-    except ValueError:
-        sys.exit(f"{SETTINGS} isn't plain JSON, so I'm not touching it.")
-    backup = SETTINGS + ".before-tatami-hooks"
-    if on and os.path.exists(SETTINGS) and not os.path.exists(backup):
-        with open(SETTINGS, encoding="utf-8") as f, open(backup, "w", encoding="utf-8") as b:
-            b.write(f.read())
-    hooks = settings.setdefault("hooks", {})
-    for event in EVENTS:
+    except (FileNotFoundError, ValueError):
+        return False  # none, or not plain JSON: not ours to touch
+    hooks = settings.get("hooks") or {}
+    found = False
+    for event in list(hooks):
         groups = []
         for group in hooks.get(event, []):
             kept = [h for h in group.get("hooks", []) if not ours(h)]
+            found = found or len(kept) != len(group.get("hooks", []))
             if kept:
                 groups.append(dict(group, hooks=kept))
-        if on:
-            groups.append({"hooks": [{"type": "command", "command": COMMAND}]})
         if groups:
             hooks[event] = groups
         else:
             hooks.pop(event, None)
+    if not found:
+        return False
     if not hooks:
-        settings.pop("hooks")
-    os.makedirs(os.path.dirname(SETTINGS), exist_ok=True)
+        settings.pop("hooks", None)
     with open(SETTINGS + ".tmp", "w", encoding="utf-8") as f:
         json.dump(settings, f, indent=2, ensure_ascii=False)
         f.write("\n")
     os.replace(SETTINGS + ".tmp", SETTINGS)
+    return True
+
+
+def install(on):
+    """tatami hooks on|off: the mod for Claude (on only), Gemini's hooks, and the old settings
+    hooks out either way."""
+    removed = remove_settings_hooks()
     gemini = install_agy(on)
-    print("Tatami Room hooks are on: the board shows which agents need you, and agents hear about room "
-          "messages while they work (new and open sessions pick them up"
-          + ("; Gemini's from its next start" if gemini else "") + ")."
-          if on else "Tatami Room hooks are off.")
+    old = " (and took the old Tatami hooks out of Claude Code's settings)" if removed else ""
+    if on:
+        import mod  # same folder; it imports this module, so not at the top
+        mod.switch(True)
+        print("Claude's status reaches the desk through the Tatami Room mod" + old + "."
+              + (" Gemini's hooks are on too, from its next start." if gemini else ""))
+    else:
+        print(("Gemini's Tatami Room hooks are off." if gemini else "There are no Gemini hooks here.") + old
+              + " Claude's status comes from the mod: tatami mod off turns that off.")
 
 
 def main():
