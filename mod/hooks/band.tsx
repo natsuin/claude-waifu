@@ -4,7 +4,7 @@
 import { atom, read } from 'claude-code'
 import type { EngineInterface, On, RenderElement, RenderInput } from 'claude-code'
 
-import { PANE } from './pane'
+import { PANE, PANE_ROWS } from './pane'
 import { line } from './room'
 import { SKY } from './turn'
 
@@ -49,7 +49,7 @@ export function band(on: On, glows: boolean) {
         <Text color={s.roomColor ?? undefined} bold>●{head}</Text>
         <Text>{count}</Text>
         <Text dimColor>{latest} </Text>
-        <Button key="open" label="Open" onPress={() => void $.ui.open({ id: PANE, title: s.room ?? 'Room' })} />
+        <Button key="open" label="Open" onPress={() => void $.ui.open({ id: PANE, title: s.room ?? 'Room', rows: PANE_ROWS })} />
       </Box>
     )
     return turn ? stack($, e, turn, mail) : mail

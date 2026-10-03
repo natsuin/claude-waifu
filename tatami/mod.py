@@ -20,6 +20,7 @@ script is one of its parents, and that's the pid the agent's channel recorded.
   tatami mod on | off         load the mod in every Claude window you open from now on (one
                               marked line in ~/.bashrc that points Claude Code at ../mod), or not
 """
+import colorsys
 import json
 import math
 import os
@@ -29,6 +30,7 @@ import sys
 import time
 import wave
 
+import board  # the desk: the windows' colours
 import hooks
 import tatami_mcp as channel  # same folder: shares the file layout and helpers
 import work
@@ -86,6 +88,29 @@ def wake(agent, room, msgs):
             f"waking everyone up.")
 
 
+def ink(color):
+    """A window's colour as text: the hue of its dark background (board.py's TINTS), made light.
+    The hue alone would make wine, cherry and rouge one pink (as lightHue in board.html does), so
+    each keeps some of its own: a darker window reads deeper, a greyer one greyer. None for a
+    colour the desk doesn't know."""
+    dark = board.TINTS.get(color or "") or board.OLD_TINTS.get(color or "")
+    if not dark:
+        return None
+    hue, light, sat = colorsys.rgb_to_hls(*(int(dark[i:i + 2], 16) / 255 for i in (1, 3, 5)))
+    light, sat = min(0.88, max(0.7, 0.8 + (light - 0.18) * 2.5)), min(0.95, max(0.35, 0.2 + 0.8 * sat))
+    return "#" + "".join(f"{round(v * 255):02x}" for v in colorsys.hls_to_rgb(hue, light, sat))
+
+
+def said_in(m, births, colors, key="from"):
+    """The colour the pane gives who said `m` (or, with key "to", who it was to): their window's,
+    by their id (ids are window colours). None for the user, and for an earlier agent with a live
+    one's id, so it isn't taken for the one here now."""
+    who = m.get(key)
+    if not who or who == channel.USER or channel.earlier(who, m["ts"], births):
+        return None
+    return ink(colors.get(who) or who)
+
+
 def name(m, births=None, key="from"):
     """Who said it (or, with key "to", who it was to), as the pane shows it. An id a live agent
     took after the message was an earlier agent's, and is marked so."""
@@ -121,11 +146,15 @@ def poll(want_wake):
     unread = [m for m in channel.unread(agent, room, msgs) if m.get("from") != channel.USER]
     out["unread"] = len(unread)
     births = {rec["id"]: channel.born(rec) for rec in live}
+    colors = {rec["id"]: rec.get("color") for rec in live}
+    lead = channel.lead_of(room, live)
     if unread:
         out["latest"] = {"from": name(unread[-1], births), "text": unread[-1].get("text", "")[:300]}
     out["messages"] = [{"ts": m["ts"], "from": name(m, births), "to": name(m, births, "to"), "text": m.get("text", "")[:1000],
-                        "mine": channel.said_by(m, agent["id"], channel.born(agent))} for m in msgs[-SHOWN:]]
-    lead = channel.lead_of(room, live)
+                        "mine": channel.said_by(m, agent["id"], channel.born(agent)),
+                        "color": said_in(m, births, colors), "toColor": said_in(m, births, colors, "to"),
+                        "lead": bool(lead) and channel.said_by(m, lead, births.get(lead, 0))}
+                       for m in msgs[-SHOWN:]]
     for rec in live:
         if rec["room"] != room:
             continue
@@ -133,7 +162,8 @@ def poll(want_wake):
         out["members"].append({"id": rec["id"], "you": rec["id"] == agent["id"],
                                "state": channel.status_of(rec["id"]),
                                "readUpto": upto, "readAll": bool(msgs) and upto >= msgs[-1]["ts"],
-                               "helperOf": rec.get("invited_by"), "lead": rec["id"] == lead})
+                               "helperOf": rec.get("invited_by"), "lead": rec["id"] == lead,
+                               "color": ink(rec.get("color") or rec["id"])})
     if want_wake:
         out["wake"] = wake(agent, room, msgs)
     return out

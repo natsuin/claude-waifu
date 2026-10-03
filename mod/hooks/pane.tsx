@@ -10,11 +10,18 @@ import { line, tatamiPath } from './room'
 
 /** The pane's id (the band's Open button opens it too). */
 export const PANE = 'tatami-room'
+/** The rows the pane asks for when it opens: as many as the layout spares, and it shrinks to
+ * what's in it. Left to a third of the screen it scrolls, and the team goes off the top. */
+export const PANE_ROWS = 60
+/** What a screen keeps besides a pane above the prompt (as claude-duo measured it, with slack). */
+const PROMPT_ROWS = 15
 
 const snap = atom({ plugin: 'tatami', key: 'snap' } as const, null)
 const draft = atom({ plugin: 'tatami', key: 'draft' } as const, '')
 
 const STATE: Record<string, string> = { working: 'working', done: 'idle, waiting for you', asking: 'needs your OK' }
+/** The orchestrator's gold, as on the desk (its --kin). */
+const GOLD = '#f5d891'
 
 /** Posts as the user through `tatami mod post`; answers what to show (an error starts with !). */
 async function post($: EngineInterface, text: string): Promise<string> {
@@ -25,11 +32,14 @@ async function post($: EngineInterface, text: string): Promise<string> {
   // Show it now rather than at the next poll.
   const to = text.startsWith('@') && text.includes(' ') ? text.slice(1, text.indexOf(' ')) : null
   const said = to ? text.slice(text.indexOf(' ') + 1).trim() : text.trim()
-  const mine: Message = { ts: Date.now() / 1000, from: 'the user', to, text: said, mine: false }
+  const mine: Message = { ts: Date.now() / 1000, from: 'the user', to, text: said, mine: false, color: null,
+    toColor: null, lead: false }
   await update($, snap, s => (s ? { ...s, messages: [...s.messages, mine] } : s))
   return ran.stdout.trim()
 }
 
+/** Each message's rail in its sender's colour, and the gap after it. */
+const RAIL = 2
 const PLAN_ROWS = 6 // tasks the pane shows; the rest are counted
 const MARK: Record<string, string> = { open: '○', doing: '◐', blocked: '■', done: '●' }
 
@@ -49,21 +59,60 @@ function hhmm(ts: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+/** The orchestrator first, then the rest as they came. */
+function seated(members: readonly Member[]): Member[] {
+  return [...members].sort((a, b) => Number(!!b.lead) - Number(!!a.lead))
+}
+
+/** What a member is up to, after its name (and the orchestrator's gold "orchestrator"). */
 function who(m: Member, s: Snapshot): string {
-  const bits = [m.you ? 'this window' : '', m.lead ? 'orchestrator' : '', m.state ? STATE[m.state] ?? m.state : '',
+  const bits = [m.you ? 'this window' : '', m.state ? STATE[m.state] ?? m.state : '',
     m.helperOf ? `helper of ${m.helperOf}` : '',
     s.messages.length === 0 ? '' : m.readAll ? 'read everything' : m.readUpto ? `read up to ${hhmm(m.readUpto)}` : 'hasn’t read the room']
   return bits.filter(Boolean).join(' · ')
 }
 
-/** The newest messages that fit in `rows`, oldest first, each wrapped to `width`. */
+/** How many lines `text` takes wrapped at word breaks to `width`. */
+function wrapped(text: string, width: number): number {
+  let lines = 1
+  let at = 0
+  for (const word of text.split(' ')) {
+    const need = (at > 0 ? 1 : 0) + word.length
+    if (at > 0 && at + need > width) {
+      lines += 1
+      at = word.length
+    } else {
+      at += need
+    }
+    while (at > width) { // a word longer than the line breaks where it must
+      lines += 1
+      at -= width
+    }
+  }
+  return lines
+}
+
+/** The lines a message takes in a pane `width` wide, beside its rail; its text cut to `chars`. */
+function lines(m: Message, width: number, chars = 4000): number {
+  const head = `${hhmm(m.ts)} ${m.lead ? '★ ' : ''}${m.from}${m.to ? ` → ${m.to}` : ''}: `
+  return wrapped(head + line(m.text, chars), Math.max(10, width - RAIL))
+}
+
+/** The newest messages that fit in `rows`, oldest first. The newest always shows, its text cut
+ * to fit if it must. */
 function fitting(msgs: readonly Message[], width: number, rows: number): Message[] {
   const out: Message[] = []
   let used = 0
   for (const m of [...msgs].reverse()) {
-    const head = `${hhmm(m.ts)} ${m.from}${m.to ? ` → ${m.to}` : ''}: `
-    const need = Math.max(1, Math.ceil((head.length + m.text.length) / Math.max(10, width)))
-    if (used + need > rows && out.length > 0) {
+    const need = lines(m, width)
+    if (out.length === 0 && need > rows) {
+      let chars = m.text.length
+      while (chars > 1 && lines(m, width, chars) > rows) {
+        chars = Math.floor(chars * 0.9)
+      }
+      return [{ ...m, text: line(m.text, chars) }]
+    }
+    if (used + need > rows) {
       break
     }
     out.unshift(m)
@@ -87,7 +136,7 @@ export function pane(on: On) {
       return said.startsWith('! ') ? { text: said.slice(2), exitCode: 1 } : { text: said }
     }
     const s = await read($, snap)
-    await $.ui.open({ id: PANE, title: s?.room ?? 'Tatami Room', focus: true, closeOnEscape: true })
+    await $.ui.open({ id: PANE, title: s?.room ?? 'Tatami Room', focus: true, closeOnEscape: true, rows: PANE_ROWS })
     return { text: s?.room ? `The ${s.room} pane is open (Esc closes it).` : 'The Tatami Room pane is open (Esc closes it).' }
   })
 
@@ -106,11 +155,24 @@ export function pane(on: On) {
         </Box>
       )
     }
+    // Above the prompt the pane shrinks to what's in it, so its body rows aren't what it could
+    // have: the screen less what the prompt keeps is. The room line, the rule, the line to post
+    // and the newest message always show; then the team (else it folds into the room line), then
+    // the plan (else just its count), as they fit; older messages get the rest, less one spare.
+    const inline = e.props.placement === 'inline' && e.viewport !== undefined
+    const room = inline ? Math.max(e.props.scroll.bodyRows, (e.viewport?.rows ?? 0) - PROMPT_ROWS) : e.props.scroll.bodyRows
+    const newest = s.messages.at(-1)
+    const first = Math.max(1, Math.min(newest ? lines(newest, width) : 1, room - 3))
+    let left = room - 3 - first
+    const team = left >= s.members.length
+    left -= team ? s.members.length : 0
     const tasks = planned(s.tasks ?? [])
-    const plan = tasks.slice(0, PLAN_ROWS)
-    const planRows = tasks.length === 0 ? 0 : plan.length + 1 + (tasks.length > plan.length ? 1 : 0)
-    const rows = (e.viewport?.rows ?? 24) - s.members.length - planRows - 7
-    const shown = fitting(s.messages, width, Math.max(3, rows))
+    const listed = tasks.slice(0, PLAN_ROWS)
+    const planRows = listed.length + 1 + (tasks.length > listed.length ? 1 : 0)
+    const plan = tasks.length > 0 && left >= planRows ? listed : []
+    const planHead = tasks.length > 0 && (plan.length > 0 || left > 0)
+    left -= plan.length > 0 ? planRows : planHead ? 1 : 0
+    const shown = fitting(s.messages, width, first + Math.max(0, left - 1))
     const Say = e.surface === 'mobile' ? null : (() => {
       const { Input } = $.ui.resolve(e)
       return Input
@@ -119,17 +181,27 @@ export function pane(on: On) {
 
     return (
       <Box flexDirection="column">
-        <Text>
+        <Text wrap="truncate-end">
           <Text color={s.roomColor ?? undefined} bold>● {s.room}</Text>
           <Text dimColor> · {s.members.length} here</Text>
+          {!team && seated(s.members).map(m => (
+            <Text key={`f-${m.id}`}>
+              <Text dimColor> · </Text>
+              {m.lead && <Text color={GOLD}>★ </Text>}
+              <Text bold color={m.color ?? undefined}>{m.id}</Text>
+            </Text>
+          ))}
         </Text>
-        {s.members.map(m => (
+        {team && seated(s.members).map(m => (
           <Text key={`m-${m.id}`} wrap="truncate-end">
-            {'  '}{m.id}<Text dimColor>{' '}{who(m, s)}</Text>
+            {'  '}<Text color={m.lead ? GOLD : m.color ?? undefined}>{m.lead ? '★' : '▌'}</Text>
+            {' '}<Text bold color={m.color ?? undefined}>{m.id}</Text>
+            {m.lead && <Text color={GOLD}> orchestrator</Text>}
+            <Text dimColor>{m.lead && who(m, s) ? ' · ' : ' '}{who(m, s)}</Text>
           </Text>
         ))}
-        {plan.length > 0 && (
-          <Text key="plan-head">
+        {planHead && (
+          <Text key="plan-head" wrap="truncate-end">
             <Text bold>Plan</Text>
             <Text dimColor> · {tasks.filter(t => t.status === 'done').length} done, {tasks.filter(t => t.status !== 'done').length} left</Text>
           </Text>
@@ -140,17 +212,31 @@ export function pane(on: On) {
             {' '}<Text dimColor>{t.id}</Text> {t.title}<Text dimColor> · {owner(t)}{t.status === 'done' ? ' · to land' : t.status === 'open' ? '' : ` · ${t.status}`}</Text>
           </Text>
         ))}
-        {tasks.length > plan.length && <Text dimColor>{'  '}+{tasks.length - plan.length} more (room_task list)</Text>}
+        {plan.length > 0 && tasks.length > plan.length && <Text dimColor>{'  '}+{tasks.length - plan.length} more (room_task list)</Text>}
         <Text dimColor>{'─'.repeat(Math.max(1, width))}</Text>
         {shown.length === 0 && <Text dimColor>No messages yet.</Text>}
-        {shown.map(m => (
-          <Text key={`t-${m.ts}`} wrap="wrap">
-            <Text dimColor>{hhmm(m.ts)} </Text>
-            <Text bold color={m.from === 'the user' ? s.roomColor ?? undefined : undefined}>{m.from === 'the user' ? 'you' : m.from}</Text>
-            <Text dimColor>{m.to ? ` → ${m.to}` : ''}: </Text>
-            {line(m.text, 4000)}
-          </Text>
-        ))}
+        {shown.map(m => {
+          // Each sender in its window's colour, you in the room's; an earlier agent with a live
+          // one's name ("rouge (earlier)") has no colour, so it isn't taken for the one here now.
+          const user = m.from === 'the user'
+          const ink = (user ? s.roomColor : m.color) ?? undefined
+          return (
+            <Box key={`t-${m.ts}`} flexDirection="row">
+              <Box width={1} flexShrink={0} backgroundColor={ink} />
+              <Box flexGrow={1} flexShrink={1} paddingLeft={RAIL - 1}>
+                <Text wrap="wrap">
+                  <Text dimColor>{hhmm(m.ts)} </Text>
+                  {m.lead && <Text color={GOLD}>★ </Text>}
+                  <Text bold={!!ink} dimColor={!ink} color={ink}>{user ? 'you' : m.from}</Text>
+                  {m.to && <Text dimColor> → </Text>}
+                  {m.to && <Text dimColor={!m.toColor} color={m.toColor ?? undefined}>{m.to}</Text>}
+                  <Text dimColor>: </Text>
+                  {line(m.text, 4000)}
+                </Text>
+              </Box>
+            </Box>
+          )
+        })}
         {Say && <Say
           key="say"
           label="you: "

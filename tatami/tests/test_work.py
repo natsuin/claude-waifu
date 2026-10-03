@@ -456,6 +456,29 @@ class Namesake(Team):
         self.assertEqual([(m["from"], m["to"], m["mine"]) for m in shown[:2]],
                          [("rouge (earlier)", None, False), ("wine", "rouge (earlier)", False)])
 
+    def test_pane_colours(self):
+        """The /room pane colours each name in a light shade of its window's colour and stars the
+        orchestrator; the earlier rouge gets no colour."""
+        self.agent("rouge", "fuji", born=time.time() - 60)
+        self.lead("fuji", "wine")
+        channel.post("fuji", {"ts": time.time(), "from": "wine", "to": "rouge", "text": "Welcome, rouge."})
+        channel.post("fuji", {"ts": time.time(), "from": channel.USER, "via": "rouge", "text": "Hello."})
+        was, mod.me = mod.me, lambda: self.me("rouge")
+        try:
+            snap = mod.poll(False)
+        finally:
+            mod.me = was
+        rouge, wine = mod.ink("rouge"), mod.ink("wine")
+        self.assertEqual((wine, mod.ink("cherry"), rouge), ("#f66fa4", "#f1aacb", "#edbdc2"))  # three pinks, apart
+        self.assertEqual([(m["from"], m["color"], m["to"], m["toColor"], m["lead"]) for m in snap["messages"]],
+                         [("rouge (earlier)", None, None, None, False),
+                          ("wine", wine, "rouge (earlier)", None, True),
+                          ("wine", wine, "rouge", rouge, True),
+                          ("the user", None, None, None, False)])
+        self.assertEqual(sorted((m["id"], m["color"], m["lead"]) for m in snap["members"]),
+                         [("rouge", rouge, False), ("wine", wine, True)])
+        self.assertIsNone(mod.ink("no-such-colour"))
+
     def test_an_agent_from_before_births(self):
         rouge = self.agent("rouge", "fuji")  # no born: nothing is marked, as before
         self.assertEqual(channel.unread(rouge, "fuji", self.msgs("fuji"))[0]["to"], "rouge")

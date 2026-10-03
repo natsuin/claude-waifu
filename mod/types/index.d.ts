@@ -8,6 +8,12 @@ export type Message = {
   text: string
   /** posted by this window's agent */
   mine: boolean
+  /** the sender's window colour, light, as a hex; null for the user and an earlier agent */
+  color: string | null
+  /** the same for who it was to */
+  toColor: string | null
+  /** said by the room's orchestrator */
+  lead: boolean
 }
 
 export type Member = {
@@ -20,6 +26,8 @@ export type Member = {
   helperOf: string | null
   /** the room's orchestrator, picked on the desk */
   lead?: boolean
+  /** its window colour, light, as a hex (null for one the desk doesn't know) */
+  color?: string | null
 }
 
 /** A task on the room's plan (see tatami/work.py). */
