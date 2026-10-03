@@ -711,6 +711,83 @@ body.stale main { opacity: .5; filter: saturate(.4); }
 .ghost .jump { display: none; }
 body.dragging, body.dragging * { cursor: grabbing !important; }
 
+/* ---- the room's plan: its tasks, who has each, and the files they hold ---- */
+/* Under the cards, above the chat. A task's dot says how far it has got, without moving: a
+   ring while it waits for someone, wisteria while it's being done, red while it's stuck, sky
+   blue once it's done and waiting to land in your checkout. Landed ones fade. */
+.plan { margin: 14px 2px 0; contain: inline-size; }
+.plan[hidden] { display: none; }
+.plan-head { display: flex; align-items: center; gap: 10px; padding: 0 10px 6px; color: var(--muted); font: 500 .78rem/1.2 var(--ui); }
+.plan-name { flex: none; color: var(--text); font-weight: 650; }
+.plan-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-bar { flex: 0 1 120px; height: 4px; margin-left: auto; border-radius: 999px; background: rgba(255, 255, 255, .07); overflow: hidden; }
+.plan-bar i {
+  display: block;
+  width: var(--done, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--room);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--room) 60%, transparent);
+  transition: width .7s var(--glide);
+}
+.tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.task {
+  --who: var(--muted);
+  display: grid;
+  grid-template-columns: 10px auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 9px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  font-size: .84rem;
+  transition: background .2s ease, opacity .4s ease;
+}
+.task:hover { background: rgba(255, 255, 255, .04); }
+.task .dot { width: 8px; height: 8px; align-self: center; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--muted); }
+.task[data-status="doing"] .dot { background: var(--fuji); box-shadow: 0 0 8px color-mix(in srgb, var(--fuji) 65%, transparent); }
+.task[data-status="blocked"] .dot { background: var(--aka); box-shadow: 0 0 8px color-mix(in srgb, var(--aka) 65%, transparent); }
+.task[data-status="done"] .dot { background: var(--sora); box-shadow: 0 0 8px color-mix(in srgb, var(--sora) 55%, transparent); }
+.task[data-status="landed"] { opacity: .45; }
+.task[data-status="landed"] .dot { background: var(--muted); box-shadow: none; }
+.task .tid { color: var(--muted); font-size: .74rem; font-variant-numeric: tabular-nums; }
+.task .title { min-width: 0; overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
+.task[data-status="landed"] .title { text-decoration: line-through; text-decoration-color: rgba(247, 233, 242, .35); }
+.task .owner { color: var(--who); font-size: .78rem; font-weight: 600; white-space: nowrap; }
+.task .owner.nobody { color: var(--muted); font-weight: 500; font-style: italic; }
+.task .note { grid-column: 3 / -1; color: var(--muted); font-size: .76rem; overflow-wrap: anywhere; }
+.task .note:empty { display: none; }
+.task[data-status="blocked"] .note { color: color-mix(in srgb, var(--aka) 55%, var(--text)); }
+.task[data-status="done"] .note { color: color-mix(in srgb, var(--sora) 60%, var(--muted)); }
+.held { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px 0; color: var(--muted); font-size: .74rem; }
+.held:empty { display: none; }
+.hold {
+  --who: var(--fuji);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 3px 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--who) 10%, rgba(255, 255, 255, .04));
+}
+.hold b { flex: none; color: var(--who); font-weight: 600; }
+.hold span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hold button {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: .9rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease, scale .4s var(--bounce);
+}
+.hold button:hover { background: rgba(255, 107, 139, .18); color: var(--text); }
+.hold button:active { scale: .85; transition-duration: .1s; }
+
 /* ---- what the team said, as message bubbles in each speaker's colour ---- */
 /* Folded away under a "Room chat" row until you open it. Open, it's a short box that scrolls,
    opened at the newest message; an edge fades while there's more beyond it. */
@@ -918,6 +995,11 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
     <div class="stage">
       <div class="fx"></div>
       <div class="cards" role="list"></div>
+      <div class="plan" hidden>
+        <div class="plan-head"><span class="plan-name">Plan</span><span class="plan-meta"></span><span class="plan-bar" aria-hidden="true"><i></i></span></div>
+        <ol class="tasks"></ol>
+        <div class="held" aria-label="Files the agents are working on"></div>
+      </div>
       <div class="chat">
         <button class="chat-toggle" type="button" aria-expanded="false">
           <svg class="chev" viewBox="0 0 10 10" aria-hidden="true"><path d="M3.5 1.5 7 5 3.5 8.5"/></svg>
@@ -941,6 +1023,9 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
       <span class="jump" aria-hidden="true">Open</span>
     </div>
   </div>
+</template>
+<template id="tpl-task">
+  <li class="task"><span class="dot" aria-hidden="true"></span><span class="tid"></span><span class="title"></span><span class="owner"></span><span class="note"></span></li>
 </template>
 <template id="tpl-line">
   <li><span class="who"><b></b><span class="to"></span><time></time></span><p class="text"></p></li>
@@ -2177,6 +2262,8 @@ function fillRoom(el, r, hues) {
     if (cards.children[i] !== card) cards.insertBefore(card, cards.children[i] || null);
   });
 
+  fillPlan(el, r, hues);
+
   const chat = $(".chat", el), talk = $(".talk", el), meta = $(".chat-meta", chat);
   const last = r.recent.at(-1), said = r.said || r.recent.length;
   const open = Boolean(last) && chatOpen.has(r.name);
@@ -2210,6 +2297,73 @@ function fillRoom(el, r, hues) {
     const hue = hues.get(li.dataset.from);
     if (hue) li.style.setProperty("--who", hue); else li.style.removeProperty("--who");
   }
+}
+
+// The room's plan (see work.py): what's stuck first, then what's being done, what's waiting for
+// someone, what's done and waiting to land, and the newest few that have landed. Under it, the
+// files each agent holds; the × lets go of one for it, when it holds on to a file it's done with.
+const ORDER = ["blocked", "doing", "open", "done", "landed"];
+const SAYS = { open: "waiting for someone", doing: "being done", blocked: "stuck", done: "done, waiting to land", landed: "landed" };
+function fillPlan(el, r, hues) {
+  const plan = $(".plan", el), p = r.plan || { tasks: [], landed: 0, claims: [] };
+  const tasks = [...p.tasks].sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status));
+  plan.hidden = !tasks.length && !p.claims.length;
+  const waiting = tasks.filter((t) => t.status === "done").length;
+  const left = tasks.filter((t) => ["open", "doing", "blocked"].includes(t.status)).length;
+  const all = left + waiting + p.landed;
+  $(".plan-meta", plan).textContent = [p.landed && `${p.landed} landed`, waiting && `${waiting} to land`,
+                                       left ? `${left} left` : all && "nothing left"].filter(Boolean).join(" \u00b7 ");
+  $(".plan-bar", plan).style.setProperty("--done", all ? `${Math.round(100 * (p.landed + waiting / 2) / all)}%` : "0%");
+  const sig = JSON.stringify(p);
+  if (plan.dataset.sig !== sig) {
+    plan.dataset.sig = sig;
+    $(".tasks", plan).replaceChildren(...tasks.map(taskLine));
+    $(".held", plan).replaceChildren(...p.claims.map((c) => holdChip(c, r.name)));
+  }
+  for (const li of plan.querySelectorAll("[data-who]")) {
+    const hue = hues.get(li.dataset.who);
+    if (hue) li.style.setProperty("--who", hue); else li.style.removeProperty("--who");
+  }
+}
+
+function taskLine(t) {
+  const li = tpl("#tpl-task").cloneNode(true);
+  const helper = String(t.owner || "").startsWith("invite:");
+  li.dataset.status = t.status;
+  if (t.owner && !helper) li.dataset.who = t.owner;
+  $(".tid", li).textContent = t.id;
+  $(".title", li).textContent = t.title;
+  const owner = $(".owner", li);
+  owner.textContent = helper ? "a helper, starting" : t.owner ? nameOf(t.owner) : "no one yet";
+  owner.classList.toggle("nobody", !t.owner || helper);
+  const note = t.status === "done" ? ["to land" + (t.branch ? ` from ${t.branch}` : ""), t.note].filter(Boolean).join(" \u00b7 ")
+    : t.status === "blocked" || t.status === "landed" ? t.note : "";
+  $(".note", li).textContent = note;
+  li.title = [t.title, t.done_when && `Done when: ${t.done_when}`, t.note && t.status !== "done" && `Note: ${t.note}`]
+    .filter(Boolean).join("\n");
+  li.setAttribute("aria-label", `${t.id}, ${t.title}, ${owner.textContent}, ${SAYS[t.status] || t.status}${note ? `: ${note}` : ""}`);
+  return li;
+}
+
+function holdChip(c, room) {
+  const chip = document.createElement("span");
+  chip.className = "hold";
+  chip.dataset.who = c.agent;
+  chip.title = `${c.path}\n${nameOf(c.agent)} is working on it` + (c.task ? ` for ${c.task}` : "") + ": its teammates can't edit it";
+  const who = document.createElement("b");
+  who.textContent = nameOf(c.agent);
+  const what = document.createElement("span");
+  what.textContent = c.short;
+  const off = document.createElement("button");
+  off.type = "button";
+  off.textContent = "\u00d7";
+  off.setAttribute("aria-label", `Let go of ${c.short} for ${nameOf(c.agent)}`);
+  off.title = `Let go of it for ${nameOf(c.agent)}, so its teammates can edit it (${room} hears it from you)`;
+  off.addEventListener("click", async () => {
+    if (await change("/api/claim", { agent: c.agent, path: c.path })) announce(`${c.short} is free now.`);
+  });
+  chip.append(who, what, off);
+  return chip;
 }
 
 function showChat(chat, open) {
@@ -2281,21 +2435,27 @@ function fillCard(card, a, lead = false) {
   const effort = EFFORTS.indexOf(a.effort);   // "xhigh", from its first reply and right after /effort
   $(".effort-name", card).textContent = effort < 0 ? "" : a.effort;
   $(".bars", card).querySelectorAll("i").forEach((bar, k) => bar.classList.toggle("on", k <= effort));
-  $(".summary", card).textContent = a.summary || "";   // its session's title, a few words
+  // The task it's on, from its room's plan, else its session's title, a few words.
+  $(".summary", card).textContent = a.task ? `${a.task.id} \u00b7 ${a.task.title}` : a.summary || "";
   const mark = $(".mark", card);
   mark.classList.toggle("line", !!(maker?.d && maker.line));
   $("path", mark).setAttribute("d", (maker?.d ? maker : OTHER_MARK).d);
   if (maker?.color) card.style.setProperty("--maker", maker.color); else card.style.removeProperty("--maker");
   $(".name", card).textContent = name;
   card.dataset.name = name;
-  $(".folder", card).textContent = a.folder ? `${a.folder}/` : "";
+  // Its folder, or the worktree of its own it works in on a team, with the commits waiting to land.
+  const tree = a.worktree;
+  $(".folder", card).textContent = tree ? `${tree.branch}` + (tree.ahead ? ` \u00b7 ${tree.ahead} to land` : "")
+    : a.folder ? `${a.folder}/` : "";
   const status = STATUS[a.status];
   card.dataset.status = status ? a.status : "";
   card.toggleAttribute("data-read", !!a.read);   // its turn, and you've already brought it up
   $(".state", card).textContent = status || "";
   card.setAttribute("aria-label", `${name}, ${company}${a.model ? ` ${a.model}` : ""} agent, `
                                   + (effort < 0 ? "" : `${a.effort} effort, `)
-                                  + (a.summary ? `working on ${a.summary}, ` : "") + `folder ${a.folder || "unknown"}, `
+                                  + (a.task ? `on task ${a.task.id}, ${a.task.title}, ` : a.summary ? `working on ${a.summary}, ` : "")
+                                  + (tree ? `in its worktree on ${tree.branch}${tree.ahead ? ` with ${tree.ahead} commits to land` : ""}, `
+                                    : `folder ${a.folder || "unknown"}, `)
                                   + (a.room ? `in room ${a.room}` : "on its own") + (lead ? ", the room's orchestrator" : "")
                                   + (status ? `, ${status}` : "")
                                   + (a.helper_of ? `, helper of ${nameOf(a.helper_of)}` : "") + (unread ? `, ${letters}` : ""));

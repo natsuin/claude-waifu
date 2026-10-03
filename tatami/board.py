@@ -25,6 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 import tatami_mcp as channel  # same folder: shares the file layout and helpers
+import work  # the room's plan, claims and worktrees
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOKEN_FILE = os.path.join(channel.HOME, "board.token")
@@ -173,8 +174,12 @@ def agents():
         s = channel.load(os.path.join(channel.HOME, "status", rec["id"] + ".json"), {})
         # Your turn, and you've already brought it up since it finished: it stops glowing.
         return {"status": s.get("state"), "read": s.get("state") == "done" and seen.get(rec["id"]) == s.get("ts")}
+    def task(rec):  # the task it's on, from its room's plan
+        t = work.current(work.tasks(rec["room"]), rec["id"]) if rec["room"] else None
+        return {"id": t["id"], "title": clip(t["title"], 80)} if t else None
     return [{"id": rec["id"], "agent": rec.get("agent", "claude"), "room": rec["room"],
              "unread": unread(rec), "helper_of": rec.get("invited_by"),
+             "task": task(rec), "worktree": worktree(rec["id"]),
              "color": rec.get("color"), "tint": tint(rec.get("color")),
              "folder": "~" if rec.get("cwd") == home else os.path.basename(rec.get("cwd", "")),
              "seen": rec.get("seen", 0), "girl": bool(rec.get("girl")) and not hidden,
@@ -184,6 +189,37 @@ def agents():
              "session": rec["session"] if re.fullmatch(r"[a-z0-9-]{1,40}", str(rec.get("session"))) else None}
             | status(rec) | (session_of(rec) if rec.get("agent", "claude") == "claude" else NO_SESSION)
             for rec in channel.live_agents()]
+
+
+TREES = {}  # worktree path -> (when it was looked at, commits to land), so git runs every few seconds at most
+
+
+def worktree(agent_id):
+    """The agent's own worktree, as its card shows it: its branch and the commits waiting to land."""
+    for main, rec in work.trees().get(agent_id, {}).items():
+        seen = TREES.get(rec["path"])
+        if not seen or time.time() - seen[0] > 5:
+            seen = TREES[rec["path"]] = (time.time(), work.ahead(rec) if os.path.isdir(rec["path"]) else 0)
+        return {"branch": rec["branch"], "base": rec["base"], "repo": os.path.basename(main), "ahead": seen[1]}
+    return None
+
+
+def plan_of(name, people):
+    """A room's plan, claims and all, as the desk shows it under its cards."""
+    items = work.tasks(name)
+    landed = [t for t in items if t["status"] == "landed"]
+    shown = [t for t in items if t["status"] != "landed"] + landed[-3:]
+    claims = []
+    for c in work.claims():
+        if c["room"] != name:
+            continue
+        where = work.repo_of(c["path"].rstrip("/"))
+        claims.append({"agent": c["agent"], "path": c["path"], "task": c.get("task"),
+                       "short": (where[2] + ("/" if c["path"].endswith("/") else "")) if where else os.path.basename(c["path"].rstrip("/")) or c["path"]})
+    return {"tasks": [{"id": t["id"], "title": clip(t["title"], 120), "owner": t.get("owner"),
+                       "status": t["status"], "note": clip(t.get("note") or "", 200),
+                       "done_when": clip(t.get("done_when") or "", 200), "branch": t.get("branch")} for t in shown],
+            "landed": len(landed), "claims": claims}
 
 
 def page_version():
@@ -237,6 +273,7 @@ def state():
         rooms.append({"name": name, "color": channel.PALETTE[colors[name]],
                       "members": [a for a in people if a["room"] == name], "said": len(msgs),
                       "lead": channel.lead_of(name, people),   # its orchestrator, if it has one
+                      "plan": plan_of(name, people),
                       "recent": [{"from": m["from"], "to": m.get("to"), "text": m["text"][:channel.MAX_TEXT],
                                   "ts": m["ts"]} for m in msgs[-TALK:]]})
     return {"rooms": rooms, "alone": [a for a in people if not a["room"]], "now": time.time(), "usage": usage(),
@@ -292,6 +329,8 @@ def change(path, body):
         return 404, "No agent with that id."
     if path == "/api/lead":  # this room's orchestrator, or (no agent) none
         return lead(room_name(body.get("room")), agent if body.get("agent") else None)
+    if path == "/api/claim":  # you let go of an agent's claim on a file for it; its room hears it
+        return unclaim(agent, str(body.get("path") or ""))
     if path == "/api/read":  # you brought it up: this turn of its is seen, until its next one
         s = channel.load(os.path.join(channel.HOME, "status", agent + ".json"), {})
         if s.get("state") == "done":
@@ -345,6 +384,18 @@ def lead(room, agent):
     else:
         msg.update(text=channel.UNLEAD_SAYS.format(lead=was))
     channel.post(room, msg)
+    return None
+
+
+def unclaim(agent, path):
+    """Take a claim off an agent, from the desk. Call it holding the channel's lock."""
+    held = next((c for c in channel.load(work.CLAIMS, []) if c["agent"] == agent and c["path"] == path), None)
+    if not held:
+        return 404, "That claim has gone already."
+    work.release(agent, [path])
+    channel.post(held["room"], {"ts": time.time(), "from": channel.USER, "via": "desk", "to": agent,
+                                "text": f"I took your claim on {work.tilde(path)} off on the desk, so your teammates "
+                                        f"can edit it now. Check with them before you change it again."})
     return None
 
 
@@ -473,7 +524,7 @@ class Board(BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             return self.send(400, {"error": "bad json"})
         path = urlparse(self.path).path
-        if path not in ("/api/room", "/api/move", "/api/team", "/api/read", "/api/lead"):
+        if path not in ("/api/room", "/api/move", "/api/team", "/api/read", "/api/lead", "/api/claim"):
             return self.send(404, {"error": "not found"})
         with channel.locked():  # the agents write these files too
             failed = change(path, body)
