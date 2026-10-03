@@ -312,6 +312,20 @@ def ahead(rec):
     return int(r.stdout.strip()) if r.returncode == 0 and r.stdout.strip().isdigit() else 0
 
 
+def catch_up(rec):
+    """Bring a worktree up to its base branch, which moves on as work lands and the user commits:
+    straight away when it has nothing of its own yet. Returns what to tell its agent when it
+    can't (it has commits or changes of its own), else None."""
+    behind = git("rev-list", "--count", f"{rec['branch']}..{rec['base']}", cwd=rec["path"]).stdout.strip()
+    if not behind.isdigit() or behind == "0":
+        return None
+    if not dirty(rec["path"]) and not ahead(rec):
+        if git("merge", "--ff-only", "-q", rec["base"], cwd=rec["path"]).returncode == 0:
+            return None
+    return (f"Your worktree is {behind} commit{'s' if behind != '1' else ''} behind {rec['base']}: bring it up to "
+            f"date first (commit your changes, then git -C {rec['path']} rebase {rec['base']}).")
+
+
 def drop_tree(agent_id, main, force=False):
     """Take away a worktree once nothing in it is waiting: no changes, no commits to land. Its
     branch goes too. Returns whether it went."""
@@ -372,17 +386,21 @@ def guard(agent, path, live=None):
         if in_main and not ignored and (rec or teamed(agent, live)):
             rec, new = make_tree(agent["id"], main) if not rec else (rec, False)
             there = os.path.join(rec["path"], rel)
+            behind = catch_up(rec) if not os.path.exists(there) and os.path.exists(path) else None
+            how = (" Use its absolute paths with your usual tools (Read, Edit, Bash with git -C); you don't need "
+                   "to switch folders or use EnterWorktree.")
             if new:
                 waiting = dirty(main)
                 note = (f" The user's checkout has {len(waiting)} uncommitted change{'s' if len(waiting) > 1 else ''} "
                         "that aren't in it." if waiting else "")
                 return (f"Tatami Room: you share this room with others, so you don't edit {tilde(main)} itself. "
                         f"You have a worktree of your own now: {rec['path']} (branch {rec['branch']}, made from "
-                        f"{rec['base']}).{note} Make this edit there instead: {there}. Work in that folder from "
-                        f"now on, for Bash and git too, and commit there. When your piece is done, room_task done, "
-                        f"then room_land brings it into {tilde(main)}.")
+                        f"{rec['base']}).{note} Make this edit there instead: {there}. Do all your work in this "
+                        f"repository there from now on, and commit there.{how} When your piece is done, room_task "
+                        f"done, then room_land brings it into {tilde(main)}.")
             return (f"Tatami Room: {tilde(main)} is the user's checkout. You work in your worktree, "
-                    f"{rec['path']} (branch {rec['branch']}): edit {there} instead.")
+                    f"{rec['path']} (branch {rec['branch']}): edit {there} instead.{how}"
+                    + (f" {behind}" if behind else ""))
     if not agent["room"] or not teamed(agent, live):
         return None
     with channel.locked():

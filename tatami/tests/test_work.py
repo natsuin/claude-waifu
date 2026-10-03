@@ -111,6 +111,21 @@ class Room(Team):
         # the checkout stays the user's, even once it's on its own again
         self.assertIn("is the user's checkout", work.guard(rose, os.path.join(self.repo, "new.txt")))
 
+    def test_a_worktree_catches_up(self):
+        self.agent("sky", "fuji")
+        rose = self.agent("rose", "fuji")
+        work.guard(rose, os.path.join(self.repo, "a.txt"))
+        tree = work.tree_of("rose", self.repo)["path"]
+        self.commit(os.path.join(self.repo, "new.txt"), "n\n", "the user's")  # the user's branch moves on
+        said = work.guard(rose, os.path.join(self.repo, "new.txt"))
+        self.assertNotIn("behind", said)  # nothing of its own yet: brought up to date
+        self.assertTrue(os.path.exists(os.path.join(tree, "new.txt")))
+        self.commit(os.path.join(tree, "mine.txt"), "m\n", "rose's")
+        self.commit(os.path.join(self.repo, "later.txt"), "l\n", "the user's again")
+        said = work.guard(rose, os.path.join(self.repo, "later.txt"))
+        self.assertIn("1 commit behind main", said)  # work of its own: it rebases itself
+        self.assertIn(f"git -C {tree} rebase main", said)
+
     def test_ignored_files_stay_in_the_checkout(self):
         self.agent("sky", "fuji")
         rose = self.agent("rose", "fuji")
