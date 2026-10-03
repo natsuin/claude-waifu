@@ -70,6 +70,7 @@ To update later, run `git pull` in the folder. Everything is linked, not copied,
 | --- | --- |
 | `tatami` | Open the desk, or bring it to the front |
 | `tatami hooks on` | Show which agents are working, done, or waiting for your OK, get a notification when one needs your OK, and let busy agents hear about room messages (`tatami hooks off` removes it) |
+| `tatami hooks gemini on` | The same for Gemini (Antigravity's `agy`) alone, for when the mod does Claude's part: its card says *working* and *your turn*, and it hears about room messages. Gemini has no event for asking your OK, so it says *working* while it asks (`tatami hooks gemini off` removes it) |
 | `tatami mod on` | Bring the room into every Claude window you open: name tag, room mail above the prompt, `/room`, who-needs-you, a chime (`tatami mod off` removes it) |
 | `tatami autostart off` | Don't open the desk with your first Claude window (`tatami autostart on` brings it back) |
 | `tatami stop` | Stop the desk's server; your agents keep running and don't need it |

@@ -7,6 +7,7 @@
 #                          starts (`tatami autostart on` turns it back on)
 #   tatami hooks on        let the board show which agents need you (adds Claude Code hooks;
 #                          `tatami hooks off` takes them out)
+#   tatami hooks gemini on the same for Gemini (agy) alone, beside the mod (`... off` takes them out)
 #
 # The shortcuts, the app and Claude Code also run `tatami start`, `tatami hold`, `tatami window`,
 # `tatami term`, `tatami helper`, `tatami hook`, `tatami mod` and `tatami mcp`. The board listens on this PC only.
@@ -15,9 +16,11 @@ set -euo pipefail
 here="$(dirname "$(readlink -f "$0")")"
 case "${1:-}" in
   mcp) exec python3 "$here/tatami_mcp.py" ;;    # the team channel, which Claude Code starts
-  hook) exec python3 "$here/hooks.py" event ;;  # what the hooks run; see hooks.py
+  hook)  # what the hooks run; see hooks.py. Gemini's (agy) name their event.
+    [ "${2:-}" = agy ] && exec python3 "$here/hooks.py" agy "${3:-}"
+    exec python3 "$here/hooks.py" event ;;
   mod) shift; exec python3 "$here/mod.py" "$@" ;;  # what the Claude Code mod runs; see mod.py
-  hooks) exec python3 "$here/hooks.py" "${2:-}" ;;
+  hooks) exec python3 "$here/hooks.py" "${2:-}" "${3:-}" ;;
   window) exec python3 "$here/window.py" "${2:-}" ;;  # bring up an agent's window; see window.py
   term) exec python3 "$here/term.py" "${2:-}" "${3:-}" ;;  # a terminal inside the Tatami Room app; see term.py
   helper) exec python3 "$here/helper.py" "${2:-}" ;;  # a helper's window, from room_invite; see helper.py

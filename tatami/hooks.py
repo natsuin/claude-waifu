@@ -20,9 +20,18 @@ So an agent busy with its work still hears its team, without checking the room e
 minutes. One that's waiting for you can't hear anything until you talk to it; the board
 puts a badge on its card.
 
+Gemini, as Antigravity's CLI (agy), runs hooks too, from ~/.gemini/config/hooks.json. Its
+events are named differently and don't say which one they are, so its command names it:
+before each call to the model it's working, after a tool too, and when its loop stops it's
+your turn. It has no event for asking your OK, so its card says "working" while it asks.
+
   tatami hooks on     add the hooks to ~/.claude/settings.json (the first time, a backup
-                      is kept next to it as settings.json.before-tatami-hooks)
+                      is kept next to it as settings.json.before-tatami-hooks), and to
+                      Antigravity's hooks.json when it's installed
   tatami hooks off    take them out again
+  tatami hooks gemini on|off
+                      only Gemini's: the Tatami Room mod (tatami mod on) does Claude's part
+                      inside Claude, without its settings, but Gemini has no mod
 """
 import json
 import os
@@ -63,8 +72,9 @@ def state_of(event):
     return None  # other notices (logins, quotas) don't change what the agent is doing
 
 
-def record(event):
-    """Note the agent's state, and return what to tell it about its room (or None)."""
+def record(event, tell=True):
+    """Note the agent's state, and return what to tell it about its room (or None). With tell
+    off, it can't be told anything at this point, so nothing is marked told."""
     state, name = state_of(event), event.get("hook_event_name")
     if not state and name not in MAIL:
         return None
@@ -75,7 +85,7 @@ def record(event):
     path = os.path.join(channel.HOME, "status", agent["id"] + ".json")
     before = channel.load(path, {})
     now = dict(before, state=state, ts=time.time()) if state and before.get("state") != state else dict(before)
-    out = mail(event, agent, now)
+    out = mail(event, agent, now) if tell else None
     if now != before:  # most tool calls change nothing
         os.makedirs(os.path.dirname(path), exist_ok=True)
         channel.save(path, now)
@@ -112,6 +122,42 @@ def mail(event, agent, status):
             f"{senders}" + (f", {len(mine)} addressed to you" if mine else "")
             + ". Call room_read when you reach a good point.")
     return {"hookSpecificOutput": {"hookEventName": name, "additionalContext": text}}
+
+
+# Antigravity's events, as the Claude Code events they match.
+AGY_HOOKS = os.path.expanduser("~/.gemini/config/hooks.json")
+AGY_EVENTS = {"PreInvocation": "UserPromptSubmit", "PostToolUse": "PostToolUse", "Stop": "Stop"}
+AGY_NAME = "tatami-room"  # our entry in its hooks.json, beside any others
+
+
+def agy(name):
+    """An Antigravity hook: note its state, and answer in its shape (it always wants a JSON
+    object). Room news goes in before the model's next call, and a message to it holds up its
+    stop the way it holds up Claude's. After a tool it can't take a note, so the next call does."""
+    event = {"hook_event_name": AGY_EVENTS.get(name)}
+    out = record(event, tell=name != "PostToolUse") if event["hook_event_name"] else None
+    if out and name == "Stop":
+        return {"decision": "continue", "reason": out["reason"]}
+    if out and name == "PreInvocation":
+        return {"injectSteps": [{"ephemeralMessage": out["hookSpecificOutput"]["additionalContext"]}]}
+    return {}
+
+
+def install_agy(on):
+    """Our entry in Antigravity's hooks.json, when it's installed: added, or taken out."""
+    if not os.path.isdir(os.path.dirname(AGY_HOOKS)):
+        return False
+    hooks = channel.load(AGY_HOOKS, {})
+    if not isinstance(hooks, dict):
+        return False
+    hooks.pop(AGY_NAME, None)
+    if on:
+        run = lambda event: {"type": "command", "command": f"{COMMAND} agy {event}", "timeout": 10}
+        hooks[AGY_NAME] = {"PreInvocation": [run("PreInvocation")],
+                           "PostToolUse": [{"matcher": "*", "hooks": [run("PostToolUse")]}],
+                           "Stop": [run("Stop")]}
+    channel.save(AGY_HOOKS, hooks)
+    return True
 
 
 def ours(hook):
@@ -152,8 +198,10 @@ def install(on):
         json.dump(settings, f, indent=2, ensure_ascii=False)
         f.write("\n")
     os.replace(SETTINGS + ".tmp", SETTINGS)
+    gemini = install_agy(on)
     print("Tatami Room hooks are on: the board shows which agents need you, and agents hear about room "
-          "messages while they work (new and open sessions pick them up)."
+          "messages while they work (new and open sessions pick them up"
+          + ("; Gemini's from its next start" if gemini else "") + ")."
           if on else "Tatami Room hooks are off.")
 
 
@@ -167,8 +215,23 @@ def main():
         if out:
             print(json.dumps(out))
         return
+    if cmd == "agy":  # Antigravity's: `tatami hook agy <event>`, the event's details on stdin
+        try:
+            sys.stdin.read()
+            out = agy(sys.argv[2] if len(sys.argv) > 2 else "")
+        except Exception:  # never get in Gemini's way either
+            out = {}
+        print(json.dumps(out))
+        return
     if cmd in ("on", "off"):
         install(cmd == "on")
+        return
+    if cmd == "gemini" and sys.argv[2:3] in (["on"], ["off"]):
+        on = sys.argv[2] == "on"
+        if not install_agy(on):
+            sys.exit("Antigravity (agy) isn't set up here: there's no ~/.gemini/config.")
+        print("Gemini's Tatami Room hooks are on: its card shows when it's working and when it's your turn "
+              "(from its next start), and it hears about room messages." if on else "Gemini's Tatami Room hooks are off.")
         return
     print(__doc__)
 
