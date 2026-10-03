@@ -53,7 +53,7 @@ Each step is usable on its own.
 3. **Group looks.** *(done)* The windows of a team get a matching tab color, the same color the board gives their room, so teams stand out at a glance. No two rooms share a color while they're around, and every color is light enough for Terminal to write the tab title in black. Each agent's channel keeps its own window's tab in step through `waifu`, which owns Terminal's settings; the board still never touches a terminal.
 4. **More companies.** Gemini and Codex joining rooms alongside Claude, using the same channel. *(next)*
 
-Next ideas: terminals that outlive the app (today they end when it quits), and showing Windows Terminal sessions inside the app too.
+Next ideas: showing Windows Terminal sessions inside the app too.
 
 Later: bring in other companies' agents (step 4), and give the app its own icon inside the .exe.
 

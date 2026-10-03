@@ -19,6 +19,8 @@ drawn as faint braille dots so your text stays readable. Open windows never chan
                      runs CMD in DIR there instead of Claude; Tatami Room's helpers use it)
   waifu open         open the wallpaper folder in Explorer
   waifu desk         (re)make the Tatami Room shortcut that opens the desk (setup does this)
+  waifu sync-app     put this repo's app/ code into the installed Tatami Room app (it applies when
+                     the app restarts; `waifu hello` does it too)
   waifu uninstall    remove the profiles, shortcuts and launchers (wallpapers are kept)
 
 How the per-window part works: Windows Terminal draws the background per profile. Setup
@@ -1096,6 +1098,9 @@ def main():
         return
     if cmd == "desk":
         install_desk()
+        return
+    if cmd == "sync-app":  # what the app's Restart runs before it restarts
+        sync_app()
         return
     os.makedirs(POOL, exist_ok=True)
     os.makedirs(STATE_DIR, exist_ok=True)

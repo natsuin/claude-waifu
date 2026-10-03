@@ -11,6 +11,7 @@ other devices and other websites can't use it.
 
   python3 board.py [--port 7373]    (or run ./tatami, which also opens it in your browser)
 """
+import hashlib
 import hmac
 import json
 import os
@@ -194,6 +195,33 @@ def page_version():
         return None
 
 
+APP_CODE = {"files": None, "at": None, "out": None}
+
+
+def app_code():
+    """The app's own code in this repo: the files the installed app is made of (waifu's APP_FILES)
+    and their hash. The app hashes the files it started with the same way, and offers to restart
+    when they differ, so `git pull` reaches it (see app/main.js). Worked out again only when a
+    file changes."""
+    if APP_CODE["files"] is None:
+        try:
+            APP_CODE["files"] = list(channel.waifu_cli().APP_FILES)
+        except (Exception, SystemExit):  # no waifu next door: no app to update
+            APP_CODE["files"] = []
+    folder = os.path.join(os.path.dirname(HERE), "app")
+    try:
+        at = [os.stat(os.path.join(folder, f)).st_mtime_ns for f in APP_CODE["files"]]
+    except OSError:
+        return None
+    if at != APP_CODE["at"]:
+        h = hashlib.sha256()
+        for f in APP_CODE["files"]:
+            with open(os.path.join(folder, f), "rb") as fh:
+                h.update(f.encode() + b"\0" + fh.read() + b"\0")
+        APP_CODE.update(at=at, out={"files": APP_CODE["files"], "hash": h.hexdigest()} if APP_CODE["files"] else None)
+    return APP_CODE["out"]
+
+
 def makers():
     """Each kind of agent's maker, for the page: its name, and its mark in its colour."""
     page = {k: {"name": v["name"], "color": v["color"], "line": v["line"], "d": v["mark"]} for k, v in channel.kinds().items()}
@@ -212,7 +240,7 @@ def state():
                       "recent": [{"from": m["from"], "to": m.get("to"), "text": m["text"][:channel.MAX_TEXT],
                                   "ts": m["ts"]} for m in msgs[-TALK:]]})
     return {"rooms": rooms, "alone": [a for a in people if not a["room"]], "now": time.time(), "usage": usage(),
-            "page": page_version(),
+            "page": page_version(), "app": app_code(),
             # the kinds of agent that are installed, which the desk offers to start
             "installed": [k for k in channel.kinds() if channel.command_of(k)]}
 

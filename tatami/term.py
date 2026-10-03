@@ -4,14 +4,25 @@ Gemini, Codex) in a pseudo-terminal inside WSL, the way a Claude Waifu window ru
 relays it over plain pipes: the app starts it through wsl.exe and draws it with xterm.js, so
 nothing needs native modules on the Windows side.
 
+The agent doesn't belong to the app, so restarting the app (to update it, or after a crash)
+doesn't stop it. A small holder in the background owns the pseudo-terminal, keeps what the
+agent printed lately, and waits on a socket in ~/.local/state/tatami/terms; what the app runs
+attaches to it, gets that backlog first (so the app can draw the screen again), then relays.
+When the app goes away the holder carries on, and the app attaches again when it comes back.
+The holder ends when the agent's shell exits, or when the app ends the terminal.
+
 It starts in ~/desk, a folder of its own: Claude Code asks once whether you trust a folder, and
 remembers the answer for that folder, where your home folder would ask every time.
 
-  tatami term <session> [kind]    what the app runs; <session> ties the agent on the desk to it,
-                                  and <kind> says which agent (claude when it's left out)
+  tatami term <session> [kind]    what the app runs: attach to that session's holder, starting
+                                  it (and the agent) first if there's none; <kind> says which
+                                  agent (claude when it's left out)
+  tatami term --list              the sessions whose holders are running, as JSON lines
+                                  ({"session", "kind"}), for the app to attach to again
 
-The app resizes the terminal in-band: ESC ] 7373 ; resize ; <cols> ; <rows> BEL. Before it
-starts, waifu picks a girl and a color for it, like it does for each new window.
+The app resizes the terminal in-band: ESC ] 7373 ; resize ; <cols> ; <rows> BEL, and ends it
+with ESC ] 7373 ; end BEL. Before it starts, waifu picks a girl and a color for it, like it
+does for each new window.
 """
 import fcntl
 import json
@@ -19,15 +30,22 @@ import os
 import pty
 import re
 import select
+import signal
+import socket
 import struct
 import subprocess
 import sys
 import termios
+import time
 
 import tatami_mcp  # same folder: where the desk folder is
 
 RESIZE = re.compile(rb"\x1b\]7373;resize;(\d{1,4});(\d{1,4})\x07")
+END = b"\x1b]7373;end\x07"
 WAIFU = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "waifu")
+TERMS = os.path.join(tatami_mcp.HOME, "terms")
+KEEP = 4 << 20  # what a holder keeps of the agent's output, for an app that attaches (the app keeps as much)
+SESSION = re.compile(r"[a-z0-9-]{1,40}")
 
 
 def set_size(fd, cols, rows):
@@ -67,20 +85,70 @@ def desk():
     return folder
 
 
-def main():
-    session = sys.argv[1] if len(sys.argv) > 1 else ""
-    kind = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else "claude"
-    if not re.fullmatch(r"[a-z0-9-]{1,40}", session) or not re.fullmatch(r"[a-z0-9-]{1,30}", kind):
-        sys.exit("usage: tatami term <session> [kind]")
+def paths(session):
+    return os.path.join(TERMS, session + ".sock"), os.path.join(TERMS, session + ".json")
+
+
+def running(session):
+    """The session's holder record, while its holder is running."""
+    rec = tatami_mcp.load(paths(session)[1], {})
+    return rec if rec and tatami_mcp.alive(rec) and os.path.exists(paths(session)[0]) else None
+
+
+# ---- the holder: owns the agent's pseudo-terminal ----
+
+def hold(session, kind):
+    """Run the agent and keep it, whether or not the app is attached."""
+    sock_path, rec_path = paths(session)
+    os.makedirs(TERMS, mode=0o700, exist_ok=True)
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)  # the app's wsl.exe going away is no reason to stop
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    if os.path.exists(sock_path):
+        os.remove(sock_path)
+    old = os.umask(0o077)
+    server.bind(sock_path)
+    os.umask(old)
+    server.listen(2)
+    tatami_mcp.save(rec_path, {"session": session, "kind": kind, "pid": os.getpid(),
+                               "started": tatami_mcp.proc_start(os.getpid()), "since": time.time()})
+    kept, size = [], 0
+
+    def keep(data):
+        nonlocal size
+        kept.append(data)
+        size += len(data)
+        while size > KEEP and len(kept) > 1:
+            size -= len(kept.pop(0))
+
+    client = None
+
+    def drop():
+        nonlocal client
+        if client:
+            client.close()
+        client = None
+
+    def send(data):
+        if client:
+            try:
+                client.sendall(data)
+            except OSError:
+                drop()
+
     name = tatami_mcp.kinds().get(kind, {}).get("name", kind)
     command = tatami_mcp.command_of(kind)  # a plain word from kinds.json: safe to put in the shell line
-    os.write(1, f"\x1b[2mStarting {name}\u2026\x1b[0m".encode())  # something to see straight away
+    keep(f"\x1b[2mStarting {name}…\x1b[0m".encode())  # something to see straight away
+    # The first attach comes while waifu deals the look; take it now, so it sees the line above.
+    if select.select([server], [], [], 2)[0]:
+        client, _ = server.accept()
+        send(b"".join(kept))
     color, girl = look()
     start = desk()
     pid, fd = pty.fork()
     if pid == 0:  # the terminal's side: the agent, then a shell once it exits, like a Claude Waifu window
         os.environ.update(TERM="xterm-256color", COLORTERM="truecolor", TATAMI_SESSION=session,
                           TATAMI_COLOR=color, TATAMI_GIRL=girl)
+        signal.signal(signal.SIGHUP, signal.SIG_DFL)
         os.chdir(start)
         if not command:
             print(f"\r\x1b[2K{name} isn't installed here, or kinds.json doesn't know it.\r")
@@ -89,19 +157,30 @@ def main():
         # the desk as this kind. Only this agent's: another started later in the shell is its own.
         os.execvp("bash", ["bash", "-lic", f"TATAMI_AGENT={kind} {command}; exec bash"])
     set_size(fd, 100, 30)
-    os.write(1, b"\r\x1b[2K")  # Claude draws from here
+    keep(b"\r\x1b[2K")  # Claude draws from here
+    send(b"\r\x1b[2K")
     try:
         while True:
-            ready, _, _ = select.select([0, fd], [], [])
-            if 0 in ready:
-                data = os.read(0, 65536)
-                if not data:  # the app closed the session
+            ready, _, _ = select.select([server, fd] + ([client] if client else []), [], [])
+            if server in ready:  # the app, back: it gets the backlog, and takes over from any other
+                drop()
+                client, _ = server.accept()
+                send(b"".join(kept))
+            if client and client in ready:
+                try:
+                    data = client.recv(65536)
+                except OSError:
+                    data = b""
+                if not data:  # the app went away: carry on without it
+                    drop()
+                elif END in data:  # the app ended the terminal
                     break
-                for cols, rows in RESIZE.findall(data):
-                    set_size(fd, max(2, int(cols)), max(2, int(rows)))
-                data = RESIZE.sub(b"", data)
-                if data:
-                    os.write(fd, data)
+                else:
+                    for cols, rows in RESIZE.findall(data):
+                        set_size(fd, max(2, int(cols)), max(2, int(rows)))
+                    data = RESIZE.sub(b"", data)
+                    if data:
+                        os.write(fd, data)
             if fd in ready:
                 try:
                     out = os.read(fd, 65536)
@@ -109,12 +188,87 @@ def main():
                     break
                 if not out:
                     break
-                os.write(1, out)
+                keep(out)
+                send(out)
     finally:
+        drop()
+        for p in (sock_path, rec_path):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
         try:
-            os.kill(pid, 1)  # hang up, as closing a window would
+            os.kill(pid, signal.SIGHUP)  # hang up, as closing a window would
         except OSError:
             pass
+
+
+# ---- what the app runs: attach, starting the holder if need be ----
+
+def attach(session, kind):
+    sock_path = paths(session)[0]
+    if not running(session):
+        subprocess.Popen([sys.executable, os.path.realpath(__file__), "--hold", session, kind],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+    conn = None
+    for _ in range(100):  # the holder's socket is up within a moment
+        try:
+            conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            conn.connect(sock_path)
+            break
+        except OSError:
+            conn.close()
+            conn = None
+            time.sleep(0.05)
+    if not conn:
+        sys.exit("The terminal's holder didn't start.")
+    try:
+        while True:
+            ready, _, _ = select.select([0, conn], [], [])
+            if 0 in ready:
+                data = os.read(0, 65536)
+                if not data:  # the app closed: leave the agent running
+                    break
+                conn.sendall(data)
+            if conn in ready:
+                out = conn.recv(65536)
+                if not out:  # the agent's shell exited, or the app ended it
+                    break
+                os.write(1, out)
+    except OSError:
+        pass
+    finally:
+        conn.close()
+
+
+def sessions():
+    """The sessions whose holders are running."""
+    out = []
+    for fn in sorted(os.listdir(TERMS)) if os.path.isdir(TERMS) else []:
+        if fn.endswith(".json") and SESSION.fullmatch(fn[:-5]):
+            rec = running(fn[:-5])
+            if rec:
+                out.append({"session": rec["session"], "kind": rec.get("kind") or "claude"})
+    return out
+
+
+def main():
+    args = sys.argv[1:]
+    if args[:1] == ["--list"]:
+        for s in sessions():
+            print(json.dumps(s))
+        return
+    held = args[:1] == ["--hold"]
+    args = args[1:] if held else args
+    session = args[0] if args else ""
+    kind = args[1] if len(args) > 1 and args[1] else "claude"
+    if not SESSION.fullmatch(session) or not re.fullmatch(r"[a-z0-9-]{1,30}", kind):
+        sys.exit("usage: tatami term <session> [kind]")
+    if held:
+        hold(session, kind)
+    else:
+        attach(session, kind)
 
 
 if __name__ == "__main__":

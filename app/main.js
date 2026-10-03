@@ -6,6 +6,7 @@
 const { app, BrowserWindow, Menu, Notification, Tray, WebContentsView, clipboard, dialog, ipcMain, nativeTheme, screen,
   shell } = require("electron");
 const { execFile, spawn } = require("child_process");
+const crypto = require("crypto");
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
@@ -23,6 +24,7 @@ let tray = null;
 let hold = null;
 let board = null;  // the board's address, with its token
 let quitting = false;
+let restarting = false;  // a restart leaves the app's terminals running, to attach to again
 
 // ---- WSL ----
 
@@ -138,7 +140,9 @@ ipcMain.handle("tatami:focus", (event, id) => (fromBoard(event) ? focusAgent(Str
 
 // ---- terminals inside the app ----
 // Each runs `tatami term` through a wsl.exe of its own: an agent (Claude, Gemini...) in a pseudo-terminal inside WSL,
-// relayed over plain pipes and drawn with xterm.js in a panel beside the desk (terminal.html).
+// relayed over plain pipes and drawn with xterm.js in a panel beside the desk (terminal.html). The agent belongs to a
+// holder inside WSL, not to the app: when the app goes away the agent carries on, and the app attaches again when it
+// starts, getting the screen back from the holder. Only End (or quitting) stops it.
 
 const sessions = new Map();   // session key -> { proc, log }
 const bySession = new Map();  // session key -> its agent on the desk, once it has checked in
@@ -151,8 +155,10 @@ let shown = null;             // the session in the panel, while it's open
 let panelWidth = null;        // set by dragging its edge; until then, a share of the window
 let lastShown = null;         // for Ctrl+`, which goes back to it
 
-function startSession(kind = "claude") {
-  const key = "app-" + Date.now().toString(36);
+const END = "\x1b]7373;end\x07";  // what tells a terminal's holder to stop its agent
+
+function startSession(kind = "claude", key = null, show = true) {
+  key = key || "app-" + Date.now().toString(36);
   const proc = spawn("wsl.exe", ["-d", CONFIG.distro, "--", CONFIG.tatami, "term", key, kind],
     { windowsHide: true, stdio: ["pipe", "pipe", "ignore"] });
   const s = { proc, log: [], size: 0, kind };
@@ -168,7 +174,33 @@ function startSession(kind = "claude") {
     sessions.delete(key);
     toPanel("term:end", key);
   });
-  showSession(key);
+  if (show) showSession(key);
+}
+
+// The terminals still running from before the app last went away (a restart, an update, a crash).
+function reattach() {
+  execFile("wsl.exe", ["-d", CONFIG.distro, "--", CONFIG.tatami, "term", "--list"], { windowsHide: true, timeout: 30000 },
+    (err, stdout) => {
+      if (err) return;
+      for (const line of String(stdout).split("\n")) {
+        try {
+          const { session, kind } = JSON.parse(line);
+          if (/^[a-z0-9-]{1,40}$/.test(session) && /^[a-z0-9-]{1,30}$/.test(kind) && !sessions.has(session)) {
+            startSession(kind, session, false);
+          }
+        } catch { /* not a line of ours */ }
+      }
+    });
+}
+
+// Ending a terminal stops its agent: its holder hangs up, and the terminal's wsl.exe exits.
+function endSession(s) {
+  return new Promise((resolve) => {
+    if (s.proc.exitCode !== null) return resolve();
+    const late = setTimeout(() => { s.proc.kill(); resolve(); }, 3000);
+    s.proc.once("exit", () => { clearTimeout(late); resolve(); });
+    try { s.proc.stdin.write(END); } catch { s.proc.kill(); }
+  });
 }
 
 function toPanel(channel, ...args) {
@@ -283,7 +315,7 @@ ipcMain.on("term:end-session", (e, key) => {
   const choice = dialog.showMessageBoxSync(win, { type: "question", buttons: ["End", "Cancel"], defaultId: 1,
     cancelId: 1, title: "Tatami Room", message: `End ${name}?`, detail: "Claude stops and this terminal closes." });
   if (choice !== 0) return;
-  s.proc.kill();
+  endSession(s);
   hidePanel();
 });
 
@@ -298,6 +330,55 @@ function quit() {
   }
   quitting = true;
   app.quit();
+}
+
+// Restart: the app's newest code from the repo (waifu sync-app), then the app again. Its terminals keep running
+// and it attaches to them again. A short wsl.exe of its own holds WSL up while the app is away.
+async function restart() {
+  if (restarting) return;
+  restarting = true;
+  await tatami(["sync-app"], 30000);
+  spawn("wsl.exe", ["-d", CONFIG.distro, "--", "sleep", "45"], { windowsHide: true, detached: true, stdio: "ignore" }).unref();
+  saveBounds();
+  app.relaunch({ args: process.argv.slice(1).filter((a) => a !== "--new-claude" && a !== "--background") });
+  app.exit(0);
+}
+
+// Whether the repo has app code this app isn't running: the board says which files make up the app and their hash
+// (see board.py), and the app hashes those files as they were when it started.
+const STARTED_WITH = new Map();
+function snapshot(dir, rel = "") {
+  for (const ent of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
+    const name = rel ? `${rel}/${ent.name}` : ent.name;
+    if (ent.isDirectory()) snapshot(dir, name);
+    else if (ent.isFile()) STARTED_WITH.set(name, fs.readFileSync(path.join(dir, name)));
+  }
+}
+try { snapshot(__dirname); } catch { /* without it, no update notice */ }
+
+function runningHash(files) {
+  const h = crypto.createHash("sha256");
+  for (const name of files) {
+    const data = STARTED_WITH.get(name);
+    if (!data) return null;
+    h.update(name + "\0").update(data).update("\0");
+  }
+  return h.digest("hex");
+}
+
+let updateReady = false;
+function checkUpdate(s) {
+  if (!s.app || !Array.isArray(s.app.files) || typeof s.app.hash !== "string" || !STARTED_WITH.size) return;
+  const ready = runningHash(s.app.files) !== s.app.hash;
+  if (ready === updateReady) return;
+  updateReady = ready;
+  trayMenu();
+  if (ready && Notification.isSupported()) {
+    const n = new Notification({ title: "Tatami Room has an update", icon: ICON,
+      body: "Click to restart it now. Your agents keep running in their terminals." });
+    n.on("click", restart);
+    n.show();
+  }
 }
 
 // ---- the window ----
@@ -404,14 +485,21 @@ function trayHint() {
 function createTray() {
   tray = new Tray(ICON);
   tray.setToolTip("Tatami Room");
+  trayMenu();
+  tray.on("click", showDesk);
+}
+
+function trayMenu() {
+  if (!tray) return;
   tray.setContextMenu(Menu.buildFromTemplate([
+    ...(updateReady ? [{ label: "Restart to update (agents keep running)", click: restart }, { type: "separator" }] : []),
     { label: "Open the desk", click: showDesk },
     { label: "+ Claude", click: newClaude },
     { label: "+ Claude in a Terminal window", click: newWindow },
     { type: "separator" },
+    ...(updateReady ? [] : [{ label: "Restart Tatami Room (agents keep running)", click: restart }]),
     { label: "Quit Tatami Room", click: quit },
   ]));
-  tray.on("click", showDesk);
 }
 
 // The Start menu shortcut carries the app's id, which Windows needs for its notifications, and
@@ -469,6 +557,7 @@ function seen(s) {
   for (const a of agents) if (a.status === "asking" && !asking.has(a.id)) notifyAsking(a);
   asking.clear();
   for (const a of agents) if (a.status === "asking") asking.add(a.id);
+  checkUpdate(s);
 }
 
 function notifyAsking(a) {
@@ -515,6 +604,7 @@ async function start() {
   createWindow(process.argv.includes("--background"));
   createTray();
   watch();
+  reattach();
   if (process.argv.includes("--new-claude")) startSession();
 }
 
@@ -525,12 +615,19 @@ if (!app.requestSingleInstanceLock()) {
     if (argv.includes("--new-claude")) startSession();
     else if (!argv.includes("--background")) showDesk();
   });
-  app.on("before-quit", () => {
+  let ended = false;
+  app.on("before-quit", (e) => {
     quitting = true;
+    if (!ended && sessions.size) {  // its terminals end with it, like closing their windows: first stop their agents
+      e.preventDefault();
+      ended = true;
+      Promise.all([...sessions.values()].map(endSession)).then(() => app.quit());
+      return;
+    }
     saveBounds();
     if (hold) hold.kill();
     if (helper) helper.kill();
-    for (const s of sessions.values()) s.proc.kill();  // its terminals end with it, like closing their windows
+    for (const s of sessions.values()) s.proc.kill();
   });
   app.on("window-all-closed", () => { if (quitting) app.quit(); });
   app.whenReady().then(start);
