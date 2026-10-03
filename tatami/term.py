@@ -89,6 +89,17 @@ def paths(session):
     return os.path.join(TERMS, session + ".sock"), os.path.join(TERMS, session + ".json")
 
 
+def at_socket(sock, how, path):
+    """sock.bind or sock.connect to `path`, from inside its folder: a socket's address can't be
+    longer than about 100 bytes, which a long state folder would pass."""
+    here = os.getcwd()
+    os.chdir(os.path.dirname(path))
+    try:
+        getattr(sock, how)(os.path.basename(path))
+    finally:
+        os.chdir(here)
+
+
 def running(session):
     """The session's holder record, while its holder is running."""
     rec = tatami_mcp.load(paths(session)[1], {})
@@ -106,7 +117,7 @@ def hold(session, kind):
     if os.path.exists(sock_path):
         os.remove(sock_path)
     old = os.umask(0o077)
-    server.bind(sock_path)
+    at_socket(server, "bind", sock_path)
     os.umask(old)
     server.listen(2)
     tatami_mcp.save(rec_path, {"session": session, "kind": kind, "pid": os.getpid(),
@@ -207,22 +218,29 @@ def hold(session, kind):
 
 def attach(session, kind):
     sock_path = paths(session)[0]
+    log = os.path.join(TERMS, session + ".log")  # what a holder that fails to start says
     if not running(session):
-        subprocess.Popen([sys.executable, os.path.realpath(__file__), "--hold", session, kind],
-                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
+        os.makedirs(TERMS, mode=0o700, exist_ok=True)
+        with open(log, "w") as err:
+            subprocess.Popen([sys.executable, os.path.realpath(__file__), "--hold", session, kind],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err, start_new_session=True)
     conn = None
     for _ in range(100):  # the holder's socket is up within a moment
         try:
             conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            conn.connect(sock_path)
+            at_socket(conn, "connect", sock_path)
             break
         except OSError:
             conn.close()
             conn = None
             time.sleep(0.05)
     if not conn:
-        sys.exit("The terminal's holder didn't start.")
+        try:
+            with open(log) as f:
+                why = f.read().strip().splitlines()[-1:]
+        except OSError:
+            why = []
+        sys.exit(f"The terminal's holder didn't start{': ' + why[0] if why else '.'}")
     try:
         while True:
             ready, _, _ = select.select([0, conn], [], [])
