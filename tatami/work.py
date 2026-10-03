@@ -500,7 +500,7 @@ def task_tool(agent, args, room):
     here = {a["id"] for a in live if a["room"] == room}
     lead = channel.lead_of(room, live)
     if action == "list":
-        return plan(room, everything=True)
+        return plan(room, everything=True) + idle(agent.id, room, live)
     with channel.locked():
         items = tasks(room)
         if action == "add":
@@ -514,7 +514,24 @@ def task_tool(agent, args, room):
                 raise Refused(f"Unknown action '{action}': use add, take, update, done or list.")
             out = out(agent, args, room, t, here, lead)
         save_tasks(room, items)
-    return out
+    return out + idle(agent.id, room, live)
+
+
+def idle(agent_id, room, live):
+    """For the room's orchestrator, while there's work on the plan: its teammates on no unfinished
+    task, so it doesn't plan around someone it hasn't noticed. Empty for everyone else."""
+    if channel.lead_of(room, live) != agent_id:
+        return ""
+    items = tasks(room)
+    busy = {t.get("owner") for t in items if t["status"] in OPEN}
+    if not busy:
+        return ""
+    who = sorted(a["id"] for a in live if a["room"] == room and a["id"] != agent_id and a["id"] not in busy)
+    if not who:
+        return ""
+    many = len(who) > 1
+    return (f"\nNot on any task: {', '.join(who)}. Give {'each' if many else 'it'} a piece of the plan, or "
+            f"tell {'them' if many else 'it'} to wait.")
 
 
 def files_of(args):

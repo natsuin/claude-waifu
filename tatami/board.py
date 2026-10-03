@@ -345,6 +345,7 @@ def change(path, body):
             channel.save(READ_FILE, seen | {agent: s.get("ts")})
         return None
     members = channel.load(channel.MEMBERS, {})
+    was = {a["id"]: a["room"] for a in channel.live_agents()}  # so a room hears who joined it
     if path == "/api/move":  # into a room, or with no room: on its own
         room = room_name(body.get("room"))
         if body.get("room") and not room:
@@ -368,7 +369,26 @@ def change(path, body):
         for r in left:
             channel.post(r, {"ts": time.time(), "from": channel.USER, "via": "desk",
                              "text": channel.LEFT_SAYS.format(lead=agent)})
+    if room and was.get(agent) != room:
+        joined(agent, room, was)
     return None
+
+
+def joined(agent, room, was):
+    """Tell a room the user brought `agent` into it, so no one plans without it: its orchestrator
+    directly (that wakes it, or holds up the end of its turn), else everyone. A room no one else
+    was in yet has no one to tell. Call it holding the channel's lock."""
+    if not any(r == room and a != agent for a, r in was.items()):
+        return
+    lead = channel.lead_of(room)
+    owns = [t["id"] for t in work.tasks(room) if t.get("owner") == agent and t["status"] in work.OPEN]
+    msg = {"ts": time.time(), "from": channel.USER, "via": "desk"}
+    if lead and lead != agent:
+        says = channel.JOINED_BACK if owns else channel.JOINED_SAYS
+        msg.update(to=lead, text=says.format(agent=agent, lead=lead, tasks=", ".join(owns)))
+    else:
+        msg.update(text=channel.JOINED_PEERS.format(agent=agent) + ("" if owns else " It isn't on any task here yet."))
+    channel.post(room, msg)
 
 
 def lead(room, agent):

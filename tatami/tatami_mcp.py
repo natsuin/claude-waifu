@@ -115,6 +115,12 @@ LEAD_SAYS = ("I've made {lead} this room's orchestrator. {lead}: you own the ove
              "still comes first.")
 UNLEAD_SAYS = "{lead} is no longer this room's orchestrator. You're all peers again."
 LEFT_SAYS = "{lead} has left this room, so it has no orchestrator now. You're all peers again."
+# What the room hears when the user brings an agent into it on the desk: its orchestrator directly,
+# so it plans with the newcomer instead of from who was there when it last looked.
+JOINED_SAYS = ("I've brought {agent} into this room, and it isn't on any task here yet. {lead}: give it "
+               "a piece of the plan (room_task add with owner {agent}), or tell it to wait.")
+JOINED_BACK = "I've brought {agent} back into this room. {lead}: it still owns {tasks} on the plan."
+JOINED_PEERS = "I've brought {agent} into this room."
 LEAD_ROLE = ("{lead} is this room's orchestrator: it plans and hands out the work. Take your pieces "
              "from {lead} and report back to it.")
 LEAD_ROLE_YOU = ("You are this room's orchestrator: you own the plan. Split the work into tasks "
@@ -605,7 +611,8 @@ def answer(agent, name, args, room):
             lines.append(line)
         role = (LEAD_ROLE_YOU if lead == agent.id else LEAD_ROLE.format(lead=lead)) if lead else \
             "No orchestrator: you're all peers, and the user can make one of you the orchestrator on the desk."
-        return f"Room '{room}':\n" + "\n".join(lines) + "\n" + role + "\n\n" + work.plan(room), False
+        return (f"Room '{room}':\n" + "\n".join(lines) + "\n" + role + "\n\n" + work.plan(room)
+                + work.idle(agent.id, room, people)), False
     if name == "room_invite":
         return invite(agent, str(args.get("task", "")).strip()[:MAX_TEXT], room)
     if name in {t["name"] for t in work.TOOLS}:
