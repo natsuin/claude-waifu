@@ -426,7 +426,7 @@ def guard(agent, path, live=None):
             if new:
                 waiting = dirty(main)
                 note = (f" The user's checkout has {len(waiting)} uncommitted change{'s' if len(waiting) > 1 else ''} "
-                        "that aren't in it." if waiting else "")
+                        f"that {'aren' if len(waiting) > 1 else 'isn'}'t in it." if waiting else "")
                 return (f"Tatami Room: you share this room with others, so you don't edit {tilde(main)} itself. "
                         f"You have a worktree of your own now: {rec['path']} (branch {rec['branch']}, made from "
                         f"{rec['base']}).{note} Make this edit there instead: {there}. Do all your work in this "
