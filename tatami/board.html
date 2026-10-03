@@ -711,6 +711,48 @@ body.stale main { opacity: .5; filter: saturate(.4); }
 .ghost .jump { display: none; }
 body.dragging, body.dragging * { cursor: grabbing !important; }
 
+/* ---- a room's orchestrator: the seat of honour ----
+   In a tatami room the one who leads sits at the kamiza (上座), on a raised floor whose mats are
+   edged in brocade. The orchestrator's card sits first, a little apart from its teammates, on a
+   dais of gold-rimmed mat with a brocade step along its front and a gold star crest on its rim.
+   Its card is carried like any other; the seat stays where it was until the board says otherwise. */
+.agent.is-lead { margin: 0 12px 7px 0; }
+.agent.is-lead::before {   /* the dais */
+  content: "";
+  position: absolute;
+  inset: -8px -8px -15px;
+  z-index: -1;
+  border-radius: 29px 29px 24px 24px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Crect width='12' height='7' fill='%23331827'/%3E%3Cpath d='M6 1 10 3.5 6 6 2 3.5Z' fill='%23f5d891' fill-opacity='.85'/%3E%3Ccircle cx='6' cy='3.5' r='.9' fill='%23ff85c0'/%3E%3C/svg%3E") left bottom / 12px 7px repeat-x,
+    linear-gradient(color-mix(in srgb, var(--kin) 75%, transparent), color-mix(in srgb, var(--kin) 75%, transparent)) left bottom 7px / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, rgba(245, 216, 145, .07) 0 1px, transparent 1px 5px),
+    linear-gradient(170deg, color-mix(in srgb, var(--kin) 22%, rgba(29, 21, 37, .7)), color-mix(in srgb, var(--kin) 7%, rgba(29, 21, 37, .7)) 70%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--kin) 50%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--kin) 80%, transparent),
+    0 0 46px -10px color-mix(in srgb, var(--kin) 50%, transparent),
+    0 22px 30px -20px rgba(0, 0, 0, .9);
+  animation: seat-in .7s var(--bounce) both;
+}
+.agent.is-lead::after {   /* the crest on its rim */
+  content: "";
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  border-radius: 50%;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3CradialGradient id='g' cx='.38' cy='.3' r='.8'%3E%3Cstop offset='0' stop-color='%23fff6d8'/%3E%3Cstop offset='.5' stop-color='%23f5d891'/%3E%3Cstop offset='1' stop-color='%23b07f34'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='12' cy='12' r='12' fill='url(%23g)'/%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%236b4419' stroke-opacity='.5' stroke-width='.7'/%3E%3Cpath d='M12 4.6 13.5 10.5 19.4 12 13.5 13.5 12 19.4 10.5 13.5 4.6 12 10.5 10.5Z' fill='%23462812'/%3E%3C/svg%3E") center / 100%;
+  box-shadow: 0 0 0 2.5px rgba(17, 12, 23, .9), 0 0 18px color-mix(in srgb, var(--kin) 75%, transparent);
+  pointer-events: none;
+  animation: crest-in .8s .15s var(--bounce) both;
+}
+@keyframes seat-in { from { opacity: 0; scale: .92; } }
+@keyframes crest-in { from { opacity: 0; scale: .3; rotate: -120deg; } }
+.ghost.is-lead::before, .ghost.is-lead::after { display: none; }   /* the seat stays in the room */
+
 /* ---- the room's plan: its tasks, who has each, and the files they hold ---- */
 /* Under the cards, above the chat. A task's dot says how far it has got, without moving: a
    ring while it waits for someone, wisteria while it's being done, red while it's stuck, sky
@@ -817,7 +859,32 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 .chat-name { flex: none; color: var(--text); font-weight: 650; }
 .chat-toggle:disabled .chat-name { color: var(--muted); }
 .chat-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chat-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .45s var(--glide); }
+.chat.is-open .chat-name { color: color-mix(in srgb, var(--room) 45%, var(--text)); }
+/* Open, the box is a pane of the room's colour, with shippō (七宝, linked rings) drawn faintly
+   in its corner. Shut, it has no height, so none of it shows. */
+.chat-body {
+  position: relative;
+  display: grid;
+  grid-template-rows: 0fr;
+  border-radius: 20px;
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--room) 13%, transparent), transparent 62%),
+    color-mix(in srgb, var(--room) 6%, rgba(12, 8, 16, .34));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--room) 20%, transparent);
+  isolation: isolate;
+  transition: grid-template-rows .45s var(--glide);
+}
+.chat-body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(60% 80% at 100% 0%, var(--room), transparent 75%);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg fill='none' stroke='%23fff' stroke-width='.8'%3E%3Ccircle r='13'/%3E%3Ccircle cx='26' r='13'/%3E%3Ccircle cy='26' r='13'/%3E%3Ccircle cx='26' cy='26' r='13'/%3E%3Ccircle cx='13' cy='13' r='13'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 26px 26px;
+  opacity: .22;
+  pointer-events: none;
+}
 .chat.is-open .chat-body { grid-template-rows: 1fr; }
 @property --fade-top { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @property --fade-bottom { syntax: "<length>"; inherits: false; initial-value: 0px; }
@@ -831,26 +898,96 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
   transition: --fade-top .3s ease, --fade-bottom .3s ease, padding .45s var(--glide);
 }
-.chat.is-open .talk { padding: 8px 0 2px; }
+.chat.is-open .talk { padding: 12px 12px 8px; }
 .talk.more-above { --fade-top: 2.5rem; }
 .talk.more-below { --fade-bottom: 1.5rem; }
-.talk li { --who: var(--fuji); display: grid; justify-items: start; gap: 3px; max-width: 72ch; }
-.talk .who { display: flex; align-items: baseline; gap: 8px; padding: 0 12px; font-size: .74rem; }
-.talk .who b { color: var(--who); font-weight: 650; }
+/* Each message hangs off its sender's thread: a bead at the name, a rail down a run of
+   messages from them, and bubbles cut from their window (--paper, its tint, as their card is)
+   with their colour washed over it (--who), so like-coloured windows (wine, cherry) still
+   differ. A run (a few minutes, one sender) has one name; a message in it says who it's to
+   only when that changes. The user's sit on the right in sakura; the orchestrator's carry its
+   gold star. An earlier agent that had a live one's name is written muted and untinted, on a
+   dotted thread. */
+.talk li { --who: var(--muted); --paper: rgba(255, 255, 255, .03); position: relative; display: grid; justify-items: start; gap: 4px; max-width: 72ch; padding-left: 16px; }
+.talk li.cont { margin-top: -5px; }   /* the same speaker, going on */
+.talk li::before {   /* the thread */
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 9px;
+  bottom: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--who) 50%, transparent);
+}
+.talk li.cont::before { top: -6px; }
+.talk li.ends::before { background: linear-gradient(color-mix(in srgb, var(--who) 50%, transparent), transparent); }
+.talk li:not(.cont)::after {   /* the bead */
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--who);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--who) 70%, transparent);
+}
+.talk .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; padding: 0 4px; font-size: .74rem; }
+.talk .from b { color: var(--who); font-weight: 680; text-shadow: 0 0 12px color-mix(in srgb, var(--who) 40%, transparent); }
 .talk .to { color: var(--muted); }
+.talk .to b { color: var(--to, var(--muted)); font-weight: 600; }
+.talk .was { color: var(--muted); font-style: italic; font-weight: 500; }
+.talk .via { color: var(--muted); font-weight: 500; }
 .talk time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.talk li.cont .from, .talk li.cont.same-to .who {   /* still read out, just not shown again */
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
 .talk .text {
   margin: 0;
   padding: 9px 14px;
-  border-radius: 20px 20px 20px 7px;
-  background: color-mix(in srgb, var(--who) 13%, rgba(255, 255, 255, .045));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
-  color: rgba(247, 233, 242, .94);
+  border-radius: 6px 20px 20px 20px;
+  background:
+    linear-gradient(105deg, color-mix(in srgb, var(--who) 18%, transparent), color-mix(in srgb, var(--who) 4%, transparent) 75%),
+    linear-gradient(155deg, color-mix(in oklab, var(--paper), white 9%), var(--paper) 80%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--who) 30%, transparent), inset 0 1px 0 rgba(255, 255, 255, .06);
+  color: rgba(247, 233, 242, .95);
   font-size: .88rem;
   line-height: 1.45;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.talk li:not(.ends) .text { border-bottom-left-radius: 6px; }
+/* The user's: on the right, in sakura, the thread down that side. */
+.talk li.you { --who: var(--sakura); --paper: #3d1a2e; justify-self: end; justify-items: end; padding: 0 16px 0 0; }
+.talk li.you::before { left: auto; right: 4px; }
+.talk li.you::after { left: auto; right: 1px; }
+.talk li.you .text { border-radius: 20px 6px 20px 20px; }
+.talk li.you:not(.ends) .text { border-bottom-right-radius: 6px; }
+/* The orchestrator's: its gold star by its name, and a gold edge to what it says. */
+.talk li.lead .from b::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  background: var(--kin);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  filter: drop-shadow(0 0 3px var(--kin));
+}
+.talk li.lead .text {
+  background:
+    linear-gradient(105deg, color-mix(in srgb, var(--kin) 12%, transparent), transparent 45%),
+    linear-gradient(105deg, color-mix(in srgb, var(--who) 18%, transparent), color-mix(in srgb, var(--who) 4%, transparent) 75%),
+    linear-gradient(155deg, color-mix(in oklab, var(--paper), white 9%), var(--paper) 80%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kin) 48%, transparent), inset 0 1px 0 rgba(255, 240, 200, .12),
+              0 0 22px -10px color-mix(in srgb, var(--kin) 70%, transparent);
+}
+/* An earlier agent with a name a live one has now: muted, untinted, a dotted thread. */
+.talk li.earlier .from b { color: var(--muted); font-weight: 600; text-shadow: none; }
+.talk li.earlier::before { background: repeating-linear-gradient(color-mix(in srgb, var(--muted) 55%, transparent) 0 3px, transparent 3px 7px); }
+.talk li.earlier::after { background: none; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--muted) 70%, transparent); }
+.talk li.earlier .text { background: rgba(255, 255, 255, .035); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); color: rgba(247, 233, 242, .7); }
 
 /* ---- empty desk, toast ---- */
 .empty {
@@ -885,6 +1022,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 @media (max-width: 720px) {
   :root { --card-w: 100%; }
   .bar:not(.app .bar) { flex-wrap: wrap; }
+  .agent.is-lead { margin: 8px 0 14px; }   /* a row of its own, its teammates under it */
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -1028,7 +1166,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   <li class="task"><span class="dot" aria-hidden="true"></span><span class="tid"></span><span class="title"></span><span class="owner"></span><span class="note"></span></li>
 </template>
 <template id="tpl-line">
-  <li><span class="who"><b></b><span class="to"></span><time></time></span><p class="text"></p></li>
+  <li><span class="who"><span class="from"><b></b></span><span class="to"></span><time></time></span><p class="text"></p></li>
 </template>
 
 <script nonce="__NONCE__">
@@ -2139,9 +2277,11 @@ function impact(card) {
 function render(s) {
   const at = snapshot();
   const alone = s.alone || [];
-  const hues = new Map();
-  for (const a of alone) hues.set(a.id, lightHue(a.tint));
-  for (const r of s.rooms) for (const a of r.members) hues.set(a.id, lightHue(a.tint));
+  const hues = new Map(), tints = new Map();   // each agent's colour as text, and its window's own
+  for (const a of alone.concat(...s.rooms.map((r) => r.members))) {
+    hues.set(a.id, lightHue(a.tint));
+    if (HEX.test(a.tint)) tints.set(a.id, a.tint);
+  }
   const names = new Set(s.rooms.map((r) => r.name));
   const live = new Set([...alone.map((a) => a.id), ...s.rooms.flatMap((r) => r.members.map((a) => a.id))]);
   for (const [id, el] of agentEls) if (!live.has(id)) { vanish(el); agentEls.delete(id); }
@@ -2155,7 +2295,7 @@ function render(s) {
       if (!firstPaint) el.classList.add("flash");   // a room that turns up later is stamped in with its crest
     }
     if (roomsEl.children[i] !== el) roomsEl.insertBefore(el, roomsEl.children[i] || null);
-    fillRoom(el, r, hues);
+    fillRoom(el, r, hues, tints);
   });
   alone.forEach((a, i) => {
     const card = cardFor(a);
@@ -2242,7 +2382,7 @@ function fillLead(el, r) {
   select.value = lead;
 }
 
-function fillRoom(el, r, hues) {
+function fillRoom(el, r, hues, tints) {
   const color = HEX.test(r.color) ? r.color : "#c3a6ff";
   const n = r.members.length;
   el.dataset.name = r.name;
@@ -2255,10 +2395,11 @@ function fillRoom(el, r, hues) {
   $(".room-remove", el).hidden = n > 0;
   fillLead(el, r);
 
-  const cards = $(".cards", el);
-  r.members.forEach((a, i) => {
+  // Its orchestrator first, in the seat of honour; then the rest as the board lists them.
+  const cards = $(".cards", el), lead = r.members.find((a) => a.id === r.lead);
+  [lead, ...r.members.filter((a) => a !== lead)].filter(Boolean).forEach((a, i) => {
     const card = cardFor(a);
-    fillCard(card, a, a.id === r.lead);
+    fillCard(card, a, a === lead);
     if (cards.children[i] !== card) cards.insertBefore(card, cards.children[i] || null);
   });
 
@@ -2268,16 +2409,16 @@ function fillRoom(el, r, hues) {
   const last = r.recent.at(-1), said = r.said || r.recent.length;
   const open = Boolean(last) && chatOpen.has(r.name);
   $(".chat-toggle", chat).disabled = !last;
-  meta.textContent = last ? `${said} ${said === 1 ? "message" : "messages"} \u00b7 ${nameOf(last.from)} at ${clock(last.ts)}`
-    : "nothing said here yet";
+  meta.textContent = last ? `${said} ${said === 1 ? "message" : "messages"} \u00b7 ${nameOf(last.from)}`
+                            + `${last.earlier ? " (earlier)" : ""} at ${clock(last.ts)}` : "nothing said here yet";
   showChat(chat, open);
-  const sig = JSON.stringify(r.recent);
+  const sig = JSON.stringify([r.recent, lead?.id]);
   if (talk.dataset.sig !== sig) {
     const fresh = talk.dataset.sig !== undefined;   // not the room's first drawing
     talk.dataset.sig = sig;
     const had = new Set([...talk.children].map((li) => li.dataset.key));
     const at = fresh && open && !atEnd(talk) && readingAt(talk);   // reading back: stay with what you're reading
-    talk.replaceChildren(...r.recent.map(line));
+    talk.replaceChildren(...r.recent.map((m, i, all) => line(m, all[i - 1], all[i + 1], lead?.id)));
     if (fresh && !open && !REDUCED) meta.animate([{ color: "#ff85c0", offset: 0 }], { duration: 1800, easing: "ease-out" });   // news, folded away
     const li = at && [...talk.children].find((x) => x.dataset.key === at.key);
     if (li) talk.scrollTop += li.getBoundingClientRect().top - talk.getBoundingClientRect().top - at.y;
@@ -2293,9 +2434,13 @@ function fillRoom(el, r, hues) {
       }
     }
   }
-  for (const li of talk.children) {
-    const hue = hues.get(li.dataset.from);
+  for (const li of talk.children) {   // an earlier agent's name isn't a live one's colour
+    const earlier = li.classList.contains("earlier");
+    const hue = !earlier && hues.get(li.dataset.from), paper = !earlier && tints.get(li.dataset.from);
     if (hue) li.style.setProperty("--who", hue); else li.style.removeProperty("--who");
+    if (paper) li.style.setProperty("--paper", paper); else li.style.removeProperty("--paper");
+    const to = li.dataset.to === "user" ? "var(--sakura)" : hues.get(li.dataset.to);
+    if (to) li.style.setProperty("--to", to); else li.style.removeProperty("--to");
   }
 }
 
@@ -2385,17 +2530,50 @@ function edges(talk) {
   talk.classList.toggle("more-below", talk.scrollHeight - talk.clientHeight - talk.scrollTop > 2);
 }
 
-function line(m) {
+// One message, between the ones before and after it. Messages from one sender a few minutes
+// apart are a run: one name, one thread. A sender or addressee marked earlier (board.py) was an
+// agent that had the name a live one has now, so it's written "Rouge · earlier", untinted.
+const RUN = 300;   // seconds
+const sameRun = (a, b) => !!(a && b) && a.from === b.from && !a.earlier === !b.earlier && (a.via || "") === (b.via || "")
+                           && b.ts - a.ts < RUN;
+function line(m, prev, next, lead) {
   const li = tpl("#tpl-line").cloneNode(true);
   const when = new Date(m.ts * 1000);
+  const cont = sameRun(prev, m);
   li.dataset.from = m.from;
   li.dataset.key = `${m.ts}|${m.from}`;
-  $("b", li).textContent = nameOf(m.from);  // "user": typed in a window's /room pane
-  $(".to", li).textContent = m.to ? `to ${nameOf(m.to)}` : "";
+  li.classList.toggle("cont", cont);
+  li.classList.toggle("same-to", cont && (prev.to || "") === (m.to || "") && !prev.to_earlier === !m.to_earlier);
+  li.classList.toggle("ends", !sameRun(m, next));
+  li.classList.toggle("you", m.from === "user");
+  li.classList.toggle("lead", !m.earlier && m.from === lead);
+  li.classList.toggle("earlier", !!m.earlier);
+  const from = $(".from", li);
+  $("b", from).textContent = m.from === "user" ? "You" : nameOf(m.from);
+  if (m.from === "user" && m.via) {   // done on the desk, or typed in that agent's window's /room pane
+    const via = document.createElement("span");
+    via.className = "via";
+    via.textContent = m.via === "desk" ? " · on the desk" : ` · in ${nameOf(m.via)}’s window`;
+    from.append(via);
+  }
+  if (m.earlier) from.append(earlier());
+  if (m.to) {
+    const to = $(".to", li), who = document.createElement("b");
+    who.textContent = nameOf(m.to);
+    to.replaceChildren("to ", who);
+    if (m.to_earlier) to.append(earlier()); else li.dataset.to = m.to;
+  }
   $("time", li).textContent = clock(m.ts);
   $("time", li).dateTime = when.toISOString();
   $(".text", li).textContent = m.text;
+  if (cont) $(".text", li).title = clock(m.ts);   // its name and time aren't shown again
   return li;
+}
+function earlier() {
+  const tag = document.createElement("span");
+  tag.className = "was";
+  tag.textContent = " · earlier";
+  return tag;
 }
 
 function cardFor(a) {
@@ -2430,6 +2608,7 @@ function fillCard(card, a, lead = false) {
   // sits above its name.
   $(".kind", card).textContent = a.helper_of ? `Helper of ${nameOf(a.helper_of)}` : a.session ? "In the app" : "";
   $(".lead", card).textContent = lead ? "Orchestrator" : "";   // the room's, picked in its header
+  card.classList.toggle("is-lead", lead);
   $(".maker-name", card).textContent = company;
   $(".model", card).textContent = a.model || "";   // "Opus 5.5", from its first prompt and right after /model
   const effort = EFFORTS.indexOf(a.effort);   // "xhigh", from its first reply and right after /effort
@@ -2522,10 +2701,13 @@ function goAlone(card, skip) {
   change("/api/move", { agent: card.dataset.id, room: null });
 }
 
-// The board lists agents by id (their files' names), so a card goes straight to that place.
+// The board lists agents by id (their files' names), so a card goes straight to that place,
+// after the seat of honour. An orchestrator that leaves its room isn't one any more.
 const sortKey = (el) => `${el.dataset.id}.json`;
 function putAmong(cards, card) {
-  const next = [...cards.children].find((c) => c !== card && sortKey(c) > sortKey(card));
+  card.classList.remove("is-lead");
+  $(".lead", card).textContent = "";
+  const next = [...cards.children].find((c) => c !== card && !c.classList.contains("is-lead") && sortKey(c) > sortKey(card));
   cards.insertBefore(card, next || null);
 }
 
