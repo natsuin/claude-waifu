@@ -39,6 +39,7 @@ import sys
 import time
 
 import tatami_mcp as channel  # same folder: shares the file layout and helpers
+import work  # the room's plan, for what's left when a turn ends
 
 SETTINGS = os.path.expanduser("~/.claude/settings.json")
 COMMAND = '"$HOME/.local/bin/tatami" hook'  # through the link, so moving the repo can't break it
@@ -97,31 +98,63 @@ MAIL = ("PostToolUse", "UserPromptSubmit", "Stop")
 
 def mail(event, agent, status):
     """Room messages that came in since the agent last read the room, if it hasn't been told
-    about them yet: what to tell it, in the shape its hook event takes. Marks them told."""
+    about them yet: what to tell it, in the shape its hook event takes. Marks them told. When
+    it's about to finish its turn, unfinished work on the room's plan holds it up too (once)."""
     name, room = event.get("hook_event_name"), agent["room"]
     if name not in MAIL or not room:
         return None
+    if name == "Stop" and event.get("stop_hook_active"):
+        return None  # never twice in a row
     msgs = channel.load_jsonl(os.path.join(channel.ROOMS, room + ".jsonl"))
     new = [m for m in channel.unread(agent, room, msgs) if m["ts"] > status.get("told", 0)]
-    if not new:
-        return None
     mine = [m for m in new if m.get("to") == agent["id"]]
     senders = ", ".join(dict.fromkeys(m.get("from", "?") for m in new))
     if name == "Stop":
-        # Only a message to this agent holds up the end of its turn, and only once in a row.
-        if not mine or event.get("stop_hook_active"):
-            return None
-        status.update(told=new[-1]["ts"], state="working", ts=time.time())  # it isn't done after all
-        many = len(mine) > 1
-        return {"decision": "block",
-                "reason": f"Tatami Room: {len(mine)} message{'s' if many else ''} to you from {senders} "
-                          f"came in while you worked. Call room_read and answer in the room before you "
-                          f"finish."}
+        # A message to this agent holds up the end of its turn; so does work it hasn't finished.
+        if mine:
+            status.update(told=new[-1]["ts"], state="working", ts=time.time())  # it isn't done after all
+            many = len(mine) > 1
+            return {"decision": "block",
+                    "reason": f"Tatami Room: {len(mine)} message{'s' if many else ''} to you from {senders} "
+                              f"came in while you worked. Call room_read and answer in the room before you "
+                              f"finish."}
+        reason = unfinished(agent, room, status)
+        if reason:
+            status.update(state="working", ts=time.time())
+            return {"decision": "block", "reason": reason}
+        return None
+    if not new:
+        return None
     status["told"] = new[-1]["ts"]
     text = (f"Tatami Room: {len(new)} new message{'s' if len(new) > 1 else ''} in room '{room}' from "
             f"{senders}" + (f", {len(mine)} addressed to you" if mine else "")
             + ". Call room_read when you reach a good point.")
     return {"hookSpecificOutput": {"hookEventName": name, "additionalContext": text}}
+
+
+def unfinished(agent, room, status):
+    """What's left on the room's plan that should hold up the end of an agent's turn, once for
+    each state of it: its own task still in progress, or, for whoever lands the room's work,
+    finished work waiting to land. Marks it said."""
+    items = work.tasks(room)
+    lead = channel.lead_of(room)
+    doing = [t for t in items if t.get("owner") == agent["id"] and t["status"] == "doing"]
+    lands = [t for t in items if t["status"] == "done" and t.get("branch")
+             and (t.get("owner") == agent["id"] if not lead else lead == agent["id"])]
+    said = ",".join(f"{t['id']}@{t['updated']}" for t in doing + lands)
+    if not said or said == status.get("gated"):
+        return None
+    status["gated"] = said
+    if doing:
+        names = ", ".join(f"{t['id']} ({t['title']})" for t in doing)
+        return (f"Tatami Room: your task {names} is still in progress on the room's plan. Before you finish: "
+                "if it's done, commit, then room_task done with what changed and how you checked it; if you're "
+                "stuck or waiting for the user, room_task update with status blocked and why. If you're only "
+                "pausing, you can finish now.")
+    names = ", ".join(f"{t['id']} ({t['owner']}: {t['title']})" for t in lands)
+    how = "room_land agent=<its owner>" if lead == agent["id"] else "room_land"
+    return (f"Tatami Room: finished work is waiting to land in the user's checkout: {names}. Check it and land "
+            f"it with {how}, or hand it back with room_task update (status doing, and a note on what to fix).")
 
 
 # Antigravity's events, as the Claude Code events they match.

@@ -19,14 +19,16 @@ BRIEF = """(This came from {by}, another agent in your Tatami Room, through room
 didn't type it, but they can see this window and talk to you here: if they ask for something \
 different, do what they say.)
 
-{by} brought you into room '{room}' to take one piece of its work:
+{by} brought you into room '{room}' to take one piece of its work, task {tid} on the room's plan \
+(it's yours already):
 
 {task}
 
-Start with room_read for the room's context. Post in the room (to: {by}) when you start, if \
-you get stuck, and when you're done, saying which files you changed. Keep to the files the \
-task gives you: {by} and the others may be editing the rest. You can't bring in helpers \
-yourself."""
+Start with room_read for the room's context. Keep to the files the task gives you: {by} and the \
+others may be editing the rest. Your first edit in a repository gives you a worktree of your own \
+to work and commit in. If you get stuck, room_task update {tid} with status blocked and why. When \
+you're done, commit, then room_task done {tid} with what changed and how you checked it. You \
+can't bring in helpers yourself."""
 
 
 def main():
@@ -43,7 +45,7 @@ def main():
         os.execvp("bash", ["bash", "-l"])
     room, by = channel.safe_name(task["room"]), channel.safe_name(task["by"])
     os.environ.update(TATAMI_ROOM=room, TATAMI_INVITED_BY=by, TATAMI_INVITE=token,
-                      TATAMI_BRIEF=BRIEF.format(by=by, room=room, task=task["task"]))
+                      TATAMI_BRIEF=BRIEF.format(by=by, room=room, task=task["task"], tid=task.get("task_id") or "(no id)"))
     try:
         os.chdir(task["cwd"])
     except OSError:
