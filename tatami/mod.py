@@ -13,6 +13,10 @@ script is one of its parents, and that's the pid the agent's channel recorded.
                               starts waiting for your OK
   tatami mod post TEXT        post TEXT to the window's room as the user ("@id text" sends it
                               to one agent)
+  tatami mod guard            before Claude edits a file: {"tool", "path"} or {"tool": "Bash",
+                              "command"} on stdin, and {"deny": why} back when it mustn't (a
+                              teammate's file, or the user's checkout while it has a worktree;
+                              see work.py), else {}
   tatami mod on | off         load the mod in every Claude window you open from now on (one
                               marked line in ~/.bashrc that points Claude Code at ../mod), or not
 """
@@ -27,6 +31,7 @@ import wave
 
 import hooks
 import tatami_mcp as channel  # same folder: shares the file layout and helpers
+import work
 
 PALETTE = channel.PALETTE
 CREDITS = None  # waifu's art credits, read on first use
@@ -75,8 +80,10 @@ def wake(agent, room, msgs):
     senders = ", ".join(dict.fromkeys(name(m) for m in mine))
     many = len(mine) > 1
     return (f"Tatami Room: {senders} sent you {'messages' if many else 'a message'} in room '{room}' "
-            f"while you were idle. Call room_read and answer in the room if it needs an answer. Skip "
-            f"replies that only say thanks or OK, so the room doesn't keep waking everyone up.")
+            f"while you were idle. Call room_read and answer in the room if it needs an answer; if it hands "
+            f"you a task, take it (room_task take) and start, and if it's finished work for you to land, "
+            f"check it and land it. Skip replies that only say thanks or OK, so the room doesn't keep "
+            f"waking everyone up.")
 
 
 def name(m):
@@ -86,14 +93,22 @@ def name(m):
 def poll(want_wake):
     agent = me()
     out = {"id": None, "color": None, "character": None, "room": None, "roomColor": None, "unread": 0,
-           "latest": None, "messages": [], "members": [], "wake": None}
+           "latest": None, "messages": [], "members": [], "tasks": [], "worktrees": [], "guarded": False,
+           "wake": None}
     if not agent:
         return out
     room = agent["room"]
     out.update(id=agent["id"], color=agent.get("color"), character=character(agent.get("girl")), room=room)
+    # Its worktrees, so the mod knows which checkouts aren't its to change; and whether its edits
+    # need asking about at all (on a team, or with a worktree).
+    out["worktrees"] = [{"main": main, "path": rec["path"], "branch": rec["branch"]}
+                        for main, rec in work.trees().get(agent["id"], {}).items()]
+    live = channel.live_agents()
+    out["guarded"] = bool(out["worktrees"]) or work.teamed(agent, live)
     if not room:
         return out
-    live = channel.live_agents()
+    out["tasks"] = [{"id": t["id"], "title": t["title"], "owner": t.get("owner"), "status": t["status"]}
+                    for t in work.tasks(room) if t["status"] != "landed"]
     rooms = channel.live_rooms(live)
     out["roomColor"] = PALETTE.get(channel.room_colors(rooms).get(room))
     msgs = channel.load_jsonl(os.path.join(channel.ROOMS, room + ".jsonl"))
@@ -116,6 +131,18 @@ def poll(want_wake):
     if want_wake:
         out["wake"] = wake(agent, room, msgs)
     return out
+
+
+def guard(ask):
+    """What `tatami mod guard` answers: {"deny": why} for an edit the agent mustn't make, else {}."""
+    agent = me()
+    if not agent:
+        return {}
+    if ask.get("tool") == "Bash":
+        why = work.guard_bash(agent, str(ask.get("command") or ""))
+    else:
+        why = work.guard(agent, str(ask.get("path") or "")) if ask.get("path") else None
+    return {"deny": why} if why else {}
 
 
 def post(text):
@@ -232,6 +259,12 @@ def main():
         print(json.dumps(out or {}))
     elif cmd == "post":
         post(" ".join(args[1:]))
+    elif cmd == "guard":
+        try:
+            out = guard(json.load(sys.stdin))
+        except Exception:  # never get in Claude's way over a bug of ours
+            out = {}
+        print(json.dumps(out))
     elif cmd == "chime":
         chime()
     elif cmd in ("on", "off"):

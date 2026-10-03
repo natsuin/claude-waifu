@@ -36,7 +36,7 @@ test('room mail shows above the prompt until the agent reads it', async ($, on) 
   })
   await $.session.start({ cwd: '/home/test', surface: 'terminal', isInteractive: true })
   await clock.advance(0)
-  expect(runs[0]).toEqual(['/home/test/.local/bin/tatami', 'mod', 'poll'])
+  expect(runs[0]).toEqual(['/home/test/.local/bin/tatami', 'mod', 'poll', '--wake']) // idle: a wake-up may come (on by default)
   expect(tags).toEqual(['claude-grape · Yixuan · sakura']) // the name tag, set once
 
   const ui = await $.ui.mount(BAND)

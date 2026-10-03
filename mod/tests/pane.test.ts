@@ -14,6 +14,11 @@ const SNAP: Snapshot = {
     { id: 'claude-grape', you: true, state: 'working', readUpto: 1_790_000_060, readAll: true, helperOf: null },
     { id: 'claude-sky', you: false, state: 'asking', readUpto: 1_790_000_000, readAll: false, helperOf: null, lead: true },
   ],
+  tasks: [
+    { id: 't1', title: 'Fix the parser', owner: 'claude-sky', status: 'done' },
+    { id: 't2', title: 'Write the tests', owner: 'claude-grape', status: 'doing' },
+    { id: 't3', title: 'Port the docs', owner: null, status: 'open' },
+  ],
   wake: null,
 }
 
@@ -62,6 +67,10 @@ test('/room shows the team and its messages, and posts as the user', async ($, o
   expect(await ui.find({ type: 'Text', text: /claude-sky orchestrator · needs your OK · read up to/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /claude-grape this window · working · read everything/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /claude-grape → claude-sky: I will take the tests/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Plan · 1 done, 2 left/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /t2 Write the tests · claude-grape · doing/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /t3 Port the docs · no one yet/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /t1 Fix the parser · claude-sky · to land/ })).toBeDefined()
 
   await $.ui.input({ plugin: 'tatami', key: 'say', text: '@claude-sky please pause' })
   expect(posts).toEqual(['@claude-sky please pause'])

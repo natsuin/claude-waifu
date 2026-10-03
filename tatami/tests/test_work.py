@@ -298,6 +298,34 @@ class Channel(Team):
         self.assertIn("t1 [doing] Fix a (owner: rose", replies[4]["result"]["content"][0]["text"])
 
 
+class ModGuard(Team):
+    """`tatami mod guard`, as the mod runs it from inside Claude: it finds its agent by process."""
+
+    def test_guard_command(self):
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        other = subprocess.Popen(["sleep", "60"])  # a teammate's process
+        self.addCleanup(other.kill)
+        channel.save(os.path.join(channel.AGENTS, "sky.json"),
+                     {"id": "sky", "agent": "claude", "cwd": SCRATCH, "room": "fuji", "pid": other.pid,
+                      "started": channel.proc_start(other.pid), "seen": time.time(), "read_upto": {}})
+        self.agent("rose", "fuji")
+        channel.save(channel.MEMBERS, {"sky": "fuji", "rose": "fuji"})
+
+        def ask(q):
+            out = subprocess.run([sys.executable, os.path.join(here, "mod.py"), "guard"], input=json.dumps(q),
+                                 capture_output=True, text=True, timeout=30)
+            return json.loads(out.stdout)
+        said = ask({"tool": "Edit", "path": os.path.join(self.repo, "a.txt")})
+        self.assertIn("worktree of your own", said["deny"])
+        tree = work.tree_of("rose", self.repo)["path"]
+        self.assertEqual(ask({"tool": "Edit", "path": os.path.join(tree, "a.txt")}), {})
+        self.assertIn("user's checkout", ask({"tool": "Bash", "command": f"git -C {self.repo} commit -am x"})["deny"])
+        poll = json.loads(subprocess.run([sys.executable, os.path.join(here, "mod.py"), "poll"],
+                                         capture_output=True, text=True, timeout=30).stdout)
+        self.assertTrue(poll["guarded"])
+        self.assertEqual(poll["worktrees"][0]["path"], tree)
+
+
 class StopGate(Team):
     """The status hooks hold up the end of a turn, once, for unfinished business."""
 

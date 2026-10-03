@@ -22,6 +22,24 @@ export type Member = {
   lead?: boolean
 }
 
+/** A task on the room's plan (see tatami/work.py). */
+export type Task = {
+  id: string
+  title: string
+  /** an agent id, "invite:<token>" while a helper starts, or null */
+  owner: string | null
+  /** open, doing, blocked or done (landed ones aren't sent) */
+  status: string
+}
+
+/** One of this window's agent's own worktrees. */
+export type Worktree = {
+  /** the user's checkout of the repository */
+  main: string
+  path: string
+  branch: string
+}
+
 export type Snapshot = {
   /** this window's agent; null in a session without the Tatami Room channel */
   id: string | null
@@ -36,6 +54,11 @@ export type Snapshot = {
   latest: { from: string; text: string } | null
   messages: Message[]
   members: Member[]
+  /** the room's plan, less what has landed */
+  tasks?: Task[]
+  worktrees?: Worktree[]
+  /** on a team or with a worktree: its edits are checked before they run */
+  guarded?: boolean
   /** a prompt to wake the idle agent with (only with --wake) */
   wake: string | null
 }

@@ -1,10 +1,11 @@
-// The /room pane: the window's team (who's working, who needs you, how far each has read) and
-// the room's messages, with a line at the bottom to post to the room as yourself. `/room hello`
-// posts without opening it; "@dusk hello" sends a message to one agent.
+// The /room pane: the window's team (who's working, who needs you, how far each has read), the
+// room's plan (each task, its owner and how far it has got) and the room's messages, with a line
+// at the bottom to post to the room as yourself. `/room hello` posts without opening it; "@dusk
+// hello" sends a message to one agent.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { Member, Message, Snapshot } from '../types'
+import type { Member, Message, Snapshot, Task } from '../types'
 import { line, tatamiPath } from './room'
 
 /** The pane's id (the band's Open button opens it too). */
@@ -27,6 +28,20 @@ async function post($: EngineInterface, text: string): Promise<string> {
   const mine: Message = { ts: Date.now() / 1000, from: 'the user', to, text: said, mine: false }
   await update($, snap, s => (s ? { ...s, messages: [...s.messages, mine] } : s))
   return ran.stdout.trim()
+}
+
+const PLAN_ROWS = 6 // tasks the pane shows; the rest are counted
+const MARK: Record<string, string> = { open: '○', doing: '◐', blocked: '■', done: '●' }
+
+/** 'rose', 'no one yet', or 'a helper' while the helper it went to starts. */
+function owner(t: Task): string {
+  return !t.owner ? 'no one yet' : t.owner.startsWith('invite:') ? 'a helper' : t.owner
+}
+
+/** What's left first (blocked, doing, open), then what's done and waiting to land. */
+function planned(tasks: readonly Task[]): Task[] {
+  const order = ['blocked', 'doing', 'open', 'done']
+  return [...tasks].sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status))
 }
 
 function hhmm(ts: number): string {
@@ -91,7 +106,10 @@ export function pane(on: On) {
         </Box>
       )
     }
-    const rows = (e.viewport?.rows ?? 24) - s.members.length - 7
+    const tasks = planned(s.tasks ?? [])
+    const plan = tasks.slice(0, PLAN_ROWS)
+    const planRows = tasks.length === 0 ? 0 : plan.length + 1 + (tasks.length > plan.length ? 1 : 0)
+    const rows = (e.viewport?.rows ?? 24) - s.members.length - planRows - 7
     const shown = fitting(s.messages, width, Math.max(3, rows))
     const Say = e.surface === 'mobile' ? null : (() => {
       const { Input } = $.ui.resolve(e)
@@ -110,6 +128,19 @@ export function pane(on: On) {
             {'  '}{m.id}<Text dimColor>{' '}{who(m, s)}</Text>
           </Text>
         ))}
+        {plan.length > 0 && (
+          <Text key="plan-head">
+            <Text bold>Plan</Text>
+            <Text dimColor> · {tasks.filter(t => t.status === 'done').length} done, {tasks.filter(t => t.status !== 'done').length} left</Text>
+          </Text>
+        )}
+        {plan.map(t => (
+          <Text key={`p-${t.id}`} wrap="truncate-end">
+            {'  '}<Text color={t.status === 'blocked' ? 'red' : t.status === 'done' ? s.roomColor ?? undefined : undefined}>{MARK[t.status] ?? '·'}</Text>
+            {' '}<Text dimColor>{t.id}</Text> {t.title}<Text dimColor> · {owner(t)}{t.status === 'done' ? ' · to land' : t.status === 'open' ? '' : ` · ${t.status}`}</Text>
+          </Text>
+        ))}
+        {tasks.length > plan.length && <Text dimColor>{'  '}+{tasks.length - plan.length} more (room_task list)</Text>}
         <Text dimColor>{'─'.repeat(Math.max(1, width))}</Text>
         {shown.length === 0 && <Text dimColor>No messages yet.</Text>}
         {shown.map(m => (

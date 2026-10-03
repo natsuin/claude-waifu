@@ -1,14 +1,14 @@
 {
   "name": "tatami",
   "version": "0.1.0",
-  "description": "Tatami Room inside Claude Code: room mail above the prompt, desk status, a name tag, a /room pane, and glows for your turn and for what needs your OK",
+  "description": "Tatami Room inside Claude Code: room mail above the prompt, desk status, a name tag, a /room pane with the plan, glows for your turn and for what needs your OK, and edits kept off teammates' files and the user's checkout",
   "types": "./types/index.d.ts",
   "userConfig": {
     "wake": {
       "type": "boolean",
-      "title": "Wake on room mail",
-      "description": "When this window's agent is idle and a teammate sends it a room message, start a turn so it answers (uses your plan; at most 3 wake-ups in 30 minutes)",
-      "default": false
+      "title": "Wake for tasks and messages",
+      "description": "When this window's agent is idle and a teammate hands it a task, sends it a message, or finishes work for it to land, start a turn so it acts (uses your plan; at most 3 wake-ups in 30 minutes)",
+      "default": true
     },
     "chime": {
       "type": "boolean",

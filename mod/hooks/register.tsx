@@ -6,6 +6,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Snapshot } from '../types'
 import { band } from './band'
+import { guard } from './guard'
 import { pane, ROOM_COMMAND } from './pane'
 import { tatamiPath } from './room'
 import { sawMail, status } from './status'
@@ -14,7 +15,7 @@ import { isBusy, turn } from './turn'
 const EVERY_MS = 4000
 const snap = atom({ plugin: 'tatami', key: 'snap' } as const, null)
 
-let wake = false // the "Wake on room mail" option
+let wake = true // the "Wake for tasks and messages" option
 let polling = false
 let last = ''
 let tag: string | undefined
@@ -85,7 +86,7 @@ async function tick($: EngineInterface) {
 }
 
 export const register: Register = (on, options) => {
-  wake = options.wake === true
+  wake = options.wake !== false
   const glows = options.glow !== false
 
   on('session.start', async ($, e, next) => {
@@ -103,4 +104,5 @@ export const register: Register = (on, options) => {
   band(on, glows)
   pane(on)
   status(on, options.chime !== false)
+  guard(on)
 }
