@@ -13,12 +13,15 @@ gives it a worktree of its own, on a branch made from the branch you're on, unde
 ~/.local/share/tatami/worktrees, and it works there from then on. Finished work comes back
 with room_land: the branch is rebased onto yours in the worktree, so any conflict stays
 there, and your branch is fast-forwarded to it. Git refuses rather than overwrite changes
-you haven't committed. With an orchestrator, it lands the others' work; without one, each
-agent lands its own.
+you haven't committed. A repository can name a check, {"check": "<command>"} in .tatami.json
+in your checkout: it runs on the rebased work in the worktree, and work that fails it doesn't
+land. With an orchestrator, it lands the others' work; without one, each agent lands its own.
 """
 import fnmatch
+import json
 import os
 import re
+import signal
 import subprocess
 import time
 
@@ -31,6 +34,7 @@ TREES = os.path.expanduser(os.environ.get("TATAMI_WORKTREES") or "~/.local/share
 OPEN = ("open", "doing", "blocked")  # not finished yet
 HELD = ("doing", "blocked", "done")  # its owner still has its files: done isn't in your checkout yet
 INVITED = "invite:"  # a task's owner while the helper it went to is still starting
+CHECK_FILE, CHECK_TIMEOUT = ".tatami.json", 600  # {"check": "<command>"}: what work passes before it lands
 TITLE, LONGEST = 200, 2000  # a task's title, and its done_when or a note: longer is refused, never cut short
 TOOLS = [
     {"name": "room_task",
@@ -64,7 +68,8 @@ TOOLS = [
          "release": {"type": "boolean"}}}},
     {"name": "room_land",
      "description": "Bring finished work from a worktree into the user's checkout: rebases the branch onto the "
-                    "user's branch in the worktree, then fast-forwards the user's branch to it. With an "
+                    "user's branch in the worktree, runs the repository's check there if it has one, then "
+                    "fast-forwards the user's branch to it. With an "
                     "orchestrator, only it lands (agent: whose work); without one, you land your own. Leave "
                     "agent out to land your own, or to see what's waiting.",
      "inputSchema": {"type": "object", "properties": {
@@ -794,6 +799,35 @@ def waiting_trees(room, live):
     return out
 
 
+def check_of(main):
+    """The command work has to pass before it lands in a repository, and how long it may take:
+    "check" (and "timeout", in seconds) in .tatami.json in the user's checkout, which agents on
+    a team can't edit. (None, 0) without one."""
+    path = os.path.join(main, CHECK_FILE)
+    try:
+        with open(path, encoding="utf-8") as f:
+            conf = json.load(f)
+        cmd, timeout = conf.get("check"), float(conf.get("timeout") or CHECK_TIMEOUT)
+    except FileNotFoundError:
+        return None, 0
+    except (ValueError, AttributeError, TypeError) as e:  # a broken file doesn't mean "no check"
+        raise Refused(f"{tilde(path)} isn't what landing expects ({e}): it should be like "
+                      '{"check": "<the command your tests run with>"}. Nothing landed; tell the user.')
+    return (str(cmd), timeout) if cmd else (None, 0)
+
+
+def run_check(cmd, cwd, timeout):
+    """Run a check in a worktree: (its exit code, or None when it ran out of time; what it said)."""
+    p = subprocess.Popen(["bash", "-c", cmd], cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, text=True, start_new_session=True)  # stdin is the channel's
+    try:
+        out = p.communicate(timeout=timeout)[0]
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)  # its whole group: a test runner's children too
+        return None, p.communicate()[0]
+    return p.returncode, out
+
+
 def land(whose, main, rec, room, by):
     """Rebase a worktree's branch onto its base, then fast-forward the base in the main checkout."""
     wt, branch, base = rec["path"], rec["branch"], rec["base"]
@@ -814,6 +848,17 @@ def land(whose, main, rec, room, by):
     if on != base:
         raise Refused(f"{tilde(main)} is on {on or 'a detached HEAD'} now, not {base}, so landing would put the work "
                       f"on the wrong branch. {branch} is rebased and ready; ask the user (git merge --ff-only {branch}).")
+    cmd, timeout = check_of(main)
+    if cmd:  # on the rebased work: what lands is the teammate's work on top of everything landed since
+        code, said = run_check(cmd, wt, timeout)
+        if code != 0:
+            tail = "\n".join(said.strip().splitlines()[-30:])[-2000:]
+            back = (f"Fix it in {wt}, commit, then land again." if whose == by else
+                    f"Hand it back to {whose} with room_task update (status doing, and a note on what failed).")
+            raise Refused(f"{branch} rebased cleanly onto {base}, but the check failed on it there, so it didn't land: "
+                          f"`{cmd}` " + (f"exited {code}" if code is not None else f"was still running after {timeout:g}s")
+                          + (f". The end of what it said:\n{tail}\n" if tail else ". ")
+                          + f"Nothing changed in the user's checkout. {back}")
     n = ahead(rec)
     merged = git("merge", "--ff-only", branch, cwd=main)
     if merged.returncode:
@@ -831,7 +876,7 @@ def land(whose, main, rec, room, by):
         release(whose, under=main)  # everything it did in this repository is in the user's checkout now
     names = ", ".join(t["id"] for t in landed)
     text = f"Landed {whose}'s {branch} in {tilde(main)}: {n} commit{'s' if n != 1 else ''}, {base} is at {head} now" \
-           + (f" ({names} landed)." if names else ".")
+           + (f" ({names} landed)" if names else "") + (f", and `{cmd}` passed on it first." if cmd else ".")
     if room:
         say(room, by, text, to=whose if whose != by else None)
     return text + (" Your worktree stays for more work; it goes when you close." if whose == by else

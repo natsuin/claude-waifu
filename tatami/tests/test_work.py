@@ -297,6 +297,53 @@ class Room(Team):
         self.assertEqual(sh("git", "rev-parse", "HEAD", cwd=self.repo), before)
         self.assertEqual(sh("git", "status", "--porcelain", cwd=tree), "")  # the rebase was undone
 
+    # ---- the check ----
+
+    def check(self, conf):
+        """The user names a check for this repository (.tatami.json in their checkout)."""
+        with open(os.path.join(self.repo, ".tatami.json"), "w") as f:
+            f.write(conf if isinstance(conf, str) else json.dumps(conf))
+
+    def test_the_check_runs_on_the_rebased_work(self):
+        self.agent("sky", "fuji")
+        rose = self.agent("rose", "fuji")
+        work.guard(rose, os.path.join(self.repo, "a.txt"))
+        tree = work.tree_of("rose", self.repo)["path"]
+        self.commit(os.path.join(tree, "c.txt"), "bad\n")
+        self.commit(os.path.join(self.repo, "b.txt"), "b\n", "user's own")  # after rose's worktree was made
+        self.check({"check": "cat b.txt c.txt && grep -q good c.txt"})
+        before = sh("git", "rev-parse", "HEAD", cwd=self.repo)
+        text, err = work.answer(Who("rose"), "room_land", {}, "fuji")
+        self.assertTrue(err)
+        self.assertIn("rebased cleanly onto main, but the check failed on it there, so it didn't land", text)
+        self.assertIn("exited 1. The end of what it said:\nb\nbad\n", text)  # rose's work, on top of the user's
+        self.assertIn(f"Fix it in {tree}, commit, then land again.", text)
+        self.assertEqual(sh("git", "rev-parse", "HEAD", cwd=self.repo), before)
+        self.commit(os.path.join(tree, "c.txt"), "good\n")
+        text, err = work.answer(Who("rose"), "room_land", {}, "fuji")
+        self.assertFalse(err, text)
+        self.assertIn(", and `cat b.txt c.txt && grep -q good c.txt` passed on it first.", text)
+        self.assertEqual(contents(os.path.join(self.repo, "c.txt")), "good\n")
+
+    def test_a_check_that_hangs_or_is_broken(self):
+        self.agent("lead", "fuji")
+        rose = self.agent("rose", "fuji")
+        self.lead("fuji", "lead")
+        work.guard(rose, os.path.join(self.repo, "a.txt"))
+        self.commit(os.path.join(work.tree_of("rose", self.repo)["path"], "c.txt"), "c\n")
+        self.check({"check": "sleep 30 & sleep 30", "timeout": 0.5})
+        began = time.time()
+        text, err = work.answer(Who("lead"), "room_land", {"agent": "rose"}, "fuji")
+        self.assertTrue(err)
+        self.assertLess(time.time() - began, 5)  # the sleep it left running went too
+        self.assertIn("`sleep 30 & sleep 30` was still running after 0.5s. Nothing changed", text)
+        self.assertIn("Hand it back to rose with room_task update", text)
+        self.check('{"check": "make test",}')
+        text, err = work.answer(Who("lead"), "room_land", {"agent": "rose"}, "fuji")
+        self.assertTrue(err)
+        self.assertIn(".tatami.json isn't what landing expects", text)  # not taken for "no check"
+        self.assertFalse(os.path.exists(os.path.join(self.repo, "c.txt")))
+
     def test_helpers_take_their_task(self):
         self.agent("sky", "fuji")
         with channel.locked():

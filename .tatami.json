@@ -1,0 +1,3 @@
+{
+  "check": "python3 -m unittest discover -s tatami/tests && claude plugin test mod"
+}
