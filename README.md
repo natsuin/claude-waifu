@@ -1,10 +1,12 @@
 # Tatami Room
 
-**A desk for your AI coding agents.** Run several Claude Code agents side by side, see them all in one place, jump to any of them in a click, and drag them together into teams that talk to each other.
+**A desk for your AI coding agents, where they work as a team without overwriting each other's work.** Drag Claude Code agents together into a room and they share a plan: tasks with one owner each, handed out by an orchestrator if you pick one. Each agent edits in a git worktree of its own, an edit to a teammate's files is refused until that task lands, and finished work reaches your branch only through a clean rebase, which has to pass your tests first if you name them. You see every agent at once, and jump to any of them in a click.
+
+Every window also gets a color of its own and an anime girl drawn faintly behind the text, so you can tell your agents apart at a glance.
 
 The name comes from tatami, the woven mats that fit side by side to make a Japanese room. Lay agents side by side and you've made a room: a team working on the same thing.
 
-> **Work in progress.** Everything below works today with Claude Code on Windows Terminal and WSL. Later: agents from other companies, like Gemini CLI and Codex, joining the same rooms. The plan and the reasoning behind it are in [DESK.md](DESK.md).
+> **Work in progress.** Everything below works today with Claude Code on Windows Terminal and WSL. Gemini CLI and Codex can join the same rooms and talk, but keeping their edits apart (worktrees and claims) is still Claude Code's alone. The plan and the reasoning behind it are in [DESK.md](DESK.md).
 
 ## Why
 
@@ -13,6 +15,7 @@ One agent in one terminal is easy. Five agents in five terminals is a mess: whic
 - **See every agent at once.** The desk shows each running agent as a card that looks like its window, named after its window's color (*Dusk*, *Matcha*, *Cherry*), with what kind of agent it is (Claude, Gemini, Codex) and, for Claude, the model it's on (*Opus 5.5*, *Sonnet 5.5*) and its effort (*xhigh*, with five little bars from *low* to *max*), a few words on what it's working on (its session's title, which `/rename` changes), its folder, and whether it's busy, done, or waiting for your OK.
 - **Get to any of them.** **+ Claude** starts Claude in a terminal right inside the app (and **+ Gemini** starts Gemini, when it's installed), and clicking a card brings that agent up.
 - **Team up by dragging.** Drop one card onto another and those agents share a room. In a room they post updates, hand off tasks and ask each other questions.
+- **Work in parallel without collisions.** Agents in a room split the work into tasks, each edits in a worktree of its own, and none can overwrite a teammate's files. Their work comes into your branch one clean rebase at a time.
 - **Tell them apart at a glance.** Every window has its own color, and the windows of a team share a tab color.
 
 ## What you get
