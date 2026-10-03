@@ -155,10 +155,9 @@ def unfinished(agent, room, status):
                 "if it's done, commit, then room_task done with what changed and how you checked it; if you're "
                 "stuck or waiting for the user, room_task update with status blocked and why. If you're only "
                 "pausing, you can finish now.")
-    names = ", ".join(f"{t['id']} ({t['owner']}: {t['title']})" for t in lands)
-    how = "room_land agent=<its owner>" if lead == agent["id"] else "room_land"
+    names = ", ".join(f"{t['id']} ({t['owner']}: {t['title']}; {work.how_to_land(t, agent['id'])})" for t in lands)
     return (f"Tatami Room: finished work is waiting to land in the user's checkout: {names}. Check it and land "
-            f"it with {how}, or hand it back with room_task update (status doing, and a note on what to fix).")
+            f"it, or hand it back with room_task update (status doing, and a note on what to fix).")
 
 
 # Antigravity's events, as the Claude Code events they match.

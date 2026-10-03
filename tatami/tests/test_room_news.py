@@ -1,6 +1,6 @@
 """Tests for what keeps a room's plan in step with who's in it: the desk telling a room who it
-brought in, the orchestrator hearing who's on no task, and what agents write never being cut
-short without them knowing.
+brought in, the orchestrator hearing who's on no task and what's done for it to land, and what
+agents write never being cut short without them knowing.
 
   python3 -m unittest discover -s tatami/tests
 """
@@ -8,9 +8,10 @@ import json
 import os
 import subprocess
 import sys
+import time
 import unittest
 
-from test_work import SCRATCH, Team, Who, board, channel, mod, work
+from test_work import SCRATCH, Team, Who, board, channel, hooks, mod, work
 
 
 def serve(aid, calls):
@@ -102,6 +103,83 @@ class Idle(Team):
         work.answer(Who("wine"), "room_task", {"action": "add", "title": "Desk", "owner": "rouge"}, "fuji")
         [(text, _)] = serve("wine", [{"name": "room_members"}])
         self.assertTrue(text.endswith("\nNot on any task: cherry. Give it a piece of the plan, or tell it to wait."))
+
+
+class DoneReachesTheLead(Team):
+    """Testing-Room, 2026-10-03: rouge said t4 was done at 00:54, but wine, its orchestrator, had
+    been woken 3 times in the half hour before, so nothing woke it and t4 sat unlanded overnight."""
+
+    def setUp(self):
+        super().setUp()
+        self.agent("wine", "fuji")
+        self.agent("sky", "fuji")
+        self.rouge = self.agent("rouge", "fuji")
+
+    def finish(self, by="wine"):
+        """rouge does t1, handed to it by `by`, and says it's done; wine has used its wake-ups."""
+        work.answer(Who(by), "room_task", {"action": "add", "title": "Reorder", "owner": "rouge"}, "fuji")
+        work.answer(Who("rouge"), "room_task", {"action": "take", "id": "t1"}, "fuji")
+        work.guard(self.rouge, os.path.join(self.repo, "a.txt"))
+        self.commit(os.path.join(work.tree_of("rouge", self.repo)["path"], "a.txt"), "x\n")
+        now = time.time()
+        for aid in ("wine", "sky"):
+            channel.save(mod.status_path(self.me(aid)), {"state": "done", "told": now, "woke": [now - 900, now - 600, now - 60]})
+        channel.post("fuji", {"ts": time.time(), "from": "rouge", "to": by, "text": "Nearly there."})
+        self.assertIsNone(mod.wake(self.me(by), "fuji", self.msgs("fuji")))  # out of wake-ups
+        work.answer(Who("rouge"), "room_task", {"action": "done", "id": "t1", "note": "reordered"}, "fuji")
+
+    def test_the_orchestrator_wakes_anyway(self):
+        self.lead("fuji", "wine")
+        self.finish()
+        said = mod.wake(self.me("wine"), "fuji", self.msgs("fuji"))
+        self.assertIn("rouge's t1 is done in room 'fuji' and waiting for you to land", said)
+        status = channel.load(mod.status_path(self.me("wine")), {})
+        self.assertEqual(len(status["woke"]), 3)  # it didn't use up a wake-up
+        self.assertIsNone(mod.wake(self.me("wine"), "fuji", self.msgs("fuji")))  # and it's told once
+
+    def test_not_once_its_landed(self):
+        self.lead("fuji", "wine")
+        self.finish()
+        work.answer(Who("wine"), "room_land", {"agent": "rouge"}, "fuji")  # in a turn of its own, say
+        self.assertIsNone(mod.wake(self.me("wine"), "fuji", self.msgs("fuji")))
+
+    def test_only_for_whoever_lands_it(self):
+        self.finish(by="sky")  # no orchestrator: rouge lands its own, and sky only hears about it
+        self.assertEqual(self.msgs("fuji")[-1].get("to"), "sky")
+        self.assertIsNone(mod.wake(self.me("sky"), "fuji", self.msgs("fuji")))
+
+    def test_room_read_and_members_lead_with_it(self):
+        self.lead("fuji", "wine")
+        self.finish()
+        [(read, _), (again, _), (members, _)] = serve("wine", [{"name": "room_read"}, {"name": "room_read"},
+                                                              {"name": "room_members"}])
+        waiting = ("Finished and waiting for you to land: t1 Reorder (rouge's tatami/rouge: "
+                   "room_land agent=rouge).")
+        self.assertTrue(read.startswith(waiting + "\n\nRoom 'fuji'"), read)
+        self.assertEqual(again, f"No new messages in room 'fuji'.\n{waiting}")
+        self.assertIn("- t1 [done, waiting to land] Reorder", members)
+        self.assertNotIn("Nothing left to do", members)  # what room_members said about Testing-Room's t4
+        [(read, _)] = serve("sky", [{"name": "room_read"}])
+        self.assertNotIn("waiting for you to land", read)  # it isn't sky's to land
+
+    def test_left_when_they_close(self):
+        """What haze found the next day: rouge and wine had both closed, with t4 waiting for no one."""
+        self.lead("fuji", "wine")
+        self.finish()
+        for aid in ("rouge", "wine"):  # their windows close
+            os.remove(os.path.join(channel.AGENTS, aid + ".json"))
+            with channel.locked():
+                work.retire(aid)
+        owner = work.find(work.tasks("fuji"), "t1")["owner"]
+        self.assertTrue(owner.startswith("rouge."))
+        [(read, _)] = serve("sky", [{"name": "room_read"}])  # no orchestrator now: anyone here may land it
+        self.assertTrue(read.startswith(f"Finished and waiting for you to land: t1 Reorder ({owner}'s tatami/rouge: "
+                                        f"room_land agent={owner})."), read)
+        gate = hooks.mail({"hook_event_name": "Stop"}, self.me("sky"), {})
+        self.assertIn(f"room_land agent={owner}", gate["reason"])
+        text, err = work.answer(Who("sky"), "room_land", {"agent": owner}, "fuji")
+        self.assertFalse(err, text)
+        self.assertEqual(work.find(work.tasks("fuji"), "t1")["status"], "landed")
 
 
 class NotCutShort(Team):

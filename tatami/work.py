@@ -197,9 +197,17 @@ def plan(room, everything=False):
 
 def to_land(items, agent_id, lead):
     """The finished work on a plan that `agent_id` is the one to land: everyone's, for the
-    orchestrator; with no orchestrator, its own."""
+    orchestrator. With no orchestrator, its own, and any left by an agent that has closed (an
+    orchestrator that closes leaves its room with none), which anyone in the room may land."""
+    if lead:
+        return [t for t in items if t["status"] == "done" and t.get("branch")] if lead == agent_id else []
+    live = {a["id"] for a in channel.live_agents()}
     return [t for t in items if t["status"] == "done" and t.get("branch")
-            and (lead == agent_id if lead else t.get("owner") == agent_id)]
+            and (t.get("owner") == agent_id or t.get("owner") not in live)]
+
+
+def how_to_land(t, agent_id):
+    return "room_land" if t.get("owner") == agent_id else f"room_land agent={t['owner']}"
 
 
 def landing(room, agent_id, lead):
@@ -209,8 +217,7 @@ def landing(room, agent_id, lead):
     if not ready:
         return ""
     return "Finished and waiting for you to land: " + "; ".join(
-        f"{t['id']} {t['title']} ({t['owner']}'s {t['branch']}: room_land"
-        + (f" agent={t['owner']}" if lead == agent_id else "") + ")" for t in ready) + "."
+        f"{t['id']} {t['title']} ({t['owner']}'s {t['branch']}: {how_to_land(t, agent_id)})" for t in ready) + "."
 
 
 # ---- claims ----
