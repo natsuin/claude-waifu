@@ -208,6 +208,7 @@ def state():
         msgs = channel.load_jsonl(os.path.join(channel.ROOMS, name + ".jsonl"))
         rooms.append({"name": name, "color": channel.PALETTE[colors[name]],
                       "members": [a for a in people if a["room"] == name], "said": len(msgs),
+                      "lead": channel.lead_of(name, people),   # its orchestrator, if it has one
                       "recent": [{"from": m["from"], "to": m.get("to"), "text": m["text"][:channel.MAX_TEXT],
                                   "ts": m["ts"]} for m in msgs[-TALK:]]})
     return {"rooms": rooms, "alone": [a for a in people if not a["room"]], "now": time.time(), "usage": usage(),
@@ -259,8 +260,10 @@ def change(path, body):
             channel.save(channel.ROOMS_FILE, rooms + [room])
         return None
     agent = known_agent(body.get("agent"))
-    if not agent:
+    if not agent and not (path == "/api/lead" and body.get("agent") is None):
         return 404, "No agent with that id."
+    if path == "/api/lead":  # this room's orchestrator, or (no agent) none
+        return lead(room_name(body.get("room")), agent if body.get("agent") else None)
     if path == "/api/read":  # you brought it up: this turn of its is seen, until its next one
         s = channel.load(os.path.join(channel.HOME, "status", agent + ".json"), {})
         if s.get("state") == "done":
@@ -285,6 +288,35 @@ def change(path, body):
             members[other] = room
         members[agent] = room
     channel.save(channel.MEMBERS, members)
+    leads = channel.load(channel.LEADS_FILE, {})
+    left = [r for r, a in leads.items() if a == agent and r != room]   # an orchestrator that leaves its room isn't one
+    if left:
+        channel.save(channel.LEADS_FILE, {r: a for r, a in leads.items() if r not in left})
+        for r in left:
+            channel.post(r, {"ts": time.time(), "from": channel.USER, "via": "desk",
+                             "text": channel.LEFT_SAYS.format(lead=agent)})
+    return None
+
+
+def lead(room, agent):
+    """Make `agent` the orchestrator of `room`, or with None, give it none. The room hears it
+    from the user, so every agent in it knows. Call it holding the channel's lock."""
+    people = channel.live_agents()
+    if not room or not any(a["room"] == room for a in people):
+        return 404, "No room with that name."
+    if agent and not any(a["id"] == agent and a["room"] == room for a in people):
+        return 409, "Only an agent in the room can be its orchestrator."
+    was = channel.lead_of(room, people)
+    if agent == was:
+        return None
+    leads = {r: a for r, a in channel.load(channel.LEADS_FILE, {}).items() if r != room}
+    channel.save(channel.LEADS_FILE, leads | ({room: agent} if agent else {}))
+    msg = {"ts": time.time(), "from": channel.USER, "via": "desk"}
+    if agent:   # to the new orchestrator, so it reads it before it ends its turn; everyone sees it
+        msg.update(to=agent, text=channel.LEAD_SAYS.format(lead=agent))
+    else:
+        msg.update(text=channel.UNLEAD_SAYS.format(lead=was))
+    channel.post(room, msg)
     return None
 
 
@@ -413,7 +445,7 @@ class Board(BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             return self.send(400, {"error": "bad json"})
         path = urlparse(self.path).path
-        if path not in ("/api/room", "/api/move", "/api/team", "/api/read"):
+        if path not in ("/api/room", "/api/move", "/api/team", "/api/read", "/api/lead"):
             return self.send(404, {"error": "not found"})
         with channel.locked():  # the agents write these files too
             failed = change(path, body)

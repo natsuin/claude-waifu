@@ -35,7 +35,7 @@ function hhmm(ts: number): string {
 }
 
 function who(m: Member, s: Snapshot): string {
-  const bits = [m.you ? 'this window' : '', m.state ? STATE[m.state] ?? m.state : '',
+  const bits = [m.you ? 'this window' : '', m.lead ? 'orchestrator' : '', m.state ? STATE[m.state] ?? m.state : '',
     m.helperOf ? `helper of ${m.helperOf}` : '',
     s.messages.length === 0 ? '' : m.readAll ? 'read everything' : m.readUpto ? `read up to ${hhmm(m.readUpto)}` : 'hasn’t read the room']
   return bits.filter(Boolean).join(' · ')

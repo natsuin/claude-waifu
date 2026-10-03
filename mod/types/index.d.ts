@@ -18,6 +18,8 @@ export type Member = {
   readUpto: number
   readAll: boolean
   helperOf: string | null
+  /** the room's orchestrator, picked on the desk */
+  lead?: boolean
 }
 
 export type Snapshot = {

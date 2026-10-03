@@ -104,6 +104,7 @@ def poll(want_wake):
         out["latest"] = {"from": name(unread[-1]), "text": unread[-1].get("text", "")[:300]}
     out["messages"] = [{"ts": m["ts"], "from": name(m), "to": m.get("to"), "text": m.get("text", "")[:1000],
                         "mine": m.get("from") == agent["id"]} for m in msgs[-SHOWN:]]
+    lead = channel.lead_of(room, live)
     for rec in live:
         if rec["room"] != room:
             continue
@@ -111,7 +112,7 @@ def poll(want_wake):
         out["members"].append({"id": rec["id"], "you": rec["id"] == agent["id"],
                                "state": channel.status_of(rec["id"]),
                                "readUpto": upto, "readAll": bool(msgs) and upto >= msgs[-1]["ts"],
-                               "helperOf": rec.get("invited_by")})
+                               "helperOf": rec.get("invited_by"), "lead": rec["id"] == lead})
     if want_wake:
         out["wake"] = wake(agent, room, msgs)
     return out

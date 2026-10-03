@@ -12,7 +12,7 @@ const SNAP: Snapshot = {
   ],
   members: [
     { id: 'claude-grape', you: true, state: 'working', readUpto: 1_790_000_060, readAll: true, helperOf: null },
-    { id: 'claude-sky', you: false, state: 'asking', readUpto: 1_790_000_000, readAll: false, helperOf: null },
+    { id: 'claude-sky', you: false, state: 'asking', readUpto: 1_790_000_000, readAll: false, helperOf: null, lead: true },
   ],
   wake: null,
 }
@@ -59,7 +59,7 @@ test('/room shows the team and its messages, and posts as the user', async ($, o
 
   const ui = await $.ui.mount(PANE)
   expect(await ui.find({ type: 'Text', text: /● sakura/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /claude-sky needs your OK · read up to/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /claude-sky orchestrator · needs your OK · read up to/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /claude-grape this window · working · read everything/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /claude-grape → claude-sky: I will take the tests/ })).toBeDefined()
 
