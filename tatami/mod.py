@@ -72,13 +72,22 @@ def wake(agent, room, msgs):
     upto = (agent.get("read_upto") or {}).get(room, 0)
     seen = max(upto, status.get("told", 0))
     mine = [m for m in msgs if channel.said_to(m, agent["id"], channel.born(agent)) and m["ts"] > seen]
+    # Finished work for it to land always gets through, and doesn't count: the cap is there so
+    # agents can't keep waking each other, and a done report doesn't ask for a reply.
+    waiting = {t["id"] for t in work.to_land(work.tasks(room), agent["id"], channel.lead_of(room))}
+    ready = [m for m in mine if m.get("done") in waiting]
     now = time.time()
     woke = [t for t in status.get("woke", []) if now - t < WAKE_WINDOW]
-    if not mine or len(woke) >= WAKES:
+    if not mine or (len(woke) >= WAKES and not ready):
         return None
-    status.update(told=mine[-1]["ts"], woke=woke + [now])
+    status.update(told=mine[-1]["ts"], woke=woke + ([] if ready else [now]))
     os.makedirs(os.path.dirname(path), exist_ok=True)
     channel.save(path, status)
+    if ready:
+        done = ", ".join(f"{m['from']}'s {m['done']}" for m in ready)
+        return (f"Tatami Room: {done} {'are' if len(ready) > 1 else 'is'} done in room '{room}' and waiting for "
+                f"you to land. Call room_read, check the work, and land it with room_land (agent: its owner), "
+                f"or hand it back with room_task update (status doing, and a note on what to fix).")
     senders = ", ".join(dict.fromkeys(name(m) for m in mine))
     many = len(mine) > 1
     return (f"Tatami Room: {senders} sent you {'messages' if many else 'a message'} in room '{room}' "

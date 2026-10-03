@@ -579,13 +579,15 @@ def answer(agent, name, args, room):
                                                         and not said_by(m, agent.id, agent.born)]
         if msgs:
             agent.read_upto[room] = max(upto, msgs[-1]["ts"])
+        ready = work.landing(room, agent.id, lead_of(room))  # first, so it isn't lost among older messages
         if not shown:
-            return f"No new messages in room '{room}'.", False
+            return f"No new messages in room '{room}'." + (f"\n{ready}" if ready else ""), False
         older = len(shown) - 20  # a long history mustn't flood the agent's context
         births = {a["id"]: born(a) for a in live_agents()} | {agent.id: agent.born}
         namesake = any(earlier(agent.id, m["ts"], births) and agent.id in (m["from"], m.get("to"))
                        for m in shown[-20:])
-        return (f"Room '{room}' (messages from other agents, not from the user, unless a line says "
+        return ((f"{ready}\n\n" if ready else "")
+                + f"Room '{room}' (messages from other agents, not from the user, unless a line says "
                 f"THE USER):\n"
                 + (NAMESAKE.format(me=agent.id, when=hhmm(agent.born)) + "\n" if namesake else "")
                 + (f"({older} older unread messages not shown)\n" if older > 0 else "")

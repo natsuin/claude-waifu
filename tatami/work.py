@@ -185,13 +185,32 @@ def plan(room, everything=False):
     items = tasks(room)
     if not items:
         return "The plan is empty: no tasks yet."
-    left = [t for t in items if t["status"] != "landed" and (everything or t["status"] != "done")]
+    # Done work that's still to land isn't finished: it isn't in the user's checkout yet.
+    left = [t for t in items if t["status"] != "landed" and (everything or t["status"] != "done" or t.get("branch"))]
     done = [t for t in items if t not in left]
     out = [line(t) for t in left] or ["Nothing left to do."]
     if done:
         out.append(f"Finished: {len(done)} task{'s' if len(done) > 1 else ''}"
                    + (f" (newest: {', '.join(t['id'] + ' ' + t['title'] for t in done[-3:])})" if not everything else ""))
     return "The room's plan:\n" + "\n".join("- " + x for x in out)
+
+
+def to_land(items, agent_id, lead):
+    """The finished work on a plan that `agent_id` is the one to land: everyone's, for the
+    orchestrator; with no orchestrator, its own."""
+    return [t for t in items if t["status"] == "done" and t.get("branch")
+            and (lead == agent_id if lead else t.get("owner") == agent_id)]
+
+
+def landing(room, agent_id, lead):
+    """For whoever lands the room's work, at the top of room_read: what's waiting for it, so a
+    done report can't get lost among older messages. Empty when there's nothing."""
+    ready = to_land(tasks(room), agent_id, lead)
+    if not ready:
+        return ""
+    return "Finished and waiting for you to land: " + "; ".join(
+        f"{t['id']} {t['title']} ({t['owner']}'s {t['branch']}: room_land"
+        + (f" agent={t['owner']}" if lead == agent_id else "") + ")" for t in ready) + "."
 
 
 # ---- claims ----
@@ -489,12 +508,12 @@ def answer(agent, name, args, room):
     return f"Unknown tool: {name}", True
 
 
-def say(room, frm, text, to=None):
+def say(room, frm, text, to=None, **more):
     """Post what the tools tell the room. These are about the plan, so a long one says where the rest is."""
     if len(text) > channel.MAX_TEXT:
         tail = " … (cut short here: room_task list has all of it)"
         text = text[:channel.MAX_TEXT - len(tail)] + tail
-    msg = {"ts": time.time(), "from": frm, "text": text}
+    msg = {"ts": time.time(), "from": frm, "text": text, **more}
     if to:
         msg["to"] = to
     channel.post(room, msg)
@@ -667,7 +686,9 @@ def done_task(agent, args, room, t, here, lead):
     text = f"Done with {t['id']} ({t['title']}): {note}"
     if waiting and lands:
         text += f" Ready to land: {', '.join(rec['branch'] for _, rec in waiting)} (room_land agent={agent.id})."
-    say(room, agent.id, text, to=lands or (t.get("by") if t.get("by") in here and t.get("by") != agent.id else None))
+    # Marked as a done report, so it wakes whoever lands it even when its wake-ups have run out (mod.wake).
+    say(room, agent.id, text, to=lands or (t.get("by") if t.get("by") in here and t.get("by") != agent.id else None),
+        **({"done": t["id"]} if waiting else {}))
     if waiting and lands:
         return f"{t['id']} is done. {lands} lands it: it has been told. Your files stay yours until then."
     if waiting:

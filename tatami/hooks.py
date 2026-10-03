@@ -144,8 +144,7 @@ def unfinished(agent, room, status):
     items = work.tasks(room)
     lead = channel.lead_of(room)
     doing = [t for t in items if t.get("owner") == agent["id"] and t["status"] == "doing"]
-    lands = [t for t in items if t["status"] == "done" and t.get("branch")
-             and (t.get("owner") == agent["id"] if not lead else lead == agent["id"])]
+    lands = work.to_land(items, agent["id"], lead)
     said = ",".join(f"{t['id']}@{t['updated']}" for t in doing + lands)
     if not said or said == status.get("gated"):
         return None
