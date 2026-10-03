@@ -202,6 +202,21 @@ h1 { margin: 0; font: 650 1.2rem/1 var(--display); letter-spacing: -.02em; white
 .add:active { scale: .93; transition-duration: .1s; }
 .add.quiet { background: rgba(255, 228, 244, .08); color: var(--text); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
 .add.quiet:hover { background: rgba(255, 228, 244, .13); filter: none; }
+/* + Gemini and the other kinds of agent: beside + Claude, quieter, in their maker's colour and
+   with its mark. */
+.more-agents { display: contents; }
+.add.maker-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-left: 14px;
+  background: color-mix(in srgb, var(--maker) 16%, rgba(255, 228, 244, .05));
+  color: color-mix(in srgb, var(--maker) 45%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--maker) 34%, transparent), 0 10px 24px -14px var(--maker);
+}
+.add.maker-add:hover { filter: none; background: color-mix(in srgb, var(--maker) 26%, rgba(255, 228, 244, .05));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--maker) 55%, transparent), 0 12px 28px -12px var(--maker); }
+.add.maker-add .mark { width: 12px; height: 12px; }
 
 /* The sky's button: the season's character, opening a small panel to pick the season and how
    much falls. The panel is nearly opaque: inside the bar's frosted glass it can't frost too. */
@@ -812,6 +827,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   <form class="newroom" id="newroom" autocomplete="off">
     <input id="roomname" maxlength="60" spellcheck="false" placeholder="Name the room" aria-label="New room name" tabindex="-1">
     <button class="add quiet" id="room-button" type="submit">+ Room</button>
+    <span class="more-agents" id="more-agents"></span>
     <a class="add" id="new-claude" href="tatami-room:new" title="Open a new Claude window">+ Claude</a>
   </form>
 </header>
@@ -888,12 +904,9 @@ APP?.onPanel?.((width) => {   // the desk makes room for the terminal panel, and
   sky.resize();   // and the moon and branch move over with it
 });
 if (APP) document.getElementById("new-claude").title = "Start Claude in a terminal beside the desk";
-// Who made each kind of agent: its name on the card, and a small mark in its colour.
-const MAKERS = {
-  claude: { name: "Claude", color: "#e08a6d", line: true, d: "M0 0L0.0 -10.5M0 0L4.7 -6.5M0 0L10.0 -3.2M0 0L7.6 2.5M0 0L6.2 8.5M0 0L0.0 8.0M0 0L-6.2 8.5M0 0L-7.6 2.5M0 0L-10.0 -3.2M0 0L-4.7 -6.5" },
-  gemini: { name: "Gemini", color: "#9db8ff", d: "M0-11C1-3 3-1 11 0C3 1 1 3 0 11C-1 3-3 1-11 0C-3-1-1-3 0-11Z" },
-  codex: { name: "Codex", color: "#e9e4ee", line: true, d: "M-8-6L-2 0L-8 6M1 7H9" },
-};
+// Who made each kind of agent: its name on the card, and a small mark in its colour. They come
+// from kinds.json, where a new kind of agent is added: { claude: { name, color, line, d }, ... }.
+const MAKERS = __MAKERS__;
 const OTHER_MARK = { d: "M0-5A5 5 0 1 1 0 5A5 5 0 1 1 0-5Z" };
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];   // Claude Code's /effort levels
 // An agent's name on the desk: its window's colour ("dusk" → "Dusk", "dusk-2" → "Dusk 2").
@@ -987,6 +1000,7 @@ function show(s) {
   state = s;
   if (!held) render(s);
   freshen(s);
+  offerKinds(s);
 }
 
 // When the desk's own page changes on disk (an update, or an agent working on it), it loads the
@@ -2190,9 +2204,9 @@ function fillCard(card, a) {
   $(".bars", card).querySelectorAll("i").forEach((bar, k) => bar.classList.toggle("on", k <= effort));
   $(".summary", card).textContent = a.summary || "";   // its session's title, a few words
   const mark = $(".mark", card);
-  mark.classList.toggle("line", !!maker?.line);
-  $("path", mark).setAttribute("d", (maker || OTHER_MARK).d);
-  if (maker) card.style.setProperty("--maker", maker.color); else card.style.removeProperty("--maker");
+  mark.classList.toggle("line", !!(maker?.d && maker.line));
+  $("path", mark).setAttribute("d", (maker?.d ? maker : OTHER_MARK).d);
+  if (maker?.color) card.style.setProperty("--maker", maker.color); else card.style.removeProperty("--maker");
   $(".name", card).textContent = name;
   card.dataset.name = name;
   $(".folder", card).textContent = a.folder ? `${a.folder}/` : "";
@@ -2599,6 +2613,38 @@ async function jump(card) {
 $("#new-claude").addEventListener("click", (e) => {
   e.preventDefault();
   if (APP) APP.newClaude(); else go("tatami-room:new");
+});
+
+// + Gemini, + Codex: each other kind of agent in kinds.json that's installed, started in a
+// terminal of the app's own like + Claude. Only the app can: a browser's links only know Claude
+// windows, and so does an app from before it could start other agents.
+let offered = null;
+function offerKinds(s) {
+  const kinds = APP?.newAgent ? (s.installed || []).filter((k) => k !== "claude" && MAKERS[k]) : [];
+  if (kinds.join() === offered) return;
+  offered = kinds.join();
+  const svg = "http://www.w3.org/2000/svg";
+  $("#more-agents").replaceChildren(...kinds.map((kind) => {
+    const maker = MAKERS[kind], button = document.createElement("button");
+    const mark = document.createElementNS(svg, "svg"), path = document.createElementNS(svg, "path");
+    mark.setAttribute("viewBox", "-12 -12 24 24");
+    mark.setAttribute("aria-hidden", "true");
+    mark.classList.add("mark");
+    mark.classList.toggle("line", !!(maker.d && maker.line));
+    path.setAttribute("d", (maker.d ? maker : OTHER_MARK).d);
+    mark.append(path);
+    button.type = "button";
+    button.className = "add maker-add";
+    button.dataset.kind = kind;
+    button.title = `Start ${maker.name} in a terminal beside the desk`;
+    if (maker.color) button.style.setProperty("--maker", maker.color);
+    button.append(mark, `+ ${maker.name}`);
+    return button;
+  }));
+}
+$("#more-agents").addEventListener("click", (e) => {
+  const button = e.target.closest("[data-kind]");
+  if (button) APP.newAgent(button.dataset.kind);
 });
 
 // ---- rooms, messages, notices ----

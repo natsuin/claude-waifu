@@ -19,7 +19,7 @@ case "${1:-}" in
   mod) shift; exec python3 "$here/mod.py" "$@" ;;  # what the Claude Code mod runs; see mod.py
   hooks) exec python3 "$here/hooks.py" "${2:-}" ;;
   window) exec python3 "$here/window.py" "${2:-}" ;;  # bring up an agent's window; see window.py
-  term) exec python3 "$here/term.py" "${2:-}" ;;  # a terminal inside the Tatami Room app; see term.py
+  term) exec python3 "$here/term.py" "${2:-}" "${3:-}" ;;  # a terminal inside the Tatami Room app; see term.py
   helper) exec python3 "$here/helper.py" "${2:-}" ;;  # a helper's window, from room_invite; see helper.py
 esac
 port="${TATAMI_PORT:-7373}"

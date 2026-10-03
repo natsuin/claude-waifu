@@ -186,11 +186,18 @@ def agents():
 
 
 def page_version():
-    """Which board.html is on disk. An open desk loads the page again when this changes."""
+    """Which board.html and kinds.json are on disk. An open desk loads the page again when this
+    changes."""
     try:
-        return str(os.stat(os.path.join(HERE, "board.html")).st_mtime_ns)
+        return "-".join(str(os.stat(f).st_mtime_ns) for f in (os.path.join(HERE, "board.html"), channel.KINDS_FILE))
     except OSError:
         return None
+
+
+def makers():
+    """Each kind of agent's maker, for the page: its name, and its mark in its colour."""
+    page = {k: {"name": v["name"], "color": v["color"], "line": v["line"], "d": v["mark"]} for k, v in channel.kinds().items()}
+    return json.dumps(page).replace("</", "<\\/")  # it goes inside a <script>
 
 
 def state():
@@ -204,7 +211,9 @@ def state():
                       "recent": [{"from": m["from"], "to": m.get("to"), "text": m["text"][:channel.MAX_TEXT],
                                   "ts": m["ts"]} for m in msgs[-TALK:]]})
     return {"rooms": rooms, "alone": [a for a in people if not a["room"]], "now": time.time(), "usage": usage(),
-            "page": page_version()}
+            "page": page_version(),
+            # the kinds of agent that are installed, which the desk offers to start
+            "installed": [k for k in channel.kinds() if channel.command_of(k)]}
 
 
 def usage():
@@ -348,7 +357,7 @@ class Board(BaseHTTPRequestHandler):
             nonce, version = secrets.token_urlsafe(16), page_version() or ""
             with open(os.path.join(HERE, "board.html"), encoding="utf-8") as f:
                 page = f.read().replace("__TOKEN__", self.server.token).replace("__NONCE__", nonce) \
-                    .replace("__PAGE__", version)
+                    .replace("__PAGE__", version).replace("__MAKERS__", makers())
             return self.send(200, page.encode(), "text/html; charset=utf-8", nonce)
         if path == "/api/state":
             looked_at()

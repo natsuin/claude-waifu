@@ -31,6 +31,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -51,6 +52,14 @@ USER = "user"
 # Where the Tatami Room app's own terminals start Claude: a folder of their own, so Claude Code's
 # folder check is answered once for it instead of for your whole home folder each time.
 DESK_DIR = os.path.expanduser(os.environ.get("TATAMI_DESK_DIR") or "~/desk")
+# The kinds of agent the desk knows: Claude, Gemini, Codex. To add one, give it an entry in
+# kinds.json: its name, the commands that start it (the first one installed is used), and its
+# maker's colour and mark (an SVG path on a 24×24 grid centred on 0,0; "line": true draws it as
+# strokes). The desk offers "+ <name>" for each one that's installed. It still needs this
+# channel as an MCP server in its own settings to show up on the desk, with TATAMI_AGENT
+# set to its kind when it isn't started from the desk.
+KINDS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kinds.json")
+BIN_DIRS = [os.path.expanduser(d) for d in ("~/.local/bin", "~/bin", "~/.npm-global/bin", "~/.bun/bin", "/usr/local/bin")]
 # Room colours: six pastels that sit with the sakura look, far enough apart to tell teams apart
 # on a tab, and all light enough that Terminal writes the tab's title in black. New teams
 # take them in this order, most different first.
@@ -125,6 +134,26 @@ def load(path, default):
             return json.load(f)
     except (FileNotFoundError, ValueError):
         return default
+
+
+def kinds():
+    """kinds.json: kind -> {name, run, color, line, mark}, keeping only well-formed entries."""
+    out = {}
+    for kind, k in load(KINDS_FILE, {}).items():
+        run = [c for c in (k.get("run") if isinstance(k, dict) and isinstance(k.get("run"), list) else [])
+               if isinstance(c, str) and re.fullmatch(r"[A-Za-z0-9._+-]{1,40}", c)]
+        if re.fullmatch(r"[a-z0-9-]{1,30}", kind) and run:
+            out[kind] = {"name": str(k.get("name") or kind)[:30], "run": run,
+                         "color": k["color"] if re.fullmatch(r"#[0-9a-fA-F]{6}", str(k.get("color"))) else None,
+                         "line": bool(k.get("line")), "mark": str(k.get("mark") or "")[:2000] or None}
+    return out
+
+
+def command_of(kind):
+    """The first of a kind's commands that's installed, or None. Login shells add ~/.local/bin and
+    the like to PATH, so those count even when whoever started us didn't have them."""
+    path = os.pathsep.join([os.environ.get("PATH", "")] + BIN_DIRS)
+    return next((c for c in kinds().get(kind, {}).get("run", []) if shutil.which(c, path=path)), None)
 
 
 def save(path, obj):

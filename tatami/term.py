@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""A terminal for the Tatami Room app. It runs Claude in a pseudo-terminal inside WSL, the way
-a Claude Waifu window does, and relays it over plain pipes: the app starts it through wsl.exe
-and draws it with xterm.js, so nothing needs native modules on the Windows side.
+"""A terminal for the Tatami Room app. It runs an agent (Claude, or another kind from kinds.json:
+Gemini, Codex) in a pseudo-terminal inside WSL, the way a Claude Waifu window runs Claude, and
+relays it over plain pipes: the app starts it through wsl.exe and draws it with xterm.js, so
+nothing needs native modules on the Windows side.
 
-Claude starts in ~/desk, a folder of its own: Claude Code asks once whether you trust a folder,
-and remembers the answer for that folder, where your home folder would ask every time.
+It starts in ~/desk, a folder of its own: Claude Code asks once whether you trust a folder, and
+remembers the answer for that folder, where your home folder would ask every time.
 
-  tatami term <session>    what the app runs; <session> ties the agent on the desk to it
+  tatami term <session> [kind]    what the app runs; <session> ties the agent on the desk to it,
+                                  and <kind> says which agent (claude when it's left out)
 
 The app resizes the terminal in-band: ESC ] 7373 ; resize ; <cols> ; <rows> BEL. Before it
 starts, waifu picks a girl and a color for it, like it does for each new window.
@@ -51,28 +53,41 @@ point: the user's projects live in their home folder (~), so work wherever they 
 
 
 def desk():
-    """The app's terminals start here; made the first time, with a note for Claude."""
+    """The app's terminals start here; made the first time, with a note for Claude, and for other
+    agents in AGENTS.md, the file they read (added once to a desk made before them)."""
     folder = tatami_mcp.DESK_DIR
-    if not os.path.isdir(folder):
-        os.makedirs(folder)
-        with open(os.path.join(folder, "CLAUDE.md"), "w", encoding="utf-8") as f:
-            f.write(DESK_NOTE)
+    made = not os.path.isdir(folder)
+    os.makedirs(folder, exist_ok=True)
+    for note in ("CLAUDE.md", "AGENTS.md") if made else ("AGENTS.md",):
+        try:
+            with open(os.path.join(folder, note), "x", encoding="utf-8") as f:
+                f.write(DESK_NOTE.replace("Claude sessions", "Agent sessions") if note == "AGENTS.md" else DESK_NOTE)
+        except FileExistsError:
+            pass
     return folder
 
 
 def main():
     session = sys.argv[1] if len(sys.argv) > 1 else ""
-    if not re.fullmatch(r"[a-z0-9-]{1,40}", session):
-        sys.exit("usage: tatami term <session>")
-    os.write(1, b"\x1b[2mStarting Claude\xe2\x80\xa6\x1b[0m")  # something to see straight away
+    kind = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else "claude"
+    if not re.fullmatch(r"[a-z0-9-]{1,40}", session) or not re.fullmatch(r"[a-z0-9-]{1,30}", kind):
+        sys.exit("usage: tatami term <session> [kind]")
+    name = tatami_mcp.kinds().get(kind, {}).get("name", kind)
+    command = tatami_mcp.command_of(kind)  # a plain word from kinds.json: safe to put in the shell line
+    os.write(1, f"\x1b[2mStarting {name}\u2026\x1b[0m".encode())  # something to see straight away
     color, girl = look()
     start = desk()
     pid, fd = pty.fork()
-    if pid == 0:  # the terminal's side: Claude, then a shell once it exits, like a Claude Waifu window
+    if pid == 0:  # the terminal's side: the agent, then a shell once it exits, like a Claude Waifu window
         os.environ.update(TERM="xterm-256color", COLORTERM="truecolor", TATAMI_SESSION=session,
                           TATAMI_COLOR=color, TATAMI_GIRL=girl)
         os.chdir(start)
-        os.execvp("bash", ["bash", "-lic", "claude; exec bash"])
+        if not command:
+            print(f"\r\x1b[2K{name} isn't installed here, or kinds.json doesn't know it.\r")
+            os.execvp("bash", ["bash", "-li"])
+        # TATAMI_AGENT reaches the agent's Tatami Room channel (its MCP server), which puts it on
+        # the desk as this kind. Only this agent's: another started later in the shell is its own.
+        os.execvp("bash", ["bash", "-lic", f"TATAMI_AGENT={kind} {command}; exec bash"])
     set_size(fd, 100, 30)
     os.write(1, b"\r\x1b[2K")  # Claude draws from here
     try:

@@ -130,10 +130,14 @@ function fromBoard(event) {
 }
 
 ipcMain.handle("tatami:new-claude", (event) => { if (fromBoard(event)) newClaude(); });
+// + Gemini and the others: any kind of agent in kinds.json; `tatami term` checks it's one it knows.
+ipcMain.handle("tatami:new-agent", (event, kind) => {
+  if (fromBoard(event) && /^[a-z0-9-]{1,30}$/.test(String(kind))) startSession(String(kind));
+});
 ipcMain.handle("tatami:focus", (event, id) => (fromBoard(event) ? focusAgent(String(id)) : 2));
 
 // ---- terminals inside the app ----
-// Each runs `tatami term` through a wsl.exe of its own: Claude in a pseudo-terminal inside WSL,
+// Each runs `tatami term` through a wsl.exe of its own: an agent (Claude, Gemini...) in a pseudo-terminal inside WSL,
 // relayed over plain pipes and drawn with xterm.js in a panel beside the desk (terminal.html).
 
 const sessions = new Map();   // session key -> { proc, log }
@@ -147,11 +151,11 @@ let shown = null;             // the session in the panel, while it's open
 let panelWidth = null;        // set by dragging its edge; until then, a share of the window
 let lastShown = null;         // for Ctrl+`, which goes back to it
 
-function startSession() {
+function startSession(kind = "claude") {
   const key = "app-" + Date.now().toString(36);
-  const proc = spawn("wsl.exe", ["-d", CONFIG.distro, "--", CONFIG.tatami, "term", key],
+  const proc = spawn("wsl.exe", ["-d", CONFIG.distro, "--", CONFIG.tatami, "term", key, kind],
     { windowsHide: true, stdio: ["pipe", "pipe", "ignore"] });
-  const s = { proc, log: [], size: 0 };
+  const s = { proc, log: [], size: 0, kind };
   sessions.set(key, s);
   proc.stdout.on("data", (chunk) => {
     s.log.push(chunk);
@@ -216,7 +220,8 @@ function layout(slide = false) {
 
 function lookOf(key) {
   const a = bySession.get(key);
-  return { name: a ? a.id : "Claude", tint: (a && a.tint) || "#2a2233",
+  const kind = sessions.get(key)?.kind || "claude";   // until its agent checks in: "Gemini"
+  return { name: a ? a.id : kind.charAt(0).toUpperCase() + kind.slice(1), tint: (a && a.tint) || "#2a2233",
     girl: a && a.girl ? `${board.origin}/girl/${encodeURIComponent(a.id)}?token=${board.searchParams.get("token")}` : "" };
 }
 
