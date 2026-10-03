@@ -445,12 +445,15 @@ class Namesake(Team):
         recent = next(r for r in board.state()["rooms"] if r["name"] == "fuji")["recent"]
         self.assertEqual([(m.get("earlier", False), m.get("to_earlier", False)) for m in recent],
                          [(True, False), (False, True)])
+        channel.post("fuji", {"ts": time.time(), "from": channel.USER, "via": "desk", "text": "Hello."})
+        recent = next(r for r in board.state()["rooms"] if r["name"] == "fuji")["recent"]
+        self.assertEqual([m["via"] for m in recent], [None, None, "desk"])  # where the user said it
         was, mod.me = mod.me, lambda: self.me("rouge")
         try:
             shown = mod.poll(False)["messages"]
         finally:
             mod.me = was
-        self.assertEqual([(m["from"], m["to"], m["mine"]) for m in shown],
+        self.assertEqual([(m["from"], m["to"], m["mine"]) for m in shown[:2]],
                          [("rouge (earlier)", None, False), ("wine", "rouge (earlier)", False)])
 
     def test_an_agent_from_before_births(self):

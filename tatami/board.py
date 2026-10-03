@@ -281,7 +281,7 @@ def state():
                       "lead": channel.lead_of(name, people),   # its orchestrator, if it has one
                       "plan": plan_of(name, people),
                       "recent": [{"from": m["from"], "to": m.get("to"), "text": m["text"][:channel.MAX_TEXT],
-                                  "ts": m["ts"]} | flags(m) for m in msgs[-TALK:]]})
+                                  "ts": m["ts"], "via": m.get("via")} | flags(m) for m in msgs[-TALK:]]})
     return {"rooms": rooms, "alone": [a for a in people if not a["room"]], "now": time.time(), "usage": usage(),
             "page": page_version(), "app": app_code(),
             # the kinds of agent that are installed, which the desk offers to start
