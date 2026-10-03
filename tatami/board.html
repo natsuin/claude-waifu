@@ -711,47 +711,31 @@ body.stale main { opacity: .5; filter: saturate(.4); }
 .ghost .jump { display: none; }
 body.dragging, body.dragging * { cursor: grabbing !important; }
 
-/* ---- a room's orchestrator: the seat of honour ----
-   In a tatami room the one who leads sits at the kamiza (上座), on a raised floor whose mats are
-   edged in brocade. The orchestrator's card sits first, a little apart from its teammates, on a
-   dais of gold-rimmed mat with a brocade step along its front and a gold star crest on its rim.
-   Its card is carried like any other; the seat stays where it was until the board says otherwise. */
-.agent.is-lead { margin: 0 12px 7px 0; }
-.agent.is-lead::before {   /* the dais */
-  content: "";
-  position: absolute;
-  inset: -8px -8px -15px;
-  z-index: -1;
-  border-radius: 29px 29px 24px 24px;
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Crect width='12' height='7' fill='%23331827'/%3E%3Cpath d='M6 1 10 3.5 6 6 2 3.5Z' fill='%23f5d891' fill-opacity='.85'/%3E%3Ccircle cx='6' cy='3.5' r='.9' fill='%23ff85c0'/%3E%3C/svg%3E") left bottom / 12px 7px repeat-x,
-    linear-gradient(color-mix(in srgb, var(--kin) 75%, transparent), color-mix(in srgb, var(--kin) 75%, transparent)) left bottom 7px / 100% 1px no-repeat,
-    repeating-linear-gradient(90deg, rgba(245, 216, 145, .07) 0 1px, transparent 1px 5px),
-    linear-gradient(170deg, color-mix(in srgb, var(--kin) 22%, rgba(29, 21, 37, .7)), color-mix(in srgb, var(--kin) 7%, rgba(29, 21, 37, .7)) 70%);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--kin) 50%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--kin) 80%, transparent),
-    0 0 46px -10px color-mix(in srgb, var(--kin) 50%, transparent),
-    0 22px 30px -20px rgba(0, 0, 0, .9);
-  animation: seat-in .7s var(--bounce) both;
-}
-.agent.is-lead::after {   /* the crest on its rim */
-  content: "";
-  position: absolute;
-  top: -18px;
-  left: 50%;
-  width: 22px;
-  height: 22px;
-  margin-left: -11px;
-  border-radius: 50%;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3CradialGradient id='g' cx='.38' cy='.3' r='.8'%3E%3Cstop offset='0' stop-color='%23fff6d8'/%3E%3Cstop offset='.5' stop-color='%23f5d891'/%3E%3Cstop offset='1' stop-color='%23b07f34'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='12' cy='12' r='12' fill='url(%23g)'/%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%236b4419' stroke-opacity='.5' stroke-width='.7'/%3E%3Cpath d='M12 4.6 13.5 10.5 19.4 12 13.5 13.5 12 19.4 10.5 13.5 4.6 12 10.5 10.5Z' fill='%23462812'/%3E%3C/svg%3E") center / 100%;
-  box-shadow: 0 0 0 2.5px rgba(17, 12, 23, .9), 0 0 18px color-mix(in srgb, var(--kin) 75%, transparent);
+/* ---- where cards sit ----
+   A room's orchestrator always sits first, with a little more room after it; its plain gold
+   chip says what it is. The rest sit in the order you've dragged them into (see "the order you
+   put them in"). While you carry a card, a bar shows where it would go along a row, and the
+   cards either side of it lean apart. */
+.agent.is-lead { margin-right: 12px; }
+.agent { transition: translate .35s var(--bounce); }
+.agent.lean-back { translate: -16px 0; }
+.agent.lean-on { translate: 16px 0; }
+.agent.lean-up { translate: 0 -10px; }   /* in a column, on a phone */
+.agent.lean-down { translate: 0 10px; }
+.slot-mark {
+  position: fixed;   /* over the card in your hand, which would hide it */
+  left: 0;
+  top: 0;
+  z-index: 51;
+  width: 4px;
+  border-radius: 4px;
+  background: var(--mark, #fff);
+  box-shadow: 0 0 14px var(--mark, #fff);
   pointer-events: none;
-  animation: crest-in .8s .15s var(--bounce) both;
+  opacity: 0;
+  transition: opacity .15s ease;
 }
-@keyframes seat-in { from { opacity: 0; scale: .92; } }
-@keyframes crest-in { from { opacity: 0; scale: .3; rotate: -120deg; } }
-.ghost.is-lead::before, .ghost.is-lead::after { display: none; }   /* the seat stays in the room */
+.slot-mark.on { opacity: 1; }
 
 /* ---- the room's plan: its tasks, who has each, and the files they hold ---- */
 /* Under the cards, above the chat. A task's dot says how far it has got, without moving: a
@@ -1022,7 +1006,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 @media (max-width: 720px) {
   :root { --card-w: 100%; }
   .bar:not(.app .bar) { flex-wrap: wrap; }
-  .agent.is-lead { margin: 8px 0 14px; }   /* a row of its own, its teammates under it */
+  .agent.is-lead { margin: 0 0 8px; }   /* a row of its own, its teammates under it */
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -1116,7 +1100,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 
 <p class="toast" id="toast" role="status" hidden></p>
 <p class="sr-only" id="live" aria-live="polite"></p>
-<p class="sr-only" id="how">Enter brings up this agent's window. Space picks it up: arrow keys choose a room, or another agent to team up with, Space puts it down there, Escape cancels.</p>
+<p class="sr-only" id="how">Enter brings up this agent's window. Space picks it up: arrow keys choose a room, or another agent to team up with, Space puts it down there, Escape cancels. Alt and the left or right arrow move it along its row.</p>
 
 <template id="tpl-room">
   <section class="room">
@@ -1213,6 +1197,17 @@ const agentEls = new Map();   // agent id -> its card, kept between updates (mov
 // Rooms whose chat you've opened, remembered by this desk. Chats start folded away.
 const chatOpen = new Set((() => { try { return JSON.parse(localStorage.getItem("tatami-chats")) || []; } catch { return []; } })());
 const keepChats = () => { try { localStorage.setItem("tatami-chats", JSON.stringify([...chatOpen])); } catch { /* private window */ } };
+// The order you put them in: you drag cards along their rows, and this desk remembers the
+// order as one list of ids. A room shows its orchestrator first, then the rest in this order;
+// ones you haven't placed (new agents) come after, as the board lists them.
+let order = (() => { try { return JSON.parse(localStorage.getItem("tatami-order")) || []; } catch { return []; } })();
+const rankOf = (id) => { const i = order.indexOf(id); return i < 0 ? Infinity : i; };
+const ordered = (agents) => [...agents].sort((a, b) => rankOf(a.id) - rankOf(b.id) || 0);   // two unplaced: NaN, so as listed
+function keepOrder(cards) {   // a row's cards, as they now stand
+  const ids = [...cards.children].map((c) => c.dataset.id);
+  order = order.filter((id) => !ids.includes(id)).concat(ids).slice(-300);
+  try { localStorage.setItem("tatami-order", JSON.stringify(order)); } catch { /* private window */ }
+}
 const arrivals = new Set();   // cards of agents that just turned up
 
 let state = null;            // the latest answer from /api/state
@@ -1296,7 +1291,7 @@ function freshen(s) {
 
 function release(moved) {
   held = false;
-  if (!moved && state) render(state);   // a move redraws when the board confirms it
+  if ((!moved || moved === "order") && state) render(state);   // a move redraws when the board confirms it
 }
 
 function setStatus(kind) {
@@ -2297,7 +2292,7 @@ function render(s) {
     if (roomsEl.children[i] !== el) roomsEl.insertBefore(el, roomsEl.children[i] || null);
     fillRoom(el, r, hues, tints);
   });
-  alone.forEach((a, i) => {
+  ordered(alone).forEach((a, i) => {
     const card = cardFor(a);
     fillCard(card, a);
     if (lobbyCards.children[i] !== card) lobbyCards.insertBefore(card, lobbyCards.children[i] || null);
@@ -2395,9 +2390,9 @@ function fillRoom(el, r, hues, tints) {
   $(".room-remove", el).hidden = n > 0;
   fillLead(el, r);
 
-  // Its orchestrator first, in the seat of honour; then the rest as the board lists them.
+  // Its orchestrator first; then the rest in the order you've put them in.
   const cards = $(".cards", el), lead = r.members.find((a) => a.id === r.lead);
-  [lead, ...r.members.filter((a) => a !== lead)].filter(Boolean).forEach((a, i) => {
+  [lead, ...ordered(r.members.filter((a) => a !== lead))].filter(Boolean).forEach((a, i) => {
     const card = cardFor(a);
     fillCard(card, a, a === lead);
     if (cards.children[i] !== card) cards.insertBefore(card, cards.children[i] || null);
@@ -2661,60 +2656,71 @@ function lightHue(hex) {
 // ---- moving agents ----
 
 // Where a card can go: into a room (it joins that team), onto the strip along the top (it leaves
-// its team), or onto a card that's on its own (the two of them become a new team). Says which it
-// was, or false for no change. A card carried by hand lands by itself (see land); one moved with
-// the keyboard glides over with the rest.
-function act(card, t, byHand) {
+// its team), onto a card that's on its own (the two of them become a new team), or to another
+// place along its own row. `slot` is the place in a row it was let go at (see slotAt); without
+// one it goes at the end. Says which it was, or false for no change. A card carried by hand lands
+// by itself (see land); one moved with the keyboard glides over with the rest.
+function act(card, t, byHand, slot = null) {
   const skip = byHand ? card : null;
-  if (t.classList.contains("room")) {
-    if (t.dataset.name === card.dataset.room) return false;
-    moveTo(card, t, skip);
-    return "room";
-  }
   if (t.classList.contains("agent")) {
     teamUp(card, t, skip);
     return "team";   // its new room blooms once the board has made it
   }
-  if (!card.dataset.room) return false;
-  goAlone(card, skip);
-  return "alone";
+  const room = t.classList.contains("room") ? t.dataset.name : "";
+  if (room === (card.dataset.room || "")) {
+    if (!slot) return false;
+    reorder(card, slot, skip);
+    return "order";
+  }
+  if (room) moveTo(card, t, skip, slot); else goAlone(card, skip, slot);
+  return room ? "room" : "alone";
 }
 
-// Put a card down right away, where the board will list it (the rest make room for it); the
-// board confirms, and the next update corrects it if not.
-function moveTo(card, room, skip) {
+// Put a card down right away, where you let go of it (the rest make room for it); the board
+// confirms, and the next update corrects it if not.
+function moveTo(card, room, skip, slot) {
   const id = card.dataset.id, to = room.dataset.name;
   const at = snapshot();
-  putAmong($(".cards", room), card);
+  putAmong($(".cards", room), card, slot);
   glide(at, skip);
   card.dataset.room = to;
   announce(`${id} moved to ${to}.`);
   change("/api/move", { agent: id, room: to });
 }
 
-function goAlone(card, skip) {
+function goAlone(card, skip, slot) {
   const at = snapshot();
-  putAmong(lobbyCards, card);
+  putAmong(lobbyCards, card, slot);
   glide(at, skip);
   card.dataset.room = "";
   announce(`${card.dataset.name} is on its own now.`);
   change("/api/move", { agent: card.dataset.id, room: null });
 }
 
-// The board lists agents by id (their files' names), so a card goes straight to that place,
-// after the seat of honour. An orchestrator that leaves its room isn't one any more.
-const sortKey = (el) => `${el.dataset.id}.json`;
-function putAmong(cards, card) {
+// Into another row, at its slot or at the end. An orchestrator that leaves its room isn't one
+// any more.
+function putAmong(cards, card, slot) {
   card.classList.remove("is-lead");
   $(".lead", card).textContent = "";
-  const next = [...cards.children].find((c) => c !== card && !c.classList.contains("is-lead") && sortKey(c) > sortKey(card));
-  cards.insertBefore(card, next || null);
+  cards.insertBefore(card, slot?.before ?? null);
+  keepOrder(cards);
+}
+
+// Along its own row: no need to ask the board.
+function reorder(card, slot, skip) {
+  const at = snapshot();
+  slot.cards.insertBefore(card, slot.before);
+  glide(at, skip);
+  keepOrder(slot.cards);
+  const all = [...slot.cards.children];
+  announce(`${card.dataset.name} moved to place ${all.indexOf(card) + 1} of ${all.length}.`);
 }
 
 async function teamUp(card, other, skip) {
   const focused = document.activeElement === card;
   const at = snapshot();
-  if (sortKey(card) < sortKey(other)) other.before(card); else other.after(card);   // side by side while the board names their room
+  other.after(card);   // side by side while the board names their room, in that order
+  keepOrder(other.parentElement);
   glide(at, skip);
   const s = await change("/api/team", { agent: card.dataset.id, with: other.dataset.id });
   const room = s?.rooms.find((r) => r.members.some((a) => a.id === card.dataset.id));
@@ -2818,15 +2824,19 @@ function lift() {
 }
 
 // Each frame while carrying: stay under the pointer, find what's underneath, and scroll near the
-// top or bottom edge.
+// top or bottom edge. Over the middle of a card on its own, it would team up with it; anywhere
+// else in a room or the strip, it would go into that row where the bar shows.
 function carrying(dt) {
   const d = drag;
   if (!d?.ghost) return false;
   pull(d.size, 1.045, 420, 1, dt);
   draw(d.ghost, d.x - d.dx, d.y - d.dy, d.size.x);
   const under = document.elementFromPoint(d.x, d.y);
-  const card = under?.closest("#lobby .agent");
-  aim(card && card !== d.card ? card : under?.closest(".room, #lobby") || null, d.ghost);
+  const card = under?.closest("#lobby .agent"), place = under?.closest(".room, #lobby") || null;
+  const r = card && card !== d.card && card.getBoundingClientRect();
+  const pair = r && Math.abs(d.x - (r.left + r.width / 2)) < r.width / 4;
+  aim(pair ? card : place, d.ghost);
+  showSlot(!pair && place && slotAt($(".cards", place), d.card, d.x, d.y), place);
   const edge = 64, y = d.y;
   const v = y < edge ? -(edge - y) / edge : y > innerHeight - edge ? (y - innerHeight + edge) / edge : 0;
   if (v) scrollBy(0, v * 1100 * dt);
@@ -2838,6 +2848,58 @@ function draw(el, x, y, size) {
   el.style.setProperty("--air", clamp((size - 1) / 0.045, 0, 1.3).toFixed(3));
 }
 
+// Where in a row of cards one let go at (x, y) would go: before the card at that place among the
+// others, in the row nearest the pointer. Where the cards stand one under another (a phone), by
+// height instead. The orchestrator keeps the first place. Null where it would change nothing.
+function slotAt(cards, card, x, y) {
+  const all = [...cards.children], others = all.filter((c) => c !== card);
+  if (card.classList.contains("is-lead") && all.includes(card)) return null;   // it stays first
+  const rects = others.map((c) => c.getBoundingClientRect());
+  const column = !!rects.length && cards.clientWidth < 2 * rects[0].width;
+  const off = (r) => Math.max(r.top - y, y - r.bottom, 0);   // how far the pointer is above or below it
+  const near = Math.min(...rects.map(off));
+  const row = rects.map((r, i) => i).filter((i) => off(rects[i]) === near);
+  let i = column ? rects.findIndex((r) => y < r.top + r.height / 2)
+    : row.length ? row.find((k) => x < rects[k].left + rects[k].width / 2) ?? row.at(-1) + 1 : 0;
+  if (i < 0) i = rects.length;
+  i = Math.max(i, others[0]?.classList.contains("is-lead") ? 1 : 0);
+  if (all.includes(card) && all.indexOf(card) === i) return null;   // where it already is
+  return { cards, column, before: others[i] || null, after: others[i - 1] || null };
+}
+
+// The bar where a carried card would go, and the cards either side of it leaning apart.
+const slotMark = document.createElement("div");
+slotMark.className = "slot-mark";
+document.body.append(slotMark);
+let slot = null;
+function showSlot(s, place) {
+  const LEANS = ["lean-back", "lean-on", "lean-up", "lean-down"];
+  const same = (a, b) => a && b && Math.abs(a.top - b.top) < 4;   // in one row
+  const was = slot;
+  slot = s || null;
+  if (was?.before !== slot?.before || was?.after !== slot?.after || was?.cards !== slot?.cards) {
+    for (const c of document.querySelectorAll(LEANS.map((k) => `.${k}`).join())) c.classList.remove(...LEANS);
+  }
+  const b = slot?.before?.getBoundingClientRect(), a = slot?.after?.getBoundingClientRect();
+  slotMark.classList.toggle("on", !!(a || b));
+  if (!a && !b) return;
+  slotMark.style.setProperty("--mark", place?.classList.contains("room") ? place.style.getPropertyValue("--room") : "#fff");
+  const r = b || a;
+  if (slot.column) {   // a bar across, between one card and the next one down
+    const y = a && b ? (a.bottom + b.top) / 2 : b ? b.top - 7 : a.bottom + 7;
+    slotMark.style.transform = `translate(${r.left - 4}px, ${y - 2}px)`;
+    Object.assign(slotMark.style, { width: `${r.width + 8}px`, height: "4px" });
+    slot.before?.classList.add("lean-down");
+    slot.after?.classList.add("lean-up");
+    return;
+  }
+  const x = same(a, b) ? (a.right + b.left) / 2 : b ? b.left - 7 : a.right + 7;
+  slotMark.style.transform = `translate(${x - 2}px, ${r.top - 8}px)`;
+  Object.assign(slotMark.style, { width: "4px", height: `${r.height + 16}px` });
+  if (b) slot.before.classList.add("lean-on");
+  if (a && (!b || same(a, b))) slot.after.classList.add("lean-back");
+}
+
 function drop(ok) {
   const d = drag;
   drag = null;
@@ -2845,13 +2907,14 @@ function drop(ok) {
     if (ok) jump(d.card);
     return;
   }
-  const t = ok ? target : null;
+  const t = ok ? target : null, at = slot;
   aim(null);
+  showSlot(null);
   document.body.classList.remove("dragging");
   const [vx, vy] = speed(d);
   d.card.classList.remove("lifted");
   d.card.style.setProperty("--accent", d.ghost.style.getPropertyValue("--accent") || "transparent");
-  const moving = !!t && act(d.card, t, true);
+  const moving = !!t && act(d.card, t, true, at);
   land(d.card, { x: d.x - d.dx, y: d.y - d.dy, vx, vy, dx: d.dx, dy: d.dy, size: d.size }, moving);
   d.ghost.remove();
   release(moving);
@@ -2890,7 +2953,7 @@ function land(card, from, moved) {
       landed = true;
       size.v -= 0.9;
       card.style.setProperty("--accent", "transparent");
-      if (moved && moved !== "team") impact(card);
+      if (moved === "room" || moved === "alone") impact(card);
     }
     draw(card, x.x, y.x, size.x);
     const still = resting(x, 0, 0.3) && resting(y, 0, 0.3) && resting(size, 1, 0.0008);
@@ -2924,7 +2987,7 @@ function untilt() {
 document.documentElement.addEventListener("pointerleave", untilt);
 
 // Keyboard: Enter brings up the agent's window. Space picks a card up, arrows choose where it
-// goes, Space puts it down, Escape cancels.
+// goes, Space puts it down, Escape cancels. Alt and an arrow move it along its row.
 let carry = null;
 document.addEventListener("keydown", (e) => {
   const card = e.target.closest?.(".agent");
@@ -2933,6 +2996,7 @@ document.addEventListener("keydown", (e) => {
   if (!carry) {
     if (k === "Enter") { e.preventDefault(); jump(card); }
     else if (k === " ") { e.preventDefault(); pickUp(card); }
+    else if (e.altKey && (k === "ArrowLeft" || k === "ArrowRight")) { e.preventDefault(); budge(card, k === "ArrowLeft" ? -1 : 1); }
     return;
   }
   if (k === "ArrowRight" || k === "ArrowDown") step(1);
@@ -2943,6 +3007,13 @@ document.addEventListener("keydown", (e) => {
   e.preventDefault();
 });
 document.addEventListener("focusout", (e) => { if (carry && e.target === carry.card) putBack(); });
+
+function budge(card, d) {
+  const cards = card.parentElement, all = [...cards.children], i = all.indexOf(card) + d;
+  if (card.classList.contains("is-lead") || i < (all[0].classList.contains("is-lead") ? 1 : 0) || i >= all.length) return;
+  reorder(card, { cards, before: d < 0 ? all[i] : all[i + 1] || null }, null);
+  card.focus();
+}
 
 function pickUp(card) {
   held = true;
