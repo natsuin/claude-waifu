@@ -28,6 +28,7 @@ import tatami_mcp as channel  # same folder: shares the file layout and helpers
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOKEN_FILE = os.path.join(channel.HOME, "board.token")
 SEEN_FILE = os.path.join(channel.HOME, "board.seen")  # touched while a desk window is open (tatami hold)
+READ_FILE = os.path.join(channel.HOME, "read.json")  # agent id -> the turn of its you've seen (its status's ts)
 TALK = 40  # how many of a room's newest messages the desk's chat box scrolls through
 WAIFU_CONFIG = os.path.expanduser("~/.config/waifu/config.json")
 CLAUDE_DIR = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
@@ -154,7 +155,8 @@ def girls_hidden():
 
 def agents():
     """The running agents, as the page shows them. A room of None means on its own. With the
-    hooks on, `status` says whether each one is working, done (your turn) or asking you.
+    hooks on, `status` says whether each one is working, done (your turn) or asking you, and
+    `read` that you've brought one up since its turn ended, so it needn't glow for you.
     `unread` counts the room's messages it hasn't read: one waiting for you won't see them
     until you talk to it."""
     hidden, home = girls_hidden(), os.path.expanduser("~")
@@ -165,17 +167,21 @@ def agents():
         if rec["room"] not in rooms:
             rooms[rec["room"]] = channel.load_jsonl(os.path.join(channel.ROOMS, rec["room"] + ".jsonl"))
         return len(channel.unread(rec, rec["room"], rooms[rec["room"]]))
+    seen = channel.load(READ_FILE, {})
+    def status(rec):
+        s = channel.load(os.path.join(channel.HOME, "status", rec["id"] + ".json"), {})
+        # Your turn, and you've already brought it up since it finished: it stops glowing.
+        return {"status": s.get("state"), "read": s.get("state") == "done" and seen.get(rec["id"]) == s.get("ts")}
     return [{"id": rec["id"], "agent": rec.get("agent", "claude"), "room": rec["room"],
              "unread": unread(rec), "helper_of": rec.get("invited_by"),
              "color": rec.get("color"), "tint": tint(rec.get("color")),
              "folder": "~" if rec.get("cwd") == home else os.path.basename(rec.get("cwd", "")),
              "seen": rec.get("seen", 0), "girl": bool(rec.get("girl")) and not hidden,
-             "status": channel.load(os.path.join(channel.HOME, "status", rec["id"] + ".json"), {}).get("state"),
              # its window's handle, found by the agent itself, which the app uses to bring it up
              "hwnd": rec["hwnd"] if isinstance(rec.get("hwnd"), int) else None,
              # set when the agent runs in a terminal inside the Tatami Room app
              "session": rec["session"] if re.fullmatch(r"[a-z0-9-]{1,40}", str(rec.get("session"))) else None}
-            | (session_of(rec) if rec.get("agent", "claude") == "claude" else NO_SESSION)
+            | status(rec) | (session_of(rec) if rec.get("agent", "claude") == "claude" else NO_SESSION)
             for rec in channel.live_agents()]
 
 
@@ -246,6 +252,13 @@ def change(path, body):
     agent = known_agent(body.get("agent"))
     if not agent:
         return 404, "No agent with that id."
+    if path == "/api/read":  # you brought it up: this turn of its is seen, until its next one
+        s = channel.load(os.path.join(channel.HOME, "status", agent + ".json"), {})
+        if s.get("state") == "done":
+            live = {a["id"] for a in channel.live_agents()}
+            seen = {k: v for k, v in channel.load(READ_FILE, {}).items() if k in live}
+            channel.save(READ_FILE, seen | {agent: s.get("ts")})
+        return None
     members = channel.load(channel.MEMBERS, {})
     if path == "/api/move":  # into a room, or with no room: on its own
         room = room_name(body.get("room"))
@@ -391,7 +404,7 @@ class Board(BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             return self.send(400, {"error": "bad json"})
         path = urlparse(self.path).path
-        if path not in ("/api/room", "/api/move", "/api/team"):
+        if path not in ("/api/room", "/api/move", "/api/team", "/api/read"):
             return self.send(404, {"error": "not found"})
         with channel.locked():  # the agents write these files too
             failed = change(path, body)

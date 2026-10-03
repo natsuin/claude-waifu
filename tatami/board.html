@@ -520,12 +520,14 @@ body.stale main { opacity: .5; filter: saturate(.4); }
 .agent[data-status="working"] .state::before { animation: breathe 1.8s ease-in-out infinite; }
 .agent[data-status="done"] .state { color: var(--sora); }
 .agent[data-status="done"] .state::before { background: var(--sora); box-shadow: 0 0 8px var(--sora); }
+.agent[data-status="done"][data-read] .state::before { box-shadow: none; }
 .agent[data-status="asking"] .state { background: var(--aka); color: var(--aka-ink); }
 .agent[data-status="asking"] .state::before { background: var(--aka-ink); }
 /* Waiting on you, a card glows: softly and slowly in sky blue when it's your turn, and quickly in
-   red when it needs your OK. The glow's colour is --halo, as r g b. */
+   red when it needs your OK. Once you've brought up one whose turn it is, it's read: it stops
+   glowing until its next turn ends. The glow's colour is --halo, as r g b. */
 .agent { --halo: 255 133 192; }
-.agent[data-status="done"] {
+.agent[data-status="done"]:not([data-read]) {
   --halo: 142 203 255;
   --accent: rgb(var(--halo) / calc(.12 + .5 * var(--glow)));   /* its ring breathes with it */
   animation: your-turn 4.5s ease-in-out infinite;
@@ -743,7 +745,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
-  .agent[data-status="done"] { --glow: .7; }
+  .agent[data-status="done"]:not([data-read]) { --glow: .7; }
   .agent[data-status="asking"] { --glow: 1; }
 }
 </style>
@@ -2196,6 +2198,7 @@ function fillCard(card, a) {
   $(".folder", card).textContent = a.folder ? `${a.folder}/` : "";
   const status = STATUS[a.status];
   card.dataset.status = status ? a.status : "";
+  card.toggleAttribute("data-read", !!a.read);   // its turn, and you've already brought it up
   $(".state", card).textContent = status || "";
   card.setAttribute("aria-label", `${name}, ${company}${a.model ? ` ${a.model}` : ""} agent, `
                                   + (effort < 0 ? "" : `${a.effort} effort, `)
@@ -2584,6 +2587,10 @@ function go(link) {
 
 async function jump(card) {
   announce(`Bringing up ${card.dataset.name}'s window.`);
+  if (card.dataset.status === "done" && !card.hasAttribute("data-read")) {   // you've seen its turn: no more glow
+    card.toggleAttribute("data-read", true);
+    change("/api/read", { agent: card.dataset.id });
+  }
   if (!REDUCED) $(".face", card).animate([{ scale: "1" }, { scale: ".965" }, { scale: "1" }], { duration: 320, easing: BOUNCE });
   if (!APP) return go(`tatami-room:focus/${encodeURIComponent(card.dataset.id)}`);
   if (await APP.focus(card.dataset.id) === 2) toast("This agent has no window of its own to bring up.");
