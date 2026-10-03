@@ -156,6 +156,7 @@ let panelWidth = null;        // set by dragging its edge; until then, a share o
 let lastShown = null;         // for Ctrl+`, which goes back to it
 
 const END = "\x1b]7373;end\x07";  // what tells a terminal's holder to stop its agent
+const KEEP = "\x1b]7373;keep\x07";  // and that it should keep it while the app is away
 
 function startSession(kind = "claude", key = null, show = true) {
   key = key || "app-" + Date.now().toString(36);
@@ -163,6 +164,7 @@ function startSession(kind = "claude", key = null, show = true) {
     { windowsHide: true, stdio: ["pipe", "pipe", "ignore"] });
   const s = { proc, log: [], size: 0, kind };
   sessions.set(key, s);
+  proc.stdin.write(KEEP);  // this app attaches again after a restart: the agent may carry on while it's away
   proc.stdout.on("data", (chunk) => {
     s.log.push(chunk);
     s.size += chunk.length;

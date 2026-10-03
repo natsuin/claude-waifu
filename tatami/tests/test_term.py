@@ -63,8 +63,21 @@ class Terminal(unittest.TestCase):
         out = subprocess.run([sys.executable, TERM, "--list"], env=self.env, capture_output=True, text=True)
         return [json.loads(l) for l in out.stdout.splitlines()]
 
+    def test_without_keep_the_agent_ends_with_the_app(self):
+        app = self.attach("app-test2")  # an app from before holders never says keep
+        self.read_until(app, "agent up")
+        app.stdin.close()
+        app.wait(timeout=10)
+        for _ in range(50):
+            if not self.listed():
+                break
+            time.sleep(0.1)
+        self.assertEqual(self.listed(), [])
+
     def test_the_agent_outlives_the_app(self):
         app = self.attach("app-test1")
+        app.stdin.write(b"\x1b]7373;keep\x07")
+        app.stdin.flush()
         first = self.read_until(app, "as app-test1")
         self.assertIn(b"Starting Claude", first)
         self.assertIn(f"agent up in {os.path.join(self.scratch, 'desk')}".encode(), first)
@@ -76,6 +89,8 @@ class Terminal(unittest.TestCase):
         self.assertEqual(self.listed(), [{"session": "app-test1", "kind": "claude"}])
 
         again = self.attach("app-test1")  # the app is back: the screen so far, then live
+        again.stdin.write(b"\x1b]7373;keep\x07")
+        again.stdin.flush()
         back = self.read_until(again, "hello there")
         self.assertIn(b"agent up", back)
         again.stdin.write(b"\x1b]7373;resize;120;40\x07still here\n")

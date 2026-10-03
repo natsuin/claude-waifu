@@ -21,8 +21,10 @@ remembers the answer for that folder, where your home folder would ask every tim
                                   ({"session", "kind"}), for the app to attach to again
 
 The app resizes the terminal in-band: ESC ] 7373 ; resize ; <cols> ; <rows> BEL, and ends it
-with ESC ] 7373 ; end BEL. Before it starts, waifu picks a girl and a color for it, like it
-does for each new window.
+with ESC ] 7373 ; end BEL. It says ESC ] 7373 ; keep BEL when it attaches, meaning it will
+attach again: only then does the agent carry on when the app goes away. Without it (an app
+from before holders), going away ends the agent, as closing a window would. Before it
+starts, waifu picks a girl and a color for it, like it does for each new window.
 """
 import fcntl
 import json
@@ -42,6 +44,7 @@ import tatami_mcp  # same folder: where the desk folder is
 
 RESIZE = re.compile(rb"\x1b\]7373;resize;(\d{1,4});(\d{1,4})\x07")
 END = b"\x1b]7373;end\x07"
+KEEP_ON = b"\x1b]7373;keep\x07"  # the app will attach again: keep the agent while it's away
 WAIFU = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "waifu")
 TERMS = os.path.join(tatami_mcp.HOME, "terms")
 KEEP = 4 << 20  # what a holder keeps of the agent's output, for an app that attaches (the app keeps as much)
@@ -132,13 +135,13 @@ def hold(session, kind):
         while size > KEEP and len(kept) > 1:
             size -= len(kept.pop(0))
 
-    client = None
+    client, keeping = None, False
 
     def drop():
-        nonlocal client
+        nonlocal client, keeping
         if client:
             client.close()
-        client = None
+        client, keeping = None, False
 
     def send(data):
         if client:
@@ -183,11 +186,16 @@ def hold(session, kind):
                     data = client.recv(65536)
                 except OSError:
                     data = b""
-                if not data:  # the app went away: carry on without it
+                if not data:  # the app went away: carry on without it, if it said it'd be back
+                    if not keeping:
+                        break
                     drop()
                 elif END in data:  # the app ended the terminal
                     break
                 else:
+                    if KEEP_ON in data:
+                        keeping = True
+                        data = data.replace(KEEP_ON, b"")
                     for cols, rows in RESIZE.findall(data):
                         set_size(fd, max(2, int(cols)), max(2, int(rows)))
                     data = RESIZE.sub(b"", data)
