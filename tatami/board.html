@@ -2323,17 +2323,14 @@ function aim(t, preview) {
   target = t;
   t?.classList.add("is-target");
   if (preview) preview.style.setProperty("--accent", accentOf(t));
-  if (t && drag?.size) drag.size.v += 0.9;   // over somewhere new: a small bump, like a detent
 }
 
 // ---- carrying a card ----
 
 // Mouse, pen and touch: press, drag past a few pixels, and let go over a room or a card. The card
-// lifts with a little pop, its place left as an outline. It hangs from where you hold it, so it
-// swings the way you move it, as a card held at one point would, and settles when you stop. Let
-// go and it carries on with your hand's speed into its new place, lands with a soft bump, and
-// the room it lands in answers.
-const LEAN = 0.0075;    // degrees of lean per px/s of movement, before the clamp
+// lifts, its place left as an outline, and follows the pointer flat and steady. Let go and it
+// carries on with your hand's speed into its new place, lands with a soft bump, and the room it
+// lands in answers.
 let drag = null;
 document.addEventListener("pointerdown", (e) => {
   const card = e.target.closest?.(".agent");
@@ -2384,14 +2381,11 @@ function lift() {
   ghost.style.width = `${r.width}px`;
   ghost.style.height = `${r.height}px`;
   const dx = drag.x0 - r.left, dy = drag.y0 - r.top;
-  ghost.style.transformOrigin = `${dx}px ${dy}px`;   // it hangs from where you hold it
+  ghost.style.transformOrigin = `${dx}px ${dy}px`;   // it grows from where you hold it
   document.body.append(ghost);
   Object.assign(drag, {
     ghost, dx, dy,
-    // which way it swings: from where you hold it to its middle, -1 to 1 each way
-    arm: [clamp((r.width / 2 - dx) / (r.width / 2), -1, 1), clamp((r.height / 2 - dy) / (r.height / 2), -1, 1)],
-    lean: { x: 0, v: 0 },
-    size: { x: 0.975, v: 0 },   // from pressed, up past where it's held, and back
+    size: { x: 0.975, v: 0 },   // from pressed up to held, without overshooting
   });
   card.classList.add("lifted");
   sky.jolt(card);   // whatever rested on it falls off
@@ -2401,19 +2395,13 @@ function lift() {
   every(carrying);
 }
 
-// Each frame while carrying: hang under the pointer, swing with its speed, find what's
-// underneath, and scroll near the top or bottom edge.
+// Each frame while carrying: stay under the pointer, find what's underneath, and scroll near the
+// top or bottom edge.
 function carrying(dt) {
   const d = drag;
   if (!d?.ghost) return false;
-  const [vx, vy] = speed(d);
-  // A card held at one point swings as the air pushes on its middle: held at the top and moved
-  // right, its bottom trails left. Held in the middle it barely swings, so it leans a little anyway.
-  const [ax, ay] = d.arm;
-  const want = REDUCED ? 0 : clamp(LEAN * ((0.7 * ay + 0.3) * vx - ax * vy), -12, 12);
-  pull(d.lean, want, 190, 0.5, dt);
-  pull(d.size, 1.045, 420, 0.5, dt);
-  draw(d.ghost, d.x - d.dx, d.y - d.dy, d.lean.x, d.size.x);
+  pull(d.size, 1.045, 420, 1, dt);
+  draw(d.ghost, d.x - d.dx, d.y - d.dy, d.size.x);
   const under = document.elementFromPoint(d.x, d.y);
   const card = under?.closest("#lobby .agent");
   aim(card && card !== d.card ? card : under?.closest(".room, #lobby") || null, d.ghost);
@@ -2423,8 +2411,8 @@ function carrying(dt) {
   return true;
 }
 
-function draw(el, x, y, lean, size) {
-  el.style.transform = `translate(${x}px, ${y}px) rotate(${lean}deg) scale(${size})`;
+function draw(el, x, y, size) {
+  el.style.transform = `translate(${x}px, ${y}px) scale(${size})`;
   el.style.setProperty("--air", clamp((size - 1) / 0.045, 0, 1.3).toFixed(3));
 }
 
@@ -2442,13 +2430,13 @@ function drop(ok) {
   d.card.classList.remove("lifted");
   d.card.style.setProperty("--accent", d.ghost.style.getPropertyValue("--accent") || "transparent");
   const moving = !!t && act(d.card, t, true);
-  land(d.card, { x: d.x - d.dx, y: d.y - d.dy, vx, vy, dx: d.dx, dy: d.dy, lean: d.lean, size: d.size }, moving);
+  land(d.card, { x: d.x - d.dx, y: d.y - d.dy, vx, vy, dx: d.dx, dy: d.dy, size: d.size }, moving);
   d.ghost.remove();
   release(moving);
 }
 
 // The card itself takes over from the one in your hand, right where that one was, and springs
-// into its place: with your hand's speed, swinging straight, and with a little bump as it lands.
+// into its place: with your hand's speed, and with a little bump as it lands.
 // Whatever else moves meanwhile (its room gliding as others make way) adds on top.
 function land(card, from, moved) {
   let host = null;   // its room or the strip, kept over the others while the card comes down
@@ -2460,10 +2448,10 @@ function land(card, from, moved) {
   if (REDUCED) return done();
   const r = card.getBoundingClientRect();
   const x = { x: from.x - r.left, v: from.vx }, y = { x: from.y - r.top, v: from.vy };
-  const lean = { ...from.lean }, size = { ...from.size };
+  const size = { ...from.size };
   card.classList.add("landing");
   card.style.transformOrigin = `${from.dx}px ${from.dy}px`;
-  draw(card, x.x, y.x, lean.x, size.x);
+  draw(card, x.x, y.x, size.x);
   let landed = false, time = 0;
   every((dt) => {
     time += dt;
@@ -2475,7 +2463,6 @@ function land(card, from, moved) {
     }
     pull(x, 0, 300, 0.78, dt);
     pull(y, 0, 300, 0.78, dt);
-    pull(lean, 0, 240, 0.42, dt);
     pull(size, 1, 520, 0.45, dt);
     if (!landed && Math.hypot(x.x, y.x) < 14) {   // touching down
       landed = true;
@@ -2483,8 +2470,8 @@ function land(card, from, moved) {
       card.style.setProperty("--accent", "transparent");
       if (moved && moved !== "team") impact(card);
     }
-    draw(card, x.x, y.x, lean.x, size.x);
-    const still = resting(x, 0, 0.3) && resting(y, 0, 0.3) && resting(lean, 0, 0.03) && resting(size, 1, 0.0008);
+    draw(card, x.x, y.x, size.x);
+    const still = resting(x, 0, 0.3) && resting(y, 0, 0.3) && resting(size, 1, 0.0008);
     if (still || time > 2) return done(), false;
     return true;
   });
